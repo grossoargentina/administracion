@@ -749,6 +749,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
     </div>
     <div class="modal-body">
       <div class="form-grid">
+        <div class="field"><label class="lbl">Evento *</label><select class="inp" id="log-evento-sel" onchange="onLogEventoChange()"><option value="">— Seleccioná un evento —</option></select></div>
         <div class="field"><label class="lbl">Título del evento *</label><input class="inp" id="log-titulo" placeholder="Ej: Unicenter Shopping"></div>
         <div class="field"><label class="lbl">Subtítulo</label><input class="inp" id="log-subtitulo" placeholder="Ej: Fin de semana"></div>
         <div class="field"><label class="lbl">Dirección</label><input class="inp" id="log-direccion" placeholder="Ej: Paraná 3745, Martínez, Buenos Aires"></div>
@@ -1925,7 +1926,34 @@ function abrirModalLogistica() {
   document.getElementById('log-notas').value     = '';
   document.getElementById('log-editor').innerHTML = '';
   logJornadas = [];
+
+  // Poblar select de eventos (Confirmados y En logística)
+  const sel = document.getElementById('log-evento-sel');
+  sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
+  const fuente = evCache || [];
+  const relevantes = fuente
+    .filter(e => ['Confirmado','En logística'].includes(e.estado) && e.fecha_evento)
+    .sort((a,b) => a.fecha_evento.localeCompare(b.fecha_evento));
+  relevantes.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id;
+    const fecha = new Date(e.fecha_evento + 'T12:00:00');
+    const label = `${fecha.toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit'})} — ${e.venue || e.codigo || e.id}`;
+    opt.textContent = label;
+    opt.dataset.venue   = e.venue          || '';
+    opt.dataset.cliente = e.cliente_nombre || '';
+    sel.appendChild(opt);
+  });
+
   openModal('modal-logistica');
+}
+
+function onLogEventoChange() {
+  const sel = document.getElementById('log-evento-sel');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) return;
+  if (opt.dataset.venue)   document.getElementById('log-titulo').value    = opt.dataset.venue;
+  if (opt.dataset.cliente) document.getElementById('log-subtitulo').value = opt.dataset.cliente;
 }
 
 async function cargarJornadasLogistica() {
