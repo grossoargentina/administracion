@@ -779,7 +779,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="ev-fecha"></div>
-        <div class="field"><label class="lbl">Horario</label><select class="inp" id="ev-horario">${buildTimeOpts('')}</select></div>
+        <div class="field"><label class="lbl">Horario</label><select class="inp" id="ev-horario"></select></div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="ev-venue" placeholder="Nombre del salón"></div>
         <div class="field"><label class="lbl">Total ARS</label><input class="inp" type="number" id="ev-total" placeholder="0"></div>
         <div class="field"><label class="lbl">Modalidad de pago</label>
@@ -1211,7 +1211,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="pres-fecha"></div>
-        <div class="field"><label class="lbl">Horario</label><select class="inp" id="pres-horario">${buildTimeOpts('')}</select></div>
+        <div class="field"><label class="lbl">Horario</label><select class="inp" id="pres-horario"></select></div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón"></div>
       </div>
 
@@ -1539,6 +1539,10 @@ async function initApp() {
     evCache   = await sb('eventos',  { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
     llenarSelectPersonal();
     llenarSelectEventos();
+    ['ev-horario','pres-horario'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = buildTimeOpts('');
+    });
   } catch(e) {}
 
   initDatePickers();
