@@ -521,22 +521,21 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="page-header">
         <div><div class="page-title">Impuestos y costos fijos</div></div>
         <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost" onclick="importarJulio2026()" id="btn-import-jul">⬇ Importar Julio 2026</button>
           <button class="btn btn-ghost" onclick="generarMesNuevo()">+ Mes nuevo</button>
           <button class="btn btn-primary" onclick="openModal('modal-impuesto')">+ Concepto</button>
         </div>
       </div>
-      <div class="kpi-grid" id="imp-kpis"></div>
-      <div class="filters" id="imp-filters">
-        <button class="filter-btn active" onclick="filterImpuestos('todos',this)">Todos</button>
-        <button class="filter-btn" onclick="filterImpuestos('Impuesto',this)">Impuestos</button>
-        <button class="filter-btn" onclick="filterImpuestos('Operativo',this)">Operativos</button>
-        <button class="filter-btn" onclick="filterImpuestos('pendiente',this)">Pendientes</button>
-        <button class="filter-btn" onclick="filterImpuestos('vencido',this)">Vencidos</button>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <button class="btn btn-ghost" onclick="cambiarMesImp(-1)">←</button>
+        <div id="imp-mes-label" style="font-size:16px;font-weight:600;min-width:160px;text-align:center"></div>
+        <button class="btn btn-ghost" onclick="cambiarMesImp(1)">→</button>
       </div>
+      <div class="kpi-grid" id="imp-kpis"></div>
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Mes</th><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Monto ARS</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Monto</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
             <tbody id="imp-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
@@ -738,10 +737,18 @@ textarea.inp { resize: vertical; min-height: 80px; }
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label class="lbl">Concepto *</label><input class="inp" id="imp-concepto" placeholder="Ej: Monotributo"></div>
-        <div class="field"><label class="lbl">Categoría</label>
-          <select class="inp" id="imp-cat"><option>Impuesto</option><option>Operativo</option></select>
+        <div class="field"><label class="lbl">Sección</label>
+          <select class="inp" id="imp-seccion" onchange="actualizarCatImp()">
+            <option>Empresa / Fiscal</option><option>Familia / Casa</option>
+            <option>Suscripciones</option><option>Tarjetas</option>
+            <option>Planes de pago</option><option>Deudas</option>
+          </select>
         </div>
+        <div class="field"><label class="lbl">Categoría</label>
+          <select class="inp" id="imp-cat"></select>
+        </div>
+        <div class="field"><label class="lbl">Concepto *</label><input class="inp" id="imp-concepto" placeholder="Ej: Monotributo"></div>
+        <div class="field"><label class="lbl">Empresa / Responsable</label><input class="inp" id="imp-empresa" placeholder="Ej: AFIP"></div>
         <div class="field"><label class="lbl">Mes</label>
           <select class="inp" id="imp-mes">
             <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
@@ -752,6 +759,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div class="field"><label class="lbl">Año</label><input class="inp" type="number" id="imp-anio" value="2026"></div>
         <div class="field"><label class="lbl">Vence día</label><input class="inp" type="number" id="imp-vence" placeholder="22" min="1" max="31"></div>
         <div class="field"><label class="lbl">Monto ARS</label><input class="inp" type="number" id="imp-monto" placeholder="0"></div>
+        <div class="field"><label class="lbl">Monto USD</label><input class="inp" type="number" id="imp-monto-usd" placeholder="0"></div>
         <div class="field full"><label class="lbl">Notas</label><input class="inp" id="imp-notas" placeholder="Opcional"></div>
       </div>
     </div>
@@ -1536,83 +1544,126 @@ async function togglePersonal(id, activo) {
 }
 
 // ── IMPUESTOS ─────────────────────────────────────────────
+const MESES_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const SECCIONES_ORDEN = ['Empresa / Fiscal','Familia / Casa','Suscripciones','Tarjetas','Planes de pago','Deudas'];
+const CATS_POR_SECCION = {
+  'Empresa / Fiscal': ['Oficina','Fiscal','Empresa'],
+  'Familia / Casa':   ['Casa','Auto','Actividad'],
+  'Suscripciones':    ['Suscripción'],
+  'Tarjetas':         ['Tarjeta'],
+  'Planes de pago':   ['Plan de pago'],
+  'Deudas':           ['Deuda'],
+};
+
 let todosImpuestos = [];
+let impMesIdx = new Date().getMonth();
+let impAnio   = new Date().getFullYear();
 
 async function loadImpuestos() {
   try {
-    todosImpuestos = await sb('costos_fijos', { order: 'anio.desc,id.asc' });
-    renderImpuestos('todos');
-
-    const hoy = new Date();
-    const mesActual = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][hoy.getMonth()];
-    const anioActual = hoy.getFullYear();
-
-    const delMes = todosImpuestos.filter(i => i.mes === mesActual && i.anio === anioActual);
-    const pagados = delMes.filter(i => i.pagado).length;
-    const totalMes = delMes.reduce((s,i) => s + Number(i.monto_ars||0), 0);
-    const vencidos = delMes.filter(i => {
-      if (i.pagado || !i.vence_dia) return false;
-      const vence = new Date(anioActual, hoy.getMonth(), i.vence_dia);
-      return vence < hoy;
-    }).length;
-
-    document.getElementById('imp-kpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">${mesActual} — Total</div><div class="kpi-value gold">${fmtARS(totalMes)}</div></div>
-      <div class="kpi"><div class="kpi-label">Pagados</div><div class="kpi-value green">${pagados} / ${delMes.length}</div></div>
-      <div class="kpi"><div class="kpi-label">Vencidos sin pagar</div><div class="kpi-value red">${vencidos}</div></div>
-    `;
-
-    // Set mes en modal
-    document.getElementById('imp-mes').value = mesActual;
+    todosImpuestos = await sb('costos_fijos', { order: 'anio.asc,id.asc' });
+    renderImpuestos();
+    document.getElementById('imp-mes').value = MESES_NAMES[impMesIdx];
+    actualizarCatImp();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-function renderImpuestos(filtro) {
-  const hoy = new Date();
-  let lista = todosImpuestos;
-  if (filtro !== 'todos') {
-    if (filtro === 'pendiente') lista = lista.filter(i => !i.pagado && !esVencido(i, hoy));
-    else if (filtro === 'vencido') lista = lista.filter(i => !i.pagado && esVencido(i, hoy));
-    else lista = lista.filter(i => i.categoria === filtro);
+function cambiarMesImp(delta) {
+  impMesIdx += delta;
+  if (impMesIdx > 11) { impMesIdx = 0;  impAnio++; }
+  if (impMesIdx < 0)  { impMesIdx = 11; impAnio--; }
+  renderImpuestos();
+}
+
+function actualizarCatImp() {
+  const sec = document.getElementById('imp-seccion')?.value || 'Empresa / Fiscal';
+  const cats = CATS_POR_SECCION[sec] || [];
+  const sel = document.getElementById('imp-cat');
+  if (sel) sel.innerHTML = cats.map(c => `<option>${c}</option>`).join('');
+}
+
+function renderImpuestos() {
+  const mesNombre = MESES_NAMES[impMesIdx];
+  document.getElementById('imp-mes-label').textContent = `${mesNombre} ${impAnio}`;
+  document.getElementById('imp-mes').value = mesNombre;
+
+  const hoy  = new Date();
+  const lista = todosImpuestos.filter(i => i.mes === mesNombre && i.anio === impAnio);
+
+  const pagados  = lista.filter(i => i.pagado).length;
+  const totalARS = lista.reduce((s,i) => s + Number(i.monto_ars||0), 0);
+  const totalUSD = lista.reduce((s,i) => s + Number(i.monto_usd||0), 0);
+  const vencidos = lista.filter(i => !i.pagado && esVencido(i, hoy)).length;
+
+  document.getElementById('imp-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total ARS del mes</div><div class="kpi-value gold">${fmtARS(totalARS)}</div></div>
+    ${totalUSD ? `<div class="kpi"><div class="kpi-label">Total USD del mes</div><div class="kpi-value gold">U$D ${totalUSD.toLocaleString('es-AR',{minimumFractionDigits:2})}</div></div>` : ''}
+    <div class="kpi"><div class="kpi-label">Pagados</div><div class="kpi-value green">${pagados} / ${lista.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Vencidos sin pagar</div><div class="kpi-value red">${vencidos}</div></div>
+  `;
+
+  if (!lista.length) {
+    document.getElementById('imp-tbody').innerHTML =
+      `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🗓️</div>Sin conceptos para ${mesNombre} ${impAnio}</div></td></tr>`;
+    return;
   }
 
-  document.getElementById('imp-tbody').innerHTML = lista.length
-    ? lista.map(i => {
-        const vencido = !i.pagado && esVencido(i, hoy);
-        return `<tr>
-          <td>${i.mes} ${i.anio}</td>
-          <td><b>${i.concepto}</b></td>
-          <td><span style="font-size:11px;color:var(--text-2)">${i.categoria}</span></td>
-          <td>${i.vence_dia ? `día ${i.vence_dia}` : '—'}</td>
-          <td>${i.monto_ars ? fmtARS(i.monto_ars) : '<span style="color:var(--orange);font-size:11px">⚠️ Cargar monto</span>'}</td>
-          <td>
-            ${i.pagado
-              ? `<span class="imp-pagado">✅ Pagado</span>`
-              : vencido
-                ? `<span class="imp-vencido">🔴 Vencido</span>`
-                : `<button class="btn btn-ghost btn-sm" onclick="marcarPagadoImp(${i.id})">Marcar pagado</button>`}
-          </td>
-          <td>
-            <button class="btn btn-danger btn-sm" onclick="eliminarImpuesto(${i.id})">✕</button>
-          </td>
-        </tr>`;
-      }).join('')
-    : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🗓️</div>Sin conceptos en este filtro</div></td></tr>`;
+  // Agrupar por sección
+  const grupos = {};
+  lista.forEach(i => {
+    const sec = i.seccion || 'General';
+    if (!grupos[sec]) grupos[sec] = [];
+    grupos[sec].push(i);
+  });
+
+  let html = '';
+  const orden = [...SECCIONES_ORDEN, ...Object.keys(grupos).filter(s => !SECCIONES_ORDEN.includes(s))];
+  orden.forEach(sec => {
+    if (!grupos[sec]) return;
+    const items = grupos[sec];
+    const totalSec = items.reduce((s,i) => s + Number(i.monto_ars||0), 0);
+    html += `<tr>
+      <td colspan="7" style="background:var(--surface2);color:var(--gold);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:6px 10px">
+        ${sec}${totalSec ? `<span style="float:right;color:var(--text-2)">${fmtARS(totalSec)}</span>` : ''}
+      </td>
+    </tr>`;
+    items.forEach(i => {
+      const vencido = !i.pagado && esVencido(i, hoy);
+      html += `<tr>
+        <td>
+          <b>${i.concepto}</b>
+          ${i.empresa ? `<div style="font-size:11px;color:var(--text-2)">${i.empresa}</div>` : ''}
+        </td>
+        <td><span style="font-size:11px;color:var(--text-2)">${i.categoria||''}</span></td>
+        <td>${i.vence_dia ? `día ${i.vence_dia}` : '—'}</td>
+        <td>
+          ${i.monto_ars ? fmtARS(i.monto_ars) : ''}
+          ${i.monto_usd ? `<div style="font-size:11px;color:var(--text-2)">U$D ${Number(i.monto_usd).toFixed(2)}</div>` : ''}
+          ${!i.monto_ars && !i.monto_usd ? '<span style="color:var(--orange);font-size:11px">⚠️ Sin monto</span>' : ''}
+        </td>
+        <td>
+          ${i.notas ? `<span style="font-size:11px;color:var(--text-2)">${i.notas}</span>` : '—'}
+        </td>
+        <td>
+          ${i.pagado
+            ? `<span class="imp-pagado">✅ Pagado</span>`
+            : vencido
+              ? `<span class="imp-vencido">🔴 Vencido</span>`
+              : `<button class="btn btn-ghost btn-sm" onclick="marcarPagadoImp(${i.id})">Marcar pagado</button>`}
+        </td>
+        <td><button class="btn btn-danger btn-sm" onclick="eliminarImpuesto(${i.id})">✕</button></td>
+      </tr>`;
+    });
+  });
+
+  document.getElementById('imp-tbody').innerHTML = html;
 }
 
 function esVencido(imp, hoy) {
   if (!imp.vence_dia) return false;
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const mesIdx = meses.indexOf(imp.mes);
+  const mesIdx = MESES_NAMES.indexOf(imp.mes);
   if (mesIdx < 0) return false;
-  const vence = new Date(imp.anio, mesIdx, imp.vence_dia);
-  return vence < hoy;
-}
-
-function filterImpuestos(filtro, btn) {
-  document.querySelectorAll('#imp-filters .filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderImpuestos(filtro);
+  return new Date(imp.anio, mesIdx, imp.vence_dia) < hoy;
 }
 
 async function marcarPagadoImp(id) {
@@ -1633,12 +1684,15 @@ async function guardarImpuesto() {
   if (!concepto) { toast('El concepto es obligatorio', 'err'); return; }
   const data = {
     concepto,
+    seccion:    document.getElementById('imp-seccion').value,
     categoria:  document.getElementById('imp-cat').value,
+    empresa:    document.getElementById('imp-empresa').value.trim() || null,
     mes:        document.getElementById('imp-mes').value,
     anio:       parseInt(document.getElementById('imp-anio').value),
     vence_dia:  parseInt(document.getElementById('imp-vence').value) || null,
     monto_ars:  parseFloat(document.getElementById('imp-monto').value) || null,
-    notas:      document.getElementById('imp-notas').value,
+    monto_usd:  parseFloat(document.getElementById('imp-monto-usd').value) || null,
+    notas:      document.getElementById('imp-notas').value.trim() || null,
   };
   try {
     await sbPost('costos_fijos', data);
@@ -1671,11 +1725,14 @@ async function generarMesNuevo() {
       const esVariable = variablesKeywords.some(k => item.concepto.toLowerCase().includes(k));
       await sbPost('costos_fijos', {
         concepto:  item.concepto,
+        seccion:   item.seccion,
         categoria: item.categoria,
+        empresa:   item.empresa,
         mes:       mesNuevo,
         anio:      anioNuevo,
         vence_dia: item.vence_dia,
         monto_ars: esVariable ? null : item.monto_ars,
+        monto_usd: esVariable ? null : item.monto_usd,
         pagado:    false,
         notas:     item.notas,
       });
@@ -1683,6 +1740,91 @@ async function generarMesNuevo() {
     toast(`${mesNuevo} ${anioNuevo} generado — ${delMes.length} conceptos`);
     loadImpuestos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function importarJulio2026() {
+  const yaExiste = todosImpuestos.some(i => i.mes === 'Julio' && i.anio === 2026);
+  if (yaExiste) { toast('Julio 2026 ya fue importado', 'err'); return; }
+  if (!confirm('¿Importar todos los conceptos de Julio 2026 desde el Excel?')) return;
+
+  const btn = document.getElementById('btn-import-jul');
+  btn.disabled = true; btn.textContent = 'Importando...';
+
+  const items = [
+    { seccion:'Empresa / Fiscal', categoria:'Oficina',      concepto:'Luz',                      empresa:'Edesur',          vence_dia:10, notas:'Deb. aut. caja de ahorro' },
+    { seccion:'Empresa / Fiscal', categoria:'Oficina',      concepto:'Internet',                  empresa:'Movistar',        vence_dia:2,  notas:'Deb. aut. Macro' },
+    { seccion:'Empresa / Fiscal', categoria:'Oficina',      concepto:'Alquiler',                  empresa:'Galpón',          vence_dia:29, notas:'aplicacion - arquiler.com' },
+    { seccion:'Empresa / Fiscal', categoria:'Oficina',      concepto:'Habilitación',              empresa:'Municipio Lomas', vence_dia:22, notas:'CUIT 23283694119 · clave 2643' },
+    { seccion:'Empresa / Fiscal', categoria:'Fiscal',       concepto:'Monotributo',               empresa:'CARO',            vence_dia:22 },
+    { seccion:'Empresa / Fiscal', categoria:'Fiscal',       concepto:'Autónomos',                 empresa:'SERGIO',          vence_dia:5,  notas:'Se adeuda marzo en adelante' },
+    { seccion:'Empresa / Fiscal', categoria:'Fiscal',       concepto:'IVA',                       empresa:'Contable',                      notas:'VEP' },
+    { seccion:'Empresa / Fiscal', categoria:'Fiscal',       concepto:'Cargas sociales',           empresa:'Aportes',                       notas:'Plan de pago' },
+    { seccion:'Empresa / Fiscal', categoria:'Fiscal',       concepto:'Aportes Vicky',             empresa:'Aportes',         vence_dia:5,  notas:'VEP' },
+    { seccion:'Empresa / Fiscal', categoria:'Empresa',      concepto:'Honorarios Guido',          empresa:'Contador',        vence_dia:12, notas:'guido.camera' },
+    { seccion:'Empresa / Fiscal', categoria:'Empresa',      concepto:'Sutep',                     empresa:'Sindicato',                     notas:'CBU 0110021120000129722979' },
+    { seccion:'Empresa / Fiscal', categoria:'Empresa',      concepto:'Amera',                     empresa:'Obra social',                   notas:'CBU 0110021120000127138800' },
+    { seccion:'Empresa / Fiscal', categoria:'Empresa',      concepto:'Sueldo Ezequiel',           empresa:'Personal',        vence_dia:1 },
+    { seccion:'Empresa / Fiscal', categoria:'Empresa',      concepto:'Sueldo Viky',               empresa:'Personal',        vence_dia:3 },
+    { seccion:'Empresa / Fiscal', categoria:'Empresa',      concepto:'Seguro La Meridional',      empresa:'Vehículos',                     notas:'Deb. aut. Visa Macro' },
+    { seccion:'Empresa / Fiscal', categoria:'Empresa',      concepto:'Celular',                   empresa:'Movistar',                      notas:'Deb. aut. Visa déb. Macro · móvil 2014' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'OSDE',                      empresa:'OSDE',                          notas:'Deb. aut. Banco Macro' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'Colegio',                   empresa:'Barker',          vence_dia:5,  notas:'OJO: devolución $46.637 por pago doble jun.' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'Gas',                       empresa:'Metrogas',        vence_dia:16, notas:'Deb. aut. caja ahorro' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'Internet (casa)',            empresa:'Movistar',        vence_dia:2,  notas:'Deb. aut.' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'Agua',                      empresa:'AySA',                          notas:'Pago manual Pago Mis Cuentas' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'Luz (casa)',                empresa:'Edesur',          vence_dia:16, notas:'Deb. aut. Banco Macro' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'TSG (ABL)',                                                          notas:'Visa débito · cuotas adeudadas' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'Inmobiliario',              empresa:'ARBA',                          notas:'Vence en julio · pago anual' },
+    { seccion:'Familia / Casa',   categoria:'Casa',         concepto:'Inmob. complementario',     empresa:'ARBA',            vence_dia:11, notas:'Pago por Red Link' },
+    { seccion:'Familia / Casa',   categoria:'Auto',         concepto:'Camioneta KST 881',         empresa:'Automotor',                     notas:'No posee deuda · municipalizado' },
+    { seccion:'Familia / Casa',   categoria:'Auto',         concepto:'Auto NUJ 833',              empresa:'Automotor',                     notas:'No posee deuda · ARBA' },
+    { seccion:'Familia / Casa',   categoria:'Actividad',    concepto:'Micro hockey',              empresa:'Celete' },
+    { seccion:'Familia / Casa',   categoria:'Actividad',    concepto:'Natación',                  empresa:'Caro',                          notas:'Deb. caja ahorro Macro' },
+    { seccion:'Familia / Casa',   categoria:'Actividad',    concepto:'Gym Los Andes',             empresa:'Sergio',                        notas:'Caída de cuotas baja Supervielle Visa' },
+    { seccion:'Familia / Casa',   categoria:'Actividad',    concepto:'San Albano',                empresa:'Celes',                         notas:'Visa Banco Nación Carolina' },
+    { seccion:'Familia / Casa',   categoria:'Actividad',    concepto:'Gym Lomitas',               empresa:'Tiago',                         notas:'DEBITO AMERICAN EXPRESS MACRO' },
+    { seccion:'Suscripciones',    categoria:'Suscripción',  concepto:'Claude',                    empresa:'Caro',            monto_usd:20 },
+    { seccion:'Suscripciones',    categoria:'Suscripción',  concepto:'CapCut Pro',                empresa:'Apple Pay',       vence_dia:25, monto_usd:13.99, notas:'Visa crédito Macro' },
+    { seccion:'Suscripciones',    categoria:'Suscripción',  concepto:'YouTube Premium',           empresa:'Google',                        notas:'Deb. cta. Macro caja ahorro' },
+    { seccion:'Suscripciones',    categoria:'Suscripción',  concepto:'Meta verificada IG',        empresa:'Apple',                         notas:'Supervielle Visa 3505 · Sergio' },
+    { seccion:'Suscripciones',    categoria:'Suscripción',  concepto:'Google Workspace',          empresa:'Apple',                         notas:'Supervielle Sergio Visa' },
+    { seccion:'Suscripciones',    categoria:'Suscripción',  concepto:'Apple combo',               empresa:'Apple' },
+    { seccion:'Tarjetas',         categoria:'Tarjeta',      concepto:'Visa Banco Macro',          empresa:'Macro',           vence_dia:6,  monto_ars:4101525.69, notas:'Deb. aut. ambos importes ($ y USD)' },
+    { seccion:'Tarjetas',         categoria:'Tarjeta',      concepto:'American Express',          empresa:'Banco Macro',     vence_dia:19, notas:'Pago débito automático' },
+    { seccion:'Tarjetas',         categoria:'Tarjeta',      concepto:'Crédito mensual',           empresa:'Banco Macro',     vence_dia:24, notas:'CRÉDITO MENSUAL · 36 cuotas' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan IVA abril 2025',                                 vence_dia:16, notas:'Vence sept 2026' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan IVA 02-2025' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan IVA 09 y 10-2025',                               vence_dia:16, notas:'Termina enero 2026' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan IVA 03-2025',                                    vence_dia:16, notas:'Terminó junio 2026' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan Ganancias',                                                    notas:'6 cuotas $179.881' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'IVA 6 y 7-2025',                                     vence_dia:16 },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan ARBA IIBB (1)',        empresa:'IIBB',                          notas:'12 cuotas · deb. caja ahorro Macro' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan ARBA IIBB (2)',        empresa:'IIBB',            vence_dia:13 },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'IVA marzo 2026' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'IVA abril 2026',                                                    notas:'Pedido a Guido bajar a $1.500.000' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'IVA mayo 2026' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Plan IVA 11-12 2025',                                vence_dia:26, notas:'12 cuotas $925.367' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Cargas soc. 02-2026',                                vence_dia:16, notas:'12 cuotas' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Cargas soc. 12-25 y 01-26',empresa:'ARCA',            vence_dia:16, notas:'12 cuotas' },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Aportes y contrib. 03-26',                           vence_dia:16 },
+    { seccion:'Planes de pago',   categoria:'Plan de pago', concepto:'Aportes y contrib. 04-26',                           vence_dia:16 },
+    { seccion:'Deudas',           categoria:'Deuda',        concepto:'Deuda IIBB',                empresa:'ARBA',                          notas:'CUIT Sergio' },
+    { seccion:'Deudas',           categoria:'Deuda',        concepto:'Deuda AFIP Mis Facilidades',empresa:'ARCA',                          notas:'Mis Facilidades' },
+  ];
+
+  try {
+    for (const item of items) {
+      await sbPost('costos_fijos', { ...item, mes: 'Julio', anio: 2026, pagado: false });
+    }
+    toast(`✅ ${items.length} conceptos importados para Julio 2026`);
+    document.getElementById('btn-import-jul').style.display = 'none';
+    impMesIdx = MESES_NAMES.indexOf('Julio');
+    impAnio = 2026;
+    loadImpuestos();
+  } catch(e) {
+    toast('Error importando: ' + e.message, 'err');
+    btn.disabled = false; btn.textContent = '⬇ Importar Julio 2026';
+  }
 }
 
 // ── CATÁLOGO ──────────────────────────────────────────────
