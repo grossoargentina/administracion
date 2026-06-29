@@ -2108,7 +2108,7 @@ async function enviarTodosWhatsapp() {
       });
       const data = await res.json();
       if (res.ok && data.ok) { ok++; }
-      else { console.error(`Error enviando a ${p.apellido}:`, data); err++; }
+      else { console.error(`Error enviando a ${p.apellido}:`, JSON.stringify(data)); err++; }
     } catch(e) { console.error(e); err++; }
   }
 
