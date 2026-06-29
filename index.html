@@ -429,6 +429,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('mensajes')">
         <span class="nav-icon">💬</span> Mensajes <span id="nav-mensajes-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px"></span>
       </div>
+      <div class="nav-item" onclick="goTo('finanzas')">
+        <span class="nav-icon">📊</span> Finanzas
+      </div>
       <div class="nav-item" onclick="goTo('impuestos')">
         <span class="nav-icon">🗓️</span> Impuestos
       </div>
@@ -455,51 +458,14 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <div class="page-title">Dashboard</div>
           <div class="page-sub" id="dash-fecha"></div>
         </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost" onclick="cambiarSemana(-1)">← Anterior</button>
+          <span id="dash-semana-label" style="font-size:13px;color:var(--text-2);min-width:180px;text-align:center"></span>
+          <button class="btn btn-ghost" onclick="cambiarSemana(1)">Siguiente →</button>
+        </div>
       </div>
-
-      <!-- Navegación mes -->
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <button class="btn btn-ghost btn-sm" onclick="dashMesAnterior()">‹</button>
-        <span id="dash-mes-label" style="font-weight:600;font-size:15px;min-width:130px;text-align:center"></span>
-        <button class="btn btn-ghost btn-sm" onclick="dashMesSiguiente()">›</button>
-      </div>
-
-      <!-- KPIs mensuales -->
-      <div style="margin-bottom:6px;font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px">Resultado mensual</div>
-      <div class="kpi-grid" id="dash-kpis-mes" style="margin-bottom:24px">
+      <div id="dash-eventos-semana">
         <div class="loading"><div class="spinner"></div></div>
-      </div>
-
-      <!-- KPIs anuales -->
-      <div style="margin-bottom:6px;font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px" id="dash-anio-label"></div>
-      <div class="kpi-grid" id="dash-kpis-anio" style="margin-bottom:28px">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
-
-      <!-- Pipeline -->
-      <div class="kpi-grid" id="dash-kpis">
-        <div class="loading"><div class="spinner"></div> Cargando...</div>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">Próximos eventos</span>
-          <button class="btn btn-ghost btn-sm" onclick="goTo('eventos')">Ver todos</button>
-        </div>
-        <div class="tbl-wrap">
-          <table id="dash-proximos">
-            <thead><tr><th>Estado</th><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Venue</th><th>Total</th></tr></thead>
-            <tbody id="dash-tbody"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header"><span class="card-title">Cobros pendientes</span></div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Pendiente</th><th>Estado cobro</th></tr></thead>
-            <tbody id="dash-cobros"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -617,6 +583,54 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
             <tbody id="caja-tbody"></tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- FINANZAS -->
+    <div class="page" id="p-finanzas">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Finanzas</div>
+          <div class="page-sub" id="finanzas-sub">Resumen financiero</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost" onclick="cambiarPeriodoFinanzas(-1)">← Anterior</button>
+          <select class="inp" id="finanzas-modo" onchange="loadFinanzas()" style="width:120px;padding:6px 10px">
+            <option value="mensual">Mensual</option>
+            <option value="anual">Anual</option>
+          </select>
+          <button class="btn btn-ghost" onclick="cambiarPeriodoFinanzas(1)">Siguiente →</button>
+        </div>
+      </div>
+      <!-- KPIs -->
+      <div class="kpi-grid" style="margin-bottom:20px">
+        <div class="kpi"><div class="kpi-label">Ingresos eventos</div><div class="kpi-value" style="color:var(--green)" id="fin-ingresos">—</div></div>
+        <div class="kpi"><div class="kpi-label">Capital neto</div><div class="kpi-value" id="fin-capital">—</div></div>
+        <div class="kpi"><div class="kpi-label">Impuestos</div><div class="kpi-value" style="color:var(--red)" id="fin-impuestos">—</div></div>
+        <div class="kpi"><div class="kpi-label">Pagos personal</div><div class="kpi-value" style="color:var(--red)" id="fin-pagos">—</div></div>
+        <div class="kpi"><div class="kpi-label">Otros egresos</div><div class="kpi-value" style="color:var(--red)" id="fin-egresos">—</div></div>
+        <div class="kpi" style="grid-column:1/-1;border:1px solid var(--border)"><div class="kpi-label">Resultado neto</div><div class="kpi-value" id="fin-resultado">—</div></div>
+      </div>
+      <!-- Detalle -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:12px;color:var(--green)">Ingresos por evento</div>
+          <div id="fin-detalle-ingresos"></div>
+        </div>
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:12px;color:var(--red)">Egresos operativos</div>
+          <div id="fin-detalle-egresos"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-weight:600;color:var(--gold)">Capital</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="abrirModalCapital('egreso')">− Egreso capital</button>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalCapital('ingreso')">+ Ingreso capital</button>
+          </div>
+        </div>
+        <div id="fin-detalle-capital"></div>
       </div>
     </div>
 
@@ -927,6 +941,28 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-producto')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CAPITAL -->
+<div class="modal-overlay" id="modal-capital">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="capital-modal-title">Registrar capital</span>
+      <button class="modal-close" onclick="closeModal('modal-capital')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="capital-tipo">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="capital-desc" placeholder="Ej: Venta camión, Compra equipo..."></div>
+        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="capital-monto" placeholder="0"></div>
+        <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="capital-fecha"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-capital')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCapital()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1468,6 +1504,7 @@ async function loadPage(page) {
     case 'pagos':      loadPagos(); break;
     case 'caja':       loadCaja(); break;
     case 'mensajes':   loadMensajes(); break;
+    case 'finanzas':   loadFinanzas(); break;
     case 'personal':   loadPersonal(); break;
     case 'impuestos':  loadImpuestos(); break;
     case 'presupuestos': loadPresupuestos(); break;
@@ -1553,131 +1590,130 @@ function initRealtime() {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────
-let dashMesIdx = new Date().getMonth();
-let dashAnio   = new Date().getFullYear();
+let dashOffset = 0;
 
-function dashMesAnterior()  { if (dashMesIdx === 0) { dashMesIdx = 11; dashAnio--; } else dashMesIdx--; loadDashboard(); }
-function dashMesSiguiente() { if (dashMesIdx === 11) { dashMesIdx = 0; dashAnio++; } else dashMesIdx++; loadDashboard(); }
+function cambiarSemana(dir) { dashOffset += dir; loadDashboard(); }
+
+function getSemanaActual() {
+  const hoy = new Date();
+  const dow = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1; // lunes=0
+  const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - dow + dashOffset * 7);
+  const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+  const fmt = d => d.toISOString().split('T')[0];
+  return { desde: fmt(lunes), hasta: fmt(domingo), lunes, domingo };
+}
 
 async function loadDashboard() {
-  try {
-    const mesNombre = MESES_NAMES[dashMesIdx];
-    document.getElementById('dash-mes-label').textContent = `${mesNombre} ${dashAnio}`;
-    document.getElementById('dash-anio-label').textContent = `Resultado anual ${dashAnio}`;
+  const hoy = new Date();
+  document.getElementById('dash-fecha').textContent = hoy.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
 
-    const [eventos, cobros, costosFijos, jornadas] = await Promise.all([
-      sb('v_pipeline', { limit: 500 }),
-      sb('v_cobros_pendientes', { limit: 5 }),
-      sb('costos_fijos', { limit: 2000 }),
-      sb('jornadas', { limit: 2000 }),
+  const { desde, hasta, lunes, domingo } = getSemanaActual();
+  const label = `${lunes.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} — ${domingo.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`;
+  document.getElementById('dash-semana-label').textContent = label;
+
+  const cont = document.getElementById('dash-eventos-semana');
+  cont.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    const [eventos, logisticas, logEvs, jornadas, personal] = await Promise.all([
+      sb('eventos', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], order: 'fecha.asc', limit: 100 }),
+      sb('logisticas', { limit: 200 }),
+      sb('logistica_eventos', { limit: 500 }),
+      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], limit: 500 }),
+      sb('personal', { limit: 100 }),
     ]);
 
-    // ── Financiero mensual ────────────────────────────────
-    const eventosMes = eventos.filter(e => {
-      if (!e.fecha_evento || !['Confirmado','En logística','Realizado'].includes(e.estado)) return false;
-      const d = new Date(e.fecha_evento + 'T12:00:00');
-      return d.getMonth() === dashMesIdx && d.getFullYear() === dashAnio;
-    });
-    const ingresosMes = eventosMes.reduce((s,e) => s + Number(e.total_ars||0), 0);
+    if (!eventos.length) {
+      cont.innerHTML = '<div class="empty"><div class="empty-icon">📅</div>Sin eventos esta semana</div>';
+      return;
+    }
 
-    const costosFijosMes = costosFijos
-      .filter(c => c.mes === mesNombre && c.anio === dashAnio)
-      .reduce((s,c) => s + Number(c.monto_ars||0), 0);
+    // Buscar presupuestos vinculados a estos eventos
+    const evIds = eventos.map(e => e.id);
+    const presupuestos = await sb('presupuestos', { filters: [`evento_id=in.(${evIds.join(',')})`], select: 'id,evento_id', limit: 200 });
+    const presIds = presupuestos.map(p => p.id);
+    let presItemsAll = [];
+    if (presIds.length) {
+      presItemsAll = await sb('presupuesto_items', { filters: [`presupuesto_id=in.(${presIds.join(',')})`], select: 'presupuesto_id,producto,cantidad', limit: 1000 });
+    }
 
-    const jornadasMes = jornadas.filter(j => {
-      if (!j.fecha) return false;
-      const d = new Date(j.fecha + 'T12:00:00');
-      return d.getMonth() === dashMesIdx && d.getFullYear() === dashAnio;
-    }).reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+    // Map evento_id → items
+    const presByEvento = {};
+    for (const p of presupuestos) {
+      const items = presItemsAll.filter(i => i.presupuesto_id === p.id);
+      if (!presByEvento[p.evento_id]) presByEvento[p.evento_id] = [];
+      presByEvento[p.evento_id].push(...items);
+    }
 
-    const costosMes  = costosFijosMes + jornadasMes;
-    const resultadoMes = ingresosMes - costosMes;
+    const estadoColor = { 'Cotizado':'var(--text-3)', 'Confirmado':'var(--blue)', 'En logística':'var(--orange)', 'Realizado':'var(--green)', 'Cancelado':'var(--red)' };
 
-    document.getElementById('dash-kpis-mes').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Ingresos</div><div class="kpi-value green">${fmtARS(ingresosMes)}</div></div>
-      <div class="kpi"><div class="kpi-label">Costos fijos</div><div class="kpi-value" style="color:var(--red)">${fmtARS(costosFijosMes)}</div></div>
-      <div class="kpi"><div class="kpi-label">Jornadas</div><div class="kpi-value" style="color:var(--red)">${fmtARS(jornadasMes)}</div></div>
-      <div class="kpi"><div class="kpi-label">Resultado</div><div class="kpi-value ${resultadoMes >= 0 ? 'green' : 'red'}">${fmtARS(resultadoMes)}</div></div>
-    `;
+    cont.innerHTML = eventos.map(ev => {
+      const fecha = new Date(ev.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
+      const color = estadoColor[ev.estado] || 'var(--text-2)';
 
-    // ── Financiero anual ──────────────────────────────────
-    const eventosAnio = eventos.filter(e => {
-      if (!e.fecha_evento || !['Confirmado','En logística','Realizado'].includes(e.estado)) return false;
-      return new Date(e.fecha_evento + 'T12:00:00').getFullYear() === dashAnio;
-    });
-    const ingresosAnio = eventosAnio.reduce((s,e) => s + Number(e.total_ars||0), 0);
+      // Logísticas de este evento
+      const logIds = logEvs.filter(le => le.evento_id === ev.id).map(le => le.logistica_id);
+      const logsEvento = logisticas.filter(l => logIds.includes(l.id));
 
-    const costosFijosAnio = costosFijos
-      .filter(c => c.anio === dashAnio)
-      .reduce((s,c) => s + Number(c.monto_ars||0), 0);
+      // Jornadas de este evento
+      const jornadasEv = jornadas.filter(j => j.evento_id === ev.id);
 
-    const jornadasAnio = jornadas.filter(j => {
-      if (!j.fecha) return false;
-      return new Date(j.fecha + 'T12:00:00').getFullYear() === dashAnio;
-    }).reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+      // Personal único
+      const persIds = [...new Set(jornadasEv.map(j => j.personal_id))];
+      const persNombres = persIds.map(id => {
+        const p = personal.find(x => x.id === id);
+        return p ? `${p.nombre} ${p.apellido}` : '';
+      }).filter(Boolean);
 
-    const costosAnio    = costosFijosAnio + jornadasAnio;
-    const resultadoAnio = ingresosAnio - costosAnio;
+      const logHtml = logsEvento.length
+        ? logsEvento.map(l => {
+            const jornsLog = jornadas.filter(j => j.logistica_id === l.id);
+            const tipos = [...new Set(jornsLog.map(j => j.tipo))].join(', ');
+            return `<div style="font-size:12px;color:var(--text-2);margin-top:4px">
+              <span style="color:var(--gold)">🗺 ${l.tipo || 'Logística'}</span>
+              ${tipos ? `<span style="color:var(--text-3);margin-left:8px">${tipos}</span>` : ''}
+            </div>`;
+          }).join('')
+        : '<div style="font-size:12px;color:var(--text-3);margin-top:4px">Sin logística asignada</div>';
 
-    document.getElementById('dash-kpis-anio').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Ingresos ${dashAnio}</div><div class="kpi-value green">${fmtARS(ingresosAnio)}</div></div>
-      <div class="kpi"><div class="kpi-label">Costos fijos ${dashAnio}</div><div class="kpi-value" style="color:var(--red)">${fmtARS(costosFijosAnio)}</div></div>
-      <div class="kpi"><div class="kpi-label">Jornadas ${dashAnio}</div><div class="kpi-value" style="color:var(--red)">${fmtARS(jornadasAnio)}</div></div>
-      <div class="kpi"><div class="kpi-label">Resultado ${dashAnio}</div><div class="kpi-value ${resultadoAnio >= 0 ? 'green' : 'red'}">${fmtARS(resultadoAnio)}</div></div>
-    `;
+      const persHtml = persNombres.length
+        ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+            ${persNombres.map(n => `<span style="font-size:11px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text-2)">${n}</span>`).join('')}
+           </div>`
+        : '';
 
-    // ── Pipeline ──────────────────────────────────────────
-    const cotizados      = eventos.filter(e => e.estado === 'Cotizado').length;
-    const confirmados    = eventos.filter(e => e.estado === 'Confirmado').length;
-    const logistica      = eventos.filter(e => e.estado === 'En logística').length;
-    const realizados     = eventos.filter(e => e.estado === 'Realizado').length;
-    const pendienteTotal = cobros.reduce((s,c) => s + Number(c.pendiente_ars||0), 0);
+      const items = presByEvento[ev.id] || [];
+      const productosHtml = items.length
+        ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Productos</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
+              ${items.map(i => `<span style="font-size:11px;background:var(--bg-3);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text-1)">${i.cantidad > 1 ? `${i.cantidad}× ` : ''}${i.producto}</span>`).join('')}
+            </div>
+          </div>`
+        : '';
 
-    document.getElementById('dash-kpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Cotizados</div><div class="kpi-value">${cotizados}</div></div>
-      <div class="kpi"><div class="kpi-label">Confirmados</div><div class="kpi-value green">${confirmados}</div></div>
-      <div class="kpi"><div class="kpi-label">En logística</div><div class="kpi-value orange">${logistica}</div></div>
-      <div class="kpi"><div class="kpi-label">Realizados</div><div class="kpi-value">${realizados}</div></div>
-      <div class="kpi"><div class="kpi-label">Por cobrar</div><div class="kpi-value gold">${fmtARS(pendienteTotal)}</div></div>
-    `;
-
-    // ── Próximos eventos ──────────────────────────────────
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const en2semanas = new Date(hoy); en2semanas.setDate(hoy.getDate() + 14);
-    const proximos = eventos
-      .filter(e => {
-        if (!['Confirmado','En logística'].includes(e.estado) || !e.fecha_evento) return false;
-        const d = new Date(e.fecha_evento + 'T12:00:00');
-        return d >= hoy && d <= en2semanas;
-      })
-      .sort((a,b) => a.fecha_evento.localeCompare(b.fecha_evento));
-
-    document.getElementById('dash-tbody').innerHTML = proximos.length
-      ? proximos.map(e => `<tr>
-          <td>${badge(e.estado)}</td>
-          <td><b>${e.cliente_nombre}</b></td>
-          <td>${e.tipo_evento || '—'}</td>
-          <td>${fmtDate(e.fecha_evento)}</td>
-          <td>${e.venue || '—'}</td>
-          <td>${fmtARS(e.total_ars)}</td>
-        </tr>`).join('')
-      : `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📅</div>Sin eventos próximos confirmados</div></td></tr>`;
-
-    // ── Cobros urgentes ───────────────────────────────────
-    document.getElementById('dash-cobros').innerHTML = cobros.length
-      ? cobros.map(c => `<tr>
-          <td><b>${c.cliente_nombre}</b></td>
-          <td>${c.tipo_evento || '—'}</td>
-          <td>${fmtDate(c.fecha_evento)}</td>
-          <td>${fmtARS(c.total_ars)}</td>
-          <td style="color:var(--red);font-weight:600">${fmtARS(c.pendiente_ars)}</td>
-        </tr>`).join('')
-      : `<tr><td colspan="5"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes</div></td></tr>`;
+      return `<div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:700;font-size:16px">${ev.venue || '—'}</div>
+            <div style="color:var(--text-2);font-size:13px">${ev.cliente || ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:12px;color:${color};font-weight:600">${ev.estado || ''}</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px">${fecha}</div>
+          </div>
+        </div>
+        ${logHtml}
+        ${persHtml}
+        ${productosHtml}
+      </div>`;
+    }).join('');
 
   } catch(e) {
-    toast('Error cargando dashboard: ' + e.message, 'err');
+    cont.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
   }
 }
+
 
 // ── EVENTOS ───────────────────────────────────────────────
 let todosEventos = [];
@@ -3113,6 +3149,179 @@ function generarReciboIndividual(p) {
     });
 }
 
+// ── FINANZAS ──────────────────────────────────────────────
+let finanzasOffset = 0; // 0 = período actual, -1 = anterior, etc.
+
+function getPeriodoFinanzas() {
+  const modo = document.getElementById('finanzas-modo')?.value || 'mensual';
+  const hoy = new Date();
+  if (modo === 'mensual') {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() + finanzasOffset, 1);
+    const desde = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+    const hasta = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0];
+    const label = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    return { desde, hasta, label, modo };
+  } else {
+    const anio = hoy.getFullYear() + finanzasOffset;
+    return { desde: `${anio}-01-01`, hasta: `${anio}-12-31`, label: String(anio), modo };
+  }
+}
+
+function cambiarPeriodoFinanzas(dir) {
+  finanzasOffset += dir;
+  loadFinanzas();
+}
+
+async function loadFinanzas() {
+  const { desde, hasta, label } = getPeriodoFinanzas();
+  document.getElementById('finanzas-sub').textContent = label;
+
+  try {
+    // 1. Ingresos: cobros pagados en el período
+    const cobros = await sb('cobros', { filters: [`fecha_cobro=gte.${desde}`, `fecha_cobro=lte.${hasta}`, `pagado=eq.true`], limit: 500 });
+    const totalIngresos = cobros.reduce((s, c) => s + Number(c.monto || 0), 0);
+
+    // 2. Impuestos: costos_fijos pagados en el período
+    const impuestos = await sb('costos_fijos', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 500 });
+    const totalImpuestos = impuestos.reduce((s, i) => s + Number(i.monto || 0), 0);
+
+    // 3. Pagos personal: jornadas pagadas en el período
+    const jornadas = await sb('jornadas', { select: 'tarifa_ars,fecha_pago', filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 1000 });
+    const totalPagos = jornadas.reduce((s, j) => s + Number(j.tarifa_ars || 0), 0);
+
+    // 4. Egresos de caja que NO son pagos al personal
+    const egresos = await sb('caja', { filters: [`tipo=eq.egreso`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`], limit: 500 });
+    const egresosFiltrados = egresos.filter(e => !e.descripcion?.toLowerCase().startsWith('pago a '));
+    const totalEgresos = egresosFiltrados.reduce((s, e) => s + Number(e.monto || 0), 0);
+
+    // 5. Capital
+    const capitalMovs = await sb('capital', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], order: 'fecha.desc', limit: 500 });
+    const capitalIng = capitalMovs.filter(c => c.tipo === 'ingreso').reduce((s, c) => s + Number(c.monto || 0), 0);
+    const capitalEg  = capitalMovs.filter(c => c.tipo === 'egreso').reduce((s, c) => s + Number(c.monto || 0), 0);
+    const capitalNeto = capitalIng - capitalEg;
+
+    const resultado = totalIngresos + capitalNeto - totalImpuestos - totalPagos - totalEgresos;
+
+    // KPIs
+    document.getElementById('fin-ingresos').textContent  = fmtARS(totalIngresos);
+    document.getElementById('fin-impuestos').textContent = fmtARS(totalImpuestos);
+    document.getElementById('fin-pagos').textContent     = fmtARS(totalPagos);
+    document.getElementById('fin-egresos').textContent   = fmtARS(totalEgresos);
+    const capEl = document.getElementById('fin-capital');
+    capEl.textContent = (capitalNeto >= 0 ? '+' : '') + fmtARS(capitalNeto);
+    capEl.style.color = capitalNeto >= 0 ? 'var(--green)' : 'var(--red)';
+    const resEl = document.getElementById('fin-resultado');
+    resEl.textContent = fmtARS(resultado);
+    resEl.style.color = resultado >= 0 ? 'var(--green)' : 'var(--red)';
+
+    // Detalle ingresos por evento
+    const porEvento = {};
+    cobros.forEach(c => {
+      const key = c.evento_id || 'Sin evento';
+      if (!porEvento[key]) porEvento[key] = { nombre: c.descripcion || c.evento_id || 'Sin evento', monto: 0 };
+      porEvento[key].monto += Number(c.monto || 0);
+    });
+    // Traer nombres de eventos
+    const eventoIds = [...new Set(cobros.map(c => c.evento_id).filter(Boolean))];
+    let eventosMap = {};
+    if (eventoIds.length) {
+      const evs = await sb('eventos', { select: 'id,venue,cliente', filters: [`id=in.(${eventoIds.join(',')})`], limit: 200 });
+      evs.forEach(e => eventosMap[e.id] = `${e.venue || ''} — ${e.cliente || ''}`);
+    }
+    document.getElementById('fin-detalle-ingresos').innerHTML = cobros.length
+      ? Object.entries(porEvento).map(([id, v]) => `
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <span style="color:var(--text-2)">${eventosMap[id] || v.nombre}</span>
+          <span style="color:var(--green);font-weight:600">${fmtARS(v.monto)}</span>
+        </div>`).join('')
+      : '<div style="color:var(--text-3);font-size:13px">Sin ingresos en este período</div>';
+
+    // Detalle egresos
+    const detalleEg = [
+      ...impuestos.map(i => ({ desc: i.concepto || i.descripcion || 'Impuesto', monto: i.monto, cat: 'Impuesto' })),
+      ...jornadas.map(j => ({ desc: 'Pago personal', monto: j.tarifa_ars, cat: 'Personal' })),
+      ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: e.monto, cat: 'Caja' })),
+    ].sort((a, b) => b.monto - a.monto);
+
+    // Agrupar personal
+    const personalTotal = jornadas.reduce((s, j) => s + Number(j.tarifa_ars || 0), 0);
+    const egResumen = [
+      ...impuestos.map(i => ({ desc: i.concepto || 'Impuesto', monto: Number(i.monto), cat: 'Impuesto' })),
+      ...(personalTotal > 0 ? [{ desc: `Pagos al personal (${jornadas.length} jornadas)`, monto: personalTotal, cat: 'Personal' }] : []),
+      ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: Number(e.monto), cat: 'Caja' })),
+    ].sort((a, b) => b.monto - a.monto);
+
+    const catColor = { Impuesto: 'var(--orange)', Personal: 'var(--blue)', Caja: 'var(--red)' };
+    document.getElementById('fin-detalle-egresos').innerHTML = egResumen.length
+      ? egResumen.map(e => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <div>
+            <span style="font-size:10px;color:${catColor[e.cat]||'var(--text-3)'};margin-right:6px">${e.cat}</span>
+            <span style="color:var(--text-2)">${e.desc}</span>
+          </div>
+          <span style="color:var(--red);font-weight:600">${fmtARS(e.monto)}</span>
+        </div>`).join('')
+      : '<div style="color:var(--text-3);font-size:13px">Sin egresos en este período</div>';
+
+    // Detalle capital
+    document.getElementById('fin-detalle-capital').innerHTML = capitalMovs.length
+      ? capitalMovs.map(c => {
+          const color = c.tipo === 'ingreso' ? 'var(--green)' : 'var(--red)';
+          const signo = c.tipo === 'ingreso' ? '+' : '-';
+          const fecha = new Date(c.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <div style="display:flex;gap:10px;align-items:center">
+              <span style="color:var(--text-3);font-size:11px">${fecha}</span>
+              <span style="color:var(--text-2)">${c.descripcion}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:${color};font-weight:600">${signo} ${fmtARS(c.monto)}</span>
+              <button class="btn btn-ghost btn-sm" onclick="eliminarCapital(${c.id})" style="color:var(--red);padding:2px 6px">✕</button>
+            </div>
+          </div>`;
+        }).join('')
+      : '<div style="color:var(--text-3);font-size:13px">Sin movimientos de capital en este período</div>';
+
+  } catch(e) { toast('Error cargando finanzas: ' + e.message, true); }
+}
+
+function abrirModalCapital(tipo) {
+  document.getElementById('capital-tipo').value = tipo;
+  document.getElementById('capital-modal-title').textContent = tipo === 'ingreso' ? '+ Ingreso capital' : '− Egreso capital';
+  document.getElementById('capital-desc').value = '';
+  document.getElementById('capital-monto').value = '';
+  const fp = document.getElementById('capital-fecha')._flatpickr;
+  if (fp) fp.setDate(new Date());
+  else document.getElementById('capital-fecha').value = new Date().toISOString().split('T')[0];
+  openModal('modal-capital');
+  setTimeout(() => initDatePickers(document.getElementById('modal-capital')), 50);
+}
+
+async function guardarCapital() {
+  const tipo = document.getElementById('capital-tipo').value;
+  const desc = document.getElementById('capital-desc').value.trim();
+  const monto = parseFloat(document.getElementById('capital-monto').value);
+  const fecha = document.getElementById('capital-fecha').value;
+  if (!desc) { toast('Ingresá una descripción', true); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', true); return; }
+  if (!fecha) { toast('Seleccioná una fecha', true); return; }
+  try {
+    await sbInsert('capital', { tipo, descripcion: desc, monto, fecha });
+    closeModal('modal-capital');
+    toast('✅ Movimiento de capital registrado');
+    loadFinanzas();
+  } catch(e) { toast('Error: ' + e.message, true); }
+}
+
+async function eliminarCapital(id) {
+  if (!confirm('¿Eliminar este movimiento?')) return;
+  try {
+    await sbDelete('capital', id);
+    toast('Eliminado');
+    loadFinanzas();
+  } catch(e) { toast('Error: ' + e.message, true); }
+}
+
 // ── MENSAJES WHATSAPP ─────────────────────────────────────
 async function loadMensajes() {
   try {
@@ -3911,7 +4120,7 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
     const esPagoTotal = modalidad === 'Pago total al finalizar';
 
     // Crear evento en pipeline
-    await sbPost('eventos', {
+    const nuevoEv = await sbPost('eventos', {
       codigo,
       estado:         'Confirmado',
       cliente_nombre: cliente,
@@ -3921,20 +4130,17 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
       total_ars:      total || 0,
       sena_pct:       esPagoTotal ? 0 : (senaPct || 30),
       modalidad_pago: modalidad || 'Pago total al finalizar',
-      sena_cobrada:   esPagoTotal ? true : false,  // si no hay seña, se marca como "cobrada" para no bloquear
+      sena_cobrada:   esPagoTotal ? true : false,
       saldo_cobrado:  false,
       created_at:     new Date().toISOString(),
       updated_at:     new Date().toISOString(),
     });
 
-    // Crear registro en PAGOS
-    const wsCount = await sb('pagos', { select: 'id' });
-    // (se crea automáticamente al confirmar)
-
-    // Actualizar estado del presupuesto
+    // Actualizar estado del presupuesto y vincular evento
     await sbPatch('presupuestos', id, {
       estado_evento: 'Confirmado',
       evento_codigo: codigo,
+      evento_id:     nuevoEv?.id || null,
     });
 
     toast(`✅ Evento ${codigo} creado como Confirmado`);
@@ -4697,7 +4903,7 @@ async function generarPresupuesto() {
 
     // ── Guardar en Supabase ───────────────────────────────
     try {
-      await sbPost('presupuestos', {
+      const pres = await sbPost('presupuestos', {
         numero, cliente, tipo_evento: tipo,
         fecha_evento: fecha || null, venue,
         modalidad, sena_pct: senaPct,
@@ -4707,7 +4913,21 @@ async function generarPresupuesto() {
         nombre_archivo: nombreArchivo,
         estado_evento: 'Pendiente',
       });
-    } catch(e) { /* tabla puede no existir aún */ }
+      // Guardar items
+      if (pres?.id && presItems.length) {
+        for (const it of presItems) {
+          await sbInsert('presupuesto_items', {
+            presupuesto_id: pres.id,
+            catalogo_id: it.esCustom ? null : (it.id || null),
+            producto: it.producto,
+            categoria: it.categoria || null,
+            precio_ars: it.precio,
+            cantidad: it.cantidad || 1,
+            es_custom: !!it.esCustom,
+          });
+        }
+      }
+    } catch(e) { console.error('Error guardando presupuesto:', e); }
 
     toast(pdfUrl ? '✅ PDF generado y guardado en Drive' : '✅ PDF generado');
     closeModal('modal-presupuesto');
