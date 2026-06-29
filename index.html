@@ -2588,14 +2588,14 @@ async function generarPresupuesto() {
     doc.text('NOTAS Y CONDICIONES GENERALES', M+2, y+4); y += 8;
 
     const notas = [
-      'El presupuesto incluye traslado dentro de CABA y alrededores.',
-      'Consumo electrico a cargo del venue (220V trifasico requerido).',
       'Precios expresados en pesos argentinos (ARS).',
+      'El presupuesto incluye traslado dentro de CABA y alrededores.',
+      'El presupuesto incluye costos de armado, operador y desarme.',
     ];
     font('normal', 8.5); text(NEGRO);
     notas.forEach((n, i) => {
       if (y > PH - 20) { doc.addPage(); y = 15; }
-      doc.text(`${i+1}. ${n}`, M, y); y += 7;
+      doc.text(`${i+1}. ${n}`, M, y); y += 5;
     });
 
     // ── FOOTER — va justo después del contenido ──────────
