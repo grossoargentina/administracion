@@ -522,7 +522,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div><div class="page-title">Impuestos y costos fijos</div></div>
         <div style="display:flex;gap:10px">
           <button class="btn btn-ghost" onclick="generarMesNuevo()">+ Mes nuevo</button>
-          <button class="btn btn-primary" onclick="openModal('modal-impuesto')">+ Concepto</button>
+          <button class="btn btn-primary" onclick="nuevoConceptoImp()">+ Concepto</button>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
@@ -730,8 +730,9 @@ textarea.inp { resize: vertical; min-height: 80px; }
 <!-- MODAL IMPUESTO -->
 <div class="modal-overlay" id="modal-impuesto">
   <div class="modal">
+    <input type="hidden" id="imp-id">
     <div class="modal-header">
-      <span class="modal-title">Agregar concepto</span>
+      <span class="modal-title" id="imp-modal-title">Agregar concepto</span>
       <button class="modal-close" onclick="closeModal('modal-impuesto')">×</button>
     </div>
     <div class="modal-body">
@@ -1713,7 +1714,10 @@ function renderImpuestos() {
                 ? `<button class="btn btn-ghost btn-sm" style="border-color:var(--orange);color:var(--orange)" onclick="marcarPagadoImp(${i.id})">⚠️ Marcar pagado</button>`
                 : `<button class="btn btn-ghost btn-sm" onclick="marcarPagadoImp(${i.id})">Marcar pagado</button>`}
         </td>
-        <td><button class="btn btn-danger btn-sm" onclick="eliminarImpuesto(${i.id})">✕</button></td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="editarImpuesto(${i.id})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarImpuesto(${i.id})">✕</button>
+        </td>
       </tr>`;
     });
   });
@@ -1741,24 +1745,64 @@ async function eliminarImpuesto(id) {
   loadImpuestos();
 }
 
+function nuevoConceptoImp() {
+  document.getElementById('imp-id').value = '';
+  document.getElementById('imp-modal-title').textContent = 'Agregar concepto';
+  document.getElementById('imp-concepto').value  = '';
+  document.getElementById('imp-empresa').value   = '';
+  document.getElementById('imp-vence').value     = '';
+  document.getElementById('imp-monto').value     = '';
+  document.getElementById('imp-monto-usd').value = '';
+  document.getElementById('imp-notas').value     = '';
+  document.getElementById('imp-mes').value       = MESES_NAMES[impMesIdx];
+  document.getElementById('imp-anio').value      = impAnio;
+  actualizarCatImp();
+  openModal('modal-impuesto');
+}
+
+function editarImpuesto(id) {
+  const i = todosImpuestos.find(x => x.id === id);
+  if (!i) return;
+  document.getElementById('imp-id').value            = id;
+  document.getElementById('imp-modal-title').textContent = 'Editar concepto';
+  document.getElementById('imp-seccion').value       = i.seccion || 'Empresa / Fiscal';
+  actualizarCatImp();
+  document.getElementById('imp-cat').value           = i.categoria || '';
+  document.getElementById('imp-concepto').value      = i.concepto || '';
+  document.getElementById('imp-empresa').value       = i.empresa || '';
+  document.getElementById('imp-mes').value           = i.mes || '';
+  document.getElementById('imp-anio').value          = i.anio || '';
+  document.getElementById('imp-vence').value         = i.vence_dia || '';
+  document.getElementById('imp-monto').value         = i.monto_ars || '';
+  document.getElementById('imp-monto-usd').value     = i.monto_usd || '';
+  document.getElementById('imp-notas').value         = i.notas || '';
+  openModal('modal-impuesto');
+}
+
 async function guardarImpuesto() {
   const concepto = document.getElementById('imp-concepto').value.trim();
   if (!concepto) { toast('El concepto es obligatorio', 'err'); return; }
+  const id = document.getElementById('imp-id').value;
   const data = {
     concepto,
-    seccion:    document.getElementById('imp-seccion').value,
-    categoria:  document.getElementById('imp-cat').value,
-    empresa:    document.getElementById('imp-empresa').value.trim() || null,
-    mes:        document.getElementById('imp-mes').value,
-    anio:       parseInt(document.getElementById('imp-anio').value),
-    vence_dia:  parseInt(document.getElementById('imp-vence').value) || null,
-    monto_ars:  parseFloat(document.getElementById('imp-monto').value) || null,
-    monto_usd:  parseFloat(document.getElementById('imp-monto-usd').value) || null,
-    notas:      document.getElementById('imp-notas').value.trim() || null,
+    seccion:   document.getElementById('imp-seccion').value,
+    categoria: document.getElementById('imp-cat').value,
+    empresa:   document.getElementById('imp-empresa').value.trim() || null,
+    mes:       document.getElementById('imp-mes').value,
+    anio:      parseInt(document.getElementById('imp-anio').value),
+    vence_dia: parseInt(document.getElementById('imp-vence').value) || null,
+    monto_ars: parseFloat(document.getElementById('imp-monto').value) || null,
+    monto_usd: parseFloat(document.getElementById('imp-monto-usd').value) || null,
+    notas:     document.getElementById('imp-notas').value.trim() || null,
   };
   try {
-    await sbPost('costos_fijos', data);
-    toast('Concepto agregado');
+    if (id) {
+      await sbPatch('costos_fijos', parseInt(id), data);
+      toast('Concepto actualizado');
+    } else {
+      await sbPost('costos_fijos', data);
+      toast('Concepto agregado');
+    }
     closeModal('modal-impuesto');
     loadImpuestos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
