@@ -949,6 +949,11 @@ async function initAuth() {
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
       if (session?.user?.email === ALLOWED_EMAIL) {
         AUTH = true;
+        // Guardar provider_token en localStorage para que persista entre recargas
+        if (session.provider_token) {
+          localStorage.setItem('drive_token', session.provider_token);
+          localStorage.setItem('drive_token_ts', Date.now().toString());
+        }
         // Limpiar hash de la URL
         if (window.location.hash) {
           history.replaceState(null, '', window.location.pathname);
@@ -2610,25 +2615,28 @@ async function generarPresupuesto() {
 
     // ── Subir a Google Drive ──────────────────────────────
     const { data: { session } } = await supabaseClient.auth.getSession();
-    let accessToken = session?.provider_token;
 
-    // Si no hay token, forzar re-login con Google para obtener uno nuevo
+    // provider_token no persiste entre recargas — usar localStorage o refrescar
+    let accessToken = session?.provider_token || localStorage.getItem('drive_token');
+
     if (!accessToken) {
-      toast('Sesión de Google expirada. Reconectando...', 'warn');
-      // Guardar estado del modal para que no se pierda
-      sessionStorage.setItem('pdf_pending', '1');
-      await supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.href,
-          scopes: 'https://www.googleapis.com/auth/drive',
-          queryParams: { access_type: 'offline', prompt: 'consent' },
-        }
-      });
-      return;
+      const refreshToken = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
+      if (refreshToken) {
+        try {
+          const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken }),
+          });
+          if (r.ok) {
+            const { access_token } = await r.json();
+            accessToken = access_token;
+            localStorage.setItem('drive_token', access_token);
+          }
+        } catch(e) { console.warn('Error refrescando token:', e); }
+      }
     }
-
-    console.log('Token Drive: OK (' + accessToken.substring(0,20) + '...');
+    console.log('Token Drive:', accessToken ? 'OK' : 'NO DISPONIBLE');
 
     let pdfUrl = null;
 
@@ -2653,6 +2661,11 @@ async function generarPresupuesto() {
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ role: 'reader', type: 'anyone' }),
         });
+      } else if (uploadRes.status === 401) {
+        // Token expirado — limpiar y pedir re-login
+        localStorage.removeItem('drive_token');
+        toast('Sesión de Google Drive expirada. Cerrá sesión y volvé a ingresar.', 'err');
+        return;
       }
     } else {
       // Sin token de Drive — solo descargar localmente
