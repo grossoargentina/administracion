@@ -2610,7 +2610,27 @@ async function generarPresupuesto() {
 
     // ── Subir a Google Drive ──────────────────────────────
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const accessToken = session?.provider_token;
+    let accessToken = session?.provider_token;
+
+    // Si el access token expiró, refrescarlo con el refresh token
+    if (!accessToken && session?.provider_refresh_token) {
+      try {
+        const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: '664461187683-b145984eib5l1k1h2e0up30dvs86k50i.apps.googleusercontent.com',
+            grant_type: 'refresh_token',
+            refresh_token: session.provider_refresh_token,
+          }),
+        });
+        if (refreshRes.ok) {
+          const tokens = await refreshRes.json();
+          accessToken = tokens.access_token;
+        }
+      } catch(e) { console.warn('No se pudo refrescar token Drive:', e); }
+    }
+
     console.log('Token Drive:', accessToken ? 'OK (' + accessToken.substring(0,20) + '...)' : 'NO DISPONIBLE');
 
     let pdfUrl = null;
