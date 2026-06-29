@@ -377,6 +377,9 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="nav-item" onclick="goTo('jornadas')">
         <span class="nav-icon">👷</span> Jornadas
       </div>
+      <div class="nav-item" onclick="goTo('logistica')">
+        <span class="nav-icon">🗺️</span> Logística
+      </div>
       <div class="nav-item" onclick="goTo('personal')">
         <span class="nav-icon">👥</span> Personal
       </div>
@@ -508,7 +511,6 @@ textarea.inp { resize: vertical; min-height: 80px; }
           <div class="page-sub">Registro de trabajo del personal</div>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" onclick="abrirModalLogistica()">🗺️ Logística</button>
           <button class="btn btn-ghost" onclick="liquidarSemana()">💸 Liquidar semana</button>
           <button class="btn btn-primary" onclick="abrirModalJornada()">+ Nueva jornada</button>
         </div>
@@ -519,6 +521,25 @@ textarea.inp { resize: vertical; min-height: 80px; }
           <table>
             <thead><tr><th>Fecha</th><th>Personal</th><th>Tipo</th><th>Evento</th><th>Tarifa</th><th>Pagado</th><th></th></tr></thead>
             <tbody id="jorn-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGÍSTICA -->
+    <div class="page" id="p-logistica">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Logística</div>
+          <div class="page-sub">Planificación de personal por evento</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevaLogistica()">+ Nueva logística</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Evento</th><th>Fecha</th><th>Días</th><th>Personal</th><th>Notas</th><th></th></tr></thead>
+            <tbody id="log-lista-tbody"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -740,32 +761,56 @@ textarea.inp { resize: vertical; min-height: 80px; }
   </div>
 </div>
 
-<!-- MODAL LOGISTICA -->
-<div class="modal-overlay" id="modal-logistica">
+<!-- MODAL NUEVA LOGÍSTICA -->
+<div class="modal-overlay" id="modal-nueva-logistica">
+  <div class="modal" style="max-width:780px">
+    <div class="modal-header">
+      <span class="modal-title" id="nlg-modal-title">Nueva logística</span>
+      <button class="modal-close" onclick="closeModal('modal-nueva-logistica')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Evento *</label><select class="inp" id="nlg-evento"></select></div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Notas generales (uniforme, reglas, etc.)</label>
+          <textarea class="inp" id="nlg-notas" rows="2" style="resize:vertical;width:100%" placeholder="Ej: Remera Grosso + pantalón negro + herramientas + DNI"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-weight:600;font-size:13px;color:var(--gold)">Días</span>
+        <button class="btn btn-ghost btn-sm" onclick="agregarDiaLog()">+ Agregar día</button>
+      </div>
+      <div id="nlg-dias"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-nueva-logistica')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarLogistica()">💾 Guardar logística</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE LOGÍSTICA (WA / PDF) -->
+<div class="modal-overlay" id="modal-log-det">
   <div class="modal" style="max-width:820px">
     <div class="modal-header">
-      <span class="modal-title">Generador de Logística</span>
-      <button class="modal-close" onclick="closeModal('modal-logistica')">×</button>
+      <span class="modal-title" id="log-det-title">Detalle de logística</span>
+      <button class="modal-close" onclick="closeModal('modal-log-det')">×</button>
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label class="lbl">Evento *</label><select class="inp" id="log-evento-sel" onchange="onLogEventoChange()"><option value="">— Seleccioná un evento —</option></select></div>
         <div class="field"><label class="lbl">Título del evento *</label><input class="inp" id="log-titulo" placeholder="Ej: Unicenter Shopping"></div>
         <div class="field"><label class="lbl">Subtítulo</label><input class="inp" id="log-subtitulo" placeholder="Ej: Fin de semana"></div>
         <div class="field"><label class="lbl">Dirección</label><input class="inp" id="log-direccion" placeholder="Ej: Paraná 3745, Martínez, Buenos Aires"></div>
         <div class="field"><label class="lbl">Link Google Maps</label><input class="inp" id="log-maps" placeholder="https://..."></div>
-        <div class="field"><label class="lbl">Fecha desde</label><input class="inp" type="date" id="log-desde"></div>
-        <div class="field"><label class="lbl">Fecha hasta</label><input class="inp" type="date" id="log-hasta"></div>
       </div>
-      <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="cargarJornadasLogistica()">Cargar jornadas del período</button>
-      <div id="log-editor"></div>
+      <div id="log-editor" style="margin-top:12px"></div>
       <div class="field" style="margin-top:16px">
-        <label class="lbl">Notas generales (uniforme, reglas, etc.)</label>
-        <textarea class="inp" id="log-notas" rows="3" style="resize:vertical;width:100%" placeholder="Ej: Remera Grosso + pantalón negro + herramientas + DNI"></textarea>
+        <label class="lbl">Notas generales</label>
+        <textarea class="inp" id="log-notas" rows="2" style="resize:vertical;width:100%" placeholder="Ej: Remera Grosso + pantalón negro + herramientas + DNI"></textarea>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-logistica')">Cancelar</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-log-det')">Cerrar</button>
       <button class="btn btn-ghost" onclick="generarWhatsappLogistica()">💬 WhatsApp por persona</button>
       <button class="btn btn-primary" onclick="generarPDFLogistica()">📄 PDF y guardar en Drive</button>
     </div>
@@ -1190,8 +1235,10 @@ function goTo(page) {
 
   document.getElementById(`p-${page}`).classList.add('active');
 
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
   document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.textContent.trim().toLowerCase().includes(page === 'dashboard' ? 'dashboard' : page))
+    const txt = norm(n.textContent.trim().toLowerCase());
+    if (txt.includes(page === 'dashboard' ? 'dashboard' : page))
       n.classList.add('active');
   });
   document.querySelectorAll('.mobile-nav-item').forEach(n => {
@@ -1210,6 +1257,7 @@ async function loadPage(page) {
     case 'eventos':    loadEventos(); break;
     case 'cobros':     loadCobros(); break;
     case 'jornadas':   loadJornadas(); break;
+    case 'logistica':  loadLogisticas(); break;
     case 'personal':   loadPersonal(); break;
     case 'impuestos':  loadImpuestos(); break;
     case 'presupuestos': loadPresupuestos(); break;
@@ -1915,57 +1963,205 @@ let waMensajesPendientes = []; // { personal_id, apellido, nombre, telefono, tex
 const DIAS_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 const MESES_ES_GEN = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-function abrirModalLogistica() {
-  const hoy = new Date().toISOString().split('T')[0];
+// ── LOGÍSTICA PANEL ────────────────────────────────────────
+let logDias = []; // días temporales al crear una logística
+
+async function loadLogisticas() {
+  const tbody = document.getElementById('log-lista-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>';
+  try {
+    const rows = await sb('logisticas', { order: 'created_at.desc', limit: 100 });
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas cargadas</div></td></tr>';
+      return;
+    }
+    // Para cada logistica, cargar sus jornadas
+    const ids = rows.map(r => r.id);
+    const jornadas = await sb('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,fecha,tipo,personal_id', limit: 2000 });
+
+    tbody.innerHTML = rows.map(r => {
+      const jors = jornadas.filter(j => j.logistica_id === r.id);
+      const dias = [...new Set(jors.map(j => j.fecha))].sort();
+      const persIds = [...new Set(jors.map(j => j.personal_id))];
+      const ev = (evCache || []).find(e => e.id === r.evento_id);
+      const evLabel = ev ? (ev.venue || ev.codigo || ev.id) : `Evento #${r.evento_id}`;
+      const fechaLabel = dias.length
+        ? dias.length === 1
+          ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
+          : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
+        : '—';
+      return `<tr>
+        <td><b>${evLabel}</b></td>
+        <td style="font-size:12px;color:var(--text-2)">${fechaLabel}</td>
+        <td style="font-size:12px">${dias.length} día(s)</td>
+        <td style="font-size:12px">${persIds.length} persona(s)</td>
+        <td style="font-size:12px;color:var(--text-2)">${r.notas || '—'}</td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${r.id})">📋 Ver</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${r.id})">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) { toast('Error cargando logísticas: ' + e.message, 'err'); }
+}
+
+function abrirNuevaLogistica() {
+  logDias = [];
+  document.getElementById('nlg-notas').value = '';
+  const sel = document.getElementById('nlg-evento');
+  sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
+  (evCache || [])
+    .filter(e => ['Confirmado','En logística'].includes(e.estado))
+    .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''))
+    .forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      const fecha = e.fecha_evento ? new Date(e.fecha_evento+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '';
+      opt.textContent = `${fecha} — ${e.venue || e.codigo || e.id}`;
+      sel.appendChild(opt);
+    });
+  renderDiasLog();
+  openModal('modal-nueva-logistica');
+}
+
+function agregarDiaLog() {
+  logDias.push({ id: Date.now(), tipo: 'Armado', fecha: new Date().toISOString().split('T')[0], personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' });
+  renderDiasLog();
+}
+
+function eliminarDiaLog(id) {
+  logDias = logDias.filter(d => d.id !== id);
+  renderDiasLog();
+}
+
+function updateDiaLog(id, field, value) {
+  const d = logDias.find(d => d.id === id);
+  if (!d) return;
+  d[field] = value;
+  if (field === 'tipo' || field === 'transporte') renderDiasLog();
+}
+
+function togglePersonalDia(diaId, persId) {
+  const d = logDias.find(d => d.id === diaId);
+  if (!d) return;
+  const idx = d.personal.indexOf(persId);
+  if (idx === -1) d.personal.push(persId); else d.personal.splice(idx, 1);
+}
+
+function renderDiasLog() {
+  const personal = (persCache || []).filter(p => p.activo !== false);
+  const container = document.getElementById('nlg-dias');
+  if (!logDias.length) {
+    container.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px 0">No hay días. Hacé clic en "Agregar día".</div>';
+    return;
+  }
+  container.innerHTML = logDias.map(d => {
+    const conTransporte = ['Armado','Desarmado'].includes(d.tipo);
+    const persHtml = personal.map(p => `
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" ${d.personal.includes(p.id)?'checked':''} onchange="togglePersonalDia(${d.id},${p.id})">
+        ${p.apellido} ${p.nombre}
+      </label>`).join('');
+    const fleteExtra = d.transporte === 'Flete' ? `
+      <input class="inp" style="width:140px" placeholder="Encargado flete" value="${d.flete_personal}" onchange="updateDiaLog(${d.id},'flete_personal',this.value)">
+      <input class="inp" style="width:110px" type="number" placeholder="Monto" value="${d.flete_monto}" onchange="updateDiaLog(${d.id},'flete_monto',this.value)">` : '';
+    return `<div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select class="inp" style="width:140px" onchange="updateDiaLog(${d.id},'tipo',this.value)">
+            ${['Armado','Operador','Desarmado','Depósito'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+          <input type="date" class="inp" style="width:150px" value="${d.fecha}" onchange="updateDiaLog(${d.id},'fecha',this.value)">
+          ${conTransporte ? `<select class="inp" style="width:160px" onchange="updateDiaLog(${d.id},'transporte',this.value)">
+            ${['Camioneta propia','Flete','Sin transporte'].map(t=>`<option ${d.transporte===t?'selected':''}>${t}</option>`).join('')}
+          </select>${fleteExtra}` : ''}
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="eliminarDiaLog(${d.id})">✕</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${persHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+async function guardarLogistica() {
+  const eventoId = document.getElementById('nlg-evento').value;
+  if (!eventoId) { toast('Seleccioná un evento', 'err'); return; }
+  if (!logDias.length) { toast('Agregá al menos un día', 'err'); return; }
+  if (!logDias.some(d => d.personal.length)) { toast('Asigná personal a al menos un día', 'err'); return; }
+  const notas = document.getElementById('nlg-notas').value.trim();
+  try {
+    const logRow = await sbPost('logisticas', { evento_id: parseInt(eventoId), notas: notas || null });
+    const logId = Array.isArray(logRow) ? logRow[0].id : logRow.id;
+    const jornadasToInsert = [];
+    logDias.forEach(d => {
+      d.personal.forEach(persId => {
+        const p = (persCache || []).find(x => x.id === persId);
+        if (!p) return;
+        const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito
+          : d.tipo === 'Operador' ? p.tarifa_operador
+          : p.tarifa_armado;
+        jornadasToInsert.push({
+          personal_id: persId,
+          evento_id: parseInt(eventoId),
+          fecha: d.fecha,
+          tipo: d.tipo,
+          tarifa: tarifa || null,
+          transporte: ['Armado','Desarmado'].includes(d.tipo) ? d.transporte : null,
+          flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
+          flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
+          logistica_id: logId,
+          estado: 'Pendiente',
+        });
+      });
+    });
+    if (jornadasToInsert.length) await sbPost('jornadas', jornadasToInsert);
+    closeModal('modal-nueva-logistica');
+    toast(`✅ Logística creada con ${jornadasToInsert.length} jornadas`);
+    loadLogisticas();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function eliminarLogistica(id) {
+  if (!confirm('¿Eliminar esta logística? Las jornadas asociadas quedarán sin logística asignada.')) return;
+  try {
+    await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logistica_id: null }),
+    });
+    await sbDelete('logisticas', id);
+    toast('Logística eliminada');
+    loadLogisticas();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function abrirDetLogistica(id) {
+  document.getElementById('log-editor').innerHTML = '<div class="spinner"></div>';
   document.getElementById('log-titulo').value    = '';
   document.getElementById('log-subtitulo').value = '';
   document.getElementById('log-direccion').value = '';
   document.getElementById('log-maps').value      = '';
-  document.getElementById('log-desde').value     = hoy;
-  document.getElementById('log-hasta').value     = hoy;
   document.getElementById('log-notas').value     = '';
-  document.getElementById('log-editor').innerHTML = '';
-  logJornadas = [];
-
-  // Poblar select de eventos (Confirmados y En logística)
-  const sel = document.getElementById('log-evento-sel');
-  sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
-  const fuente = evCache || [];
-  const relevantes = fuente
-    .filter(e => ['Confirmado','En logística'].includes(e.estado) && e.fecha_evento)
-    .sort((a,b) => a.fecha_evento.localeCompare(b.fecha_evento));
-  relevantes.forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e.id;
-    const fecha = new Date(e.fecha_evento + 'T12:00:00');
-    const label = `${fecha.toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit'})} — ${e.venue || e.codigo || e.id}`;
-    opt.textContent = label;
-    opt.dataset.venue   = e.venue          || '';
-    opt.dataset.cliente = e.cliente_nombre || '';
-    sel.appendChild(opt);
-  });
-
-  openModal('modal-logistica');
-}
-
-function onLogEventoChange() {
-  const sel = document.getElementById('log-evento-sel');
-  const opt = sel.options[sel.selectedIndex];
-  if (!opt || !opt.value) return;
-  if (opt.dataset.venue)   document.getElementById('log-titulo').value    = opt.dataset.venue;
-  if (opt.dataset.cliente) document.getElementById('log-subtitulo').value = opt.dataset.cliente;
-}
-
-async function cargarJornadasLogistica() {
-  const desde = document.getElementById('log-desde').value;
-  const hasta = document.getElementById('log-hasta').value;
-  if (!desde || !hasta) { toast('Seleccioná el rango de fechas', 'err'); return; }
-  const todas = await sb('v_jornadas', { limit: 500 });
-  logJornadas = todas
-    .filter(j => j.fecha >= desde && j.fecha <= hasta)
-    .sort((a,b) => a.fecha.localeCompare(b.fecha) || (a.personal_apellido||'').localeCompare(b.personal_apellido||''));
-  if (!logJornadas.length) { toast('Sin jornadas en ese período', 'err'); return; }
-  renderEditorLogistica();
+  openModal('modal-log-det');
+  try {
+    const logRows = await sb('logisticas', { filters: [`id=eq.${id}`] });
+    const log = logRows[0];
+    if (!log) { toast('Logística no encontrada', 'err'); return; }
+    if (log.notas) document.getElementById('log-notas').value = log.notas;
+    const ev = (evCache || []).find(e => e.id === log.evento_id);
+    if (ev) {
+      document.getElementById('log-titulo').value    = ev.venue || '';
+      document.getElementById('log-subtitulo').value = ev.cliente_nombre || '';
+      document.getElementById('log-direccion').value = ev.direccion || '';
+      document.getElementById('log-det-title').textContent = `Logística — ${ev.venue || ev.codigo || ev.id}`;
+    }
+    logJornadas = await sb('v_jornadas', { filters: [`logistica_id=eq.${id}`], order: 'fecha,personal_apellido', limit: 500 });
+    if (!logJornadas.length) {
+      document.getElementById('log-editor').innerHTML = '<div style="color:var(--text-2);font-size:13px">Sin jornadas en esta logística.</div>';
+      return;
+    }
+    renderEditorLogistica();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 function renderEditorLogistica() {
