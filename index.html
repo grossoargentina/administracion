@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root {
@@ -382,6 +383,9 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="nav-item" onclick="goTo('impuestos')">
         <span class="nav-icon">🗓️</span> Impuestos
       </div>
+      <div class="nav-item" onclick="goTo('presupuestos')">
+        <span class="nav-icon">📄</span> Presupuestos
+      </div>
       <div class="nav-item" onclick="goTo('catalogo')">
         <span class="nav-icon">📦</span> Catálogo
       </div>
@@ -534,6 +538,25 @@ textarea.inp { resize: vertical; min-height: 80px; }
           <table>
             <thead><tr><th>Mes</th><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Monto ARS</th><th>Estado</th><th></th></tr></thead>
             <tbody id="imp-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRESUPUESTOS -->
+    <div class="page" id="p-presupuestos">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Presupuestos</div>
+          <div class="page-sub">Armá y generá PDFs desde el catálogo</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirModalPresupuesto()">+ Nuevo presupuesto</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>N°</th><th>Cliente</th><th>Evento</th><th>Total ARS</th><th>Modalidad</th><th></th></tr></thead>
+            <tbody id="presup-tbody"><tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos generados aún</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -724,6 +747,96 @@ textarea.inp { resize: vertical; min-height: 80px; }
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-impuesto')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarImpuesto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRESUPUESTO -->
+<div class="modal-overlay" id="modal-presupuesto" style="align-items:flex-start;padding:20px">
+  <div class="modal" style="max-width:800px;margin:auto">
+    <div class="modal-header">
+      <span class="modal-title">Nuevo presupuesto</span>
+      <button class="modal-close" onclick="closeModal('modal-presupuesto')">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- DATOS DEL EVENTO -->
+      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Datos del evento</div>
+      <div class="form-grid" style="margin-bottom:20px">
+        <div class="field"><label class="lbl">N° Presupuesto</label><input class="inp" id="pres-numero" placeholder="2026-001"></div>
+        <div class="field"><label class="lbl">Cliente *</label><input class="inp" id="pres-cliente" placeholder="Nombre del cliente"></div>
+        <div class="field"><label class="lbl">Tipo de evento</label>
+          <select class="inp" id="pres-tipo">
+            <option>Casamiento</option><option>Corporativo</option>
+            <option>Social</option><option>Cumpleaños</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="pres-fecha"></div>
+        <div class="field"><label class="lbl">Horario</label><input class="inp" id="pres-horario" placeholder="20:00 hs"></div>
+        <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón"></div>
+      </div>
+
+      <!-- PRODUCTOS DEL CATÁLOGO -->
+      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Productos del catálogo</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <input class="inp" id="pres-buscar" placeholder="🔍 Buscar producto..." style="flex:1;min-width:160px" oninput="filtrarCatalogoPres()">
+        <select class="inp" id="pres-cat-filtro" style="width:160px" onchange="filtrarCatalogoPres()">
+          <option value="">Todas las categorías</option>
+        </select>
+      </div>
+      <div id="pres-catalogo-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
+        <div class="loading"><div class="spinner"></div> Cargando catálogo...</div>
+      </div>
+
+      <!-- ITEMS SELECCIONADOS -->
+      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Items seleccionados</div>
+      <div id="pres-items-wrap" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px">
+        <table style="width:100%">
+          <thead><tr style="background:var(--surface2)">
+            <th style="padding:8px 12px;font-size:11px;color:var(--text-3);text-align:left">Producto</th>
+            <th style="padding:8px 12px;font-size:11px;color:var(--text-3);text-align:center;width:70px">Cant.</th>
+            <th style="padding:8px 12px;font-size:11px;color:var(--text-3);text-align:right;width:130px">Precio unit.</th>
+            <th style="padding:8px 12px;font-size:11px;color:var(--text-3);text-align:right;width:130px">Subtotal</th>
+            <th style="width:36px"></th>
+          </tr></thead>
+          <tbody id="pres-items-tbody">
+            <tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">Seleccioná productos del catálogo o agregá ítems personalizados</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ITEM PERSONALIZADO -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:flex-end">
+        <div class="field" style="flex:2"><label class="lbl">Ítem personalizado</label><input class="inp" id="pres-custom-nombre" placeholder="Descripción del servicio"></div>
+        <div class="field" style="width:120px"><label class="lbl">Precio ARS</label><input class="inp" type="number" id="pres-custom-precio" placeholder="0"></div>
+        <button class="btn btn-ghost" onclick="agregarItemCustom()" style="flex-shrink:0">+ Agregar</button>
+      </div>
+
+      <!-- CONDICIONES DE PAGO -->
+      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Condiciones de pago</div>
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="field"><label class="lbl">Modalidad</label>
+          <select class="inp" id="pres-modalidad">
+            <option>Seña + saldo</option>
+            <option>Pago total al finalizar</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="pres-sena" value="30" min="0" max="100"></div>
+        <div class="field"><label class="lbl">Descuento (%)</label><input class="inp" type="number" id="pres-descuento" value="0" min="0" max="100"></div>
+        <div class="field"><label class="lbl">Validez (días)</label><input class="inp" type="number" id="pres-validez" value="10"></div>
+        <div class="field full"><label class="lbl">Nota descuento</label><input class="inp" id="pres-nota-desc" placeholder="Opcional"></div>
+      </div>
+
+      <!-- TOTALES -->
+      <div id="pres-totales" style="background:var(--surface2);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--text-2);font-size:13px">Total</span>
+        <span id="pres-total-display" style="font-size:20px;font-weight:600;color:var(--gold)">$ 0</span>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-presupuesto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="generarPresupuesto()">📄 Generar PDF y guardar</button>
     </div>
   </div>
 </div>
@@ -924,6 +1037,7 @@ async function loadPage(page) {
     case 'jornadas':   loadJornadas(); break;
     case 'personal':   loadPersonal(); break;
     case 'impuestos':  loadImpuestos(); break;
+    case 'presupuestos': loadPresupuestos(); break;
     case 'catalogo':   loadCatalogo(); break;
   }
 }
@@ -1518,6 +1632,464 @@ function renderCatalogo(cat) {
     </td>
     <td style="font-weight:600;color:var(--gold)">${fmtARS(i.precio_ars)}</td>
   </tr>`).join('');
+}
+
+
+// ══════════════════════════════════════════════════════════
+// MÓDULO PRESUPUESTOS
+// ══════════════════════════════════════════════════════════
+
+const DRIVE_FOLDER_ID = '1n8uitlzoxVGLLmPtNxRTGxBLMZvXaDNB';
+let presItems = [];       // items seleccionados
+let catalogoCache = [];   // catálogo completo
+
+// ── CARGAR LISTA DE PRESUPUESTOS ─────────────────────────
+async function loadPresupuestos() {
+  try {
+    const lista = await sb('presupuestos', { order: 'created_at.desc', limit: 50 });
+    document.getElementById('presup-tbody').innerHTML = lista.length
+      ? lista.map(p => `<tr>
+          <td style="color:var(--text-2);font-size:12px">${fmtDate(p.created_at?.split('T')[0])}</td>
+          <td style="font-weight:600;color:var(--gold)">${p.numero}</td>
+          <td><b>${p.cliente}</b></td>
+          <td>${p.tipo_evento || '—'}</td>
+          <td style="font-weight:600">${fmtARS(p.total_ars)}</td>
+          <td style="font-size:12px;color:var(--text-2)">${p.modalidad || '—'}</td>
+          <td>
+            ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">Ver PDF</a>` : '—'}
+          </td>
+        </tr>`).join('')
+      : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún. Creá el primero.</div></td></tr>`;
+  } catch(e) {
+    document.getElementById('presup-tbody').innerHTML =
+      `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún.</div></td></tr>`;
+  }
+}
+
+// ── ABRIR MODAL PRESUPUESTO ──────────────────────────────
+const _origOpenModal = openModal;
+async function abrirModalPresupuesto() {
+  presItems = [];
+  renderItemsPresup();
+  calcularTotal();
+
+  // Cargar catálogo si no está en cache
+  if (!catalogoCache.length) {
+    catalogoCache = await sb('catalogo', { filters:['activo=eq.true'], order:'categoria,codigo' });
+  }
+
+  // Llenar filtro de categorías
+  const cats = [...new Set(catalogoCache.map(i => i.categoria))];
+  const sel = document.getElementById('pres-cat-filtro');
+  sel.innerHTML = '<option value="">Todas las categorías</option>' +
+    cats.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  // Número automático
+  try {
+    const count = await sb('presupuestos', { select: 'id' });
+    document.getElementById('pres-numero').value =
+      new Date().getFullYear() + '-' + String(count.length + 1).padStart(3,'0');
+  } catch(e) {
+    document.getElementById('pres-numero').value = new Date().getFullYear() + '-001';
+  }
+
+  document.getElementById('pres-buscar').value = '';
+  filtrarCatalogoPres();
+  openModal('modal-presupuesto');
+}
+
+// ── FILTRAR CATÁLOGO EN EL MODAL ─────────────────────────
+function filtrarCatalogoPres() {
+  const q    = document.getElementById('pres-buscar').value.toLowerCase();
+  const cat  = document.getElementById('pres-cat-filtro').value;
+  const lista = catalogoCache.filter(i =>
+    (!cat || i.categoria === cat) &&
+    (!q || i.producto.toLowerCase().includes(q) || (i.descripcion||'').toLowerCase().includes(q))
+  );
+
+  const wrap = document.getElementById('pres-catalogo-lista');
+  if (!lista.length) {
+    wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">Sin resultados</div>';
+    return;
+  }
+
+  wrap.innerHTML = lista.map(item => {
+    const yaAgregado = presItems.some(p => p.id === item.id && !p.esCustom);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;
+                        padding:10px 14px;border-bottom:1px solid var(--border);
+                        ${yaAgregado ? 'opacity:.5' : ''}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.producto}</div>
+        <div style="font-size:10px;color:var(--text-3)">${item.categoria} · ${fmtARS(item.precio_ars)}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" ${yaAgregado ? 'disabled' : ''}
+        onclick="agregarItemCatalogo('${item.id}','${item.producto.replace(/'/g,"\'")}',${item.precio_ars},'${item.categoria}')">
+        ${yaAgregado ? '✓' : '+ Agregar'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// ── AGREGAR ITEM DESDE CATÁLOGO ──────────────────────────
+function agregarItemCatalogo(id, producto, precio, categoria) {
+  presItems.push({ id, producto, precio, cantidad: 1, esCustom: false, categoria });
+  renderItemsPresup();
+  calcularTotal();
+  filtrarCatalogoPres(); // actualizar botones
+}
+
+// ── AGREGAR ITEM PERSONALIZADO ───────────────────────────
+function agregarItemCustom() {
+  const nombre = document.getElementById('pres-custom-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('pres-custom-precio').value) || 0;
+  if (!nombre) { toast('Ingresá una descripción para el ítem', 'err'); return; }
+  presItems.push({ id: 'C' + Date.now(), producto: nombre, precio, cantidad: 1, esCustom: true, categoria: 'PERSONALIZADO' });
+  document.getElementById('pres-custom-nombre').value = '';
+  document.getElementById('pres-custom-precio').value = '';
+  renderItemsPresup();
+  calcularTotal();
+}
+
+// ── RENDER TABLA DE ITEMS ────────────────────────────────
+function renderItemsPresup() {
+  const tbody = document.getElementById('pres-items-tbody');
+  if (!presItems.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">Seleccioná productos del catálogo o agregá ítems personalizados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = presItems.map((item, i) => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;font-size:12px">
+        <div style="font-weight:500">${item.producto}</div>
+        ${item.esCustom ? '<span style="font-size:10px;color:var(--purple)">a medida</span>' :
+          `<span style="font-size:10px;color:var(--text-3)">${item.categoria}</span>`}
+      </td>
+      <td style="padding:8px;text-align:center">
+        <input type="number" min="1" value="${item.cantidad}"
+          style="width:52px;text-align:center;background:var(--bg);border:1px solid var(--border);
+                 border-radius:6px;color:var(--text);padding:4px;font-size:12px"
+          onchange="cambiarCantidad(${i}, this.value)">
+      </td>
+      <td style="padding:8px 12px;text-align:right;font-size:12px">
+        ${item.esCustom
+          ? `<input type="number" value="${item.precio}"
+               style="width:110px;text-align:right;background:var(--bg);border:1px solid var(--border);
+                      border-radius:6px;color:var(--text);padding:4px;font-size:12px"
+               onchange="cambiarPrecio(${i}, this.value)">`
+          : fmtARS(item.precio)}
+      </td>
+      <td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600">
+        ${fmtARS(item.precio * item.cantidad)}
+      </td>
+      <td style="padding:8px;text-align:center">
+        <button onclick="quitarItem(${i})"
+          style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:14px;
+                 padding:2px 6px;border-radius:4px;transition:color .15s"
+          onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-3)'">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+function cambiarCantidad(i, v) {
+  presItems[i].cantidad = Math.max(1, parseInt(v) || 1);
+  renderItemsPresup();
+  calcularTotal();
+}
+
+function cambiarPrecio(i, v) {
+  presItems[i].precio = parseFloat(v) || 0;
+  renderItemsPresup();
+  calcularTotal();
+}
+
+function quitarItem(i) {
+  presItems.splice(i, 1);
+  renderItemsPresup();
+  calcularTotal();
+  filtrarCatalogoPres();
+}
+
+// ── CALCULAR TOTAL ────────────────────────────────────────
+function calcularTotal() {
+  const subtotal   = presItems.reduce((s, it) => s + it.precio * it.cantidad, 0);
+  const descPct    = parseFloat(document.getElementById('pres-descuento')?.value) || 0;
+  const descuento  = subtotal * descPct / 100;
+  const total      = subtotal - descuento;
+  const el = document.getElementById('pres-total-display');
+  if (el) el.textContent = fmtARS(total);
+  return { subtotal, descuento, total };
+}
+
+// Recalcular al cambiar descuento
+document.addEventListener('input', e => {
+  if (e.target.id === 'pres-descuento') calcularTotal();
+});
+
+// ── GENERAR PDF Y SUBIR A DRIVE ───────────────────────────
+async function generarPresupuesto() {
+  const cliente = document.getElementById('pres-cliente').value.trim();
+  const venue   = document.getElementById('pres-venue').value.trim();
+  if (!cliente) { toast('El cliente es obligatorio', 'err'); return; }
+  if (!presItems.length) { toast('Agregá al menos un producto', 'err'); return; }
+
+  const btn = document.querySelector('#modal-presupuesto .btn-primary');
+  btn.textContent = '⏳ Generando...';
+  btn.disabled = true;
+
+  try {
+    const numero    = document.getElementById('pres-numero').value;
+    const tipo      = document.getElementById('pres-tipo').value;
+    const fecha     = document.getElementById('pres-fecha').value;
+    const horario   = document.getElementById('pres-horario').value;
+    const modalidad = document.getElementById('pres-modalidad').value;
+    const senaPct   = parseFloat(document.getElementById('pres-sena').value) || 30;
+    const validez   = parseInt(document.getElementById('pres-validez').value) || 10;
+    const descPct   = parseFloat(document.getElementById('pres-descuento').value) || 0;
+    const notaDesc  = document.getElementById('pres-nota-desc').value;
+    const hoy       = new Date().toLocaleDateString('es-AR');
+
+    const { subtotal, descuento, total } = calcularTotal();
+    const sena  = total * senaPct / 100;
+    const saldo = total - sena;
+
+    const fmtA  = v => '$ ' + Math.round(v).toLocaleString('es-AR');
+
+    // ── Agrupar por categoría ──
+    const grupos = {};
+    presItems.forEach(it => {
+      const c = it.categoria || 'OTROS';
+      if (!grupos[c]) grupos[c] = [];
+      grupos[c].push(it);
+    });
+
+    let filasHTML = '';
+    let idx = 0;
+    Object.entries(grupos).forEach(([cat, items]) => {
+      filasHTML += `<tr><td colspan="3" style="background:#2C3E50;color:#C9A84C;font-weight:bold;font-size:8pt;padding:5px 8px;letter-spacing:.5px">${cat}</td></tr>`;
+      items.forEach(it => {
+        const bg = idx++ % 2 === 0 ? '#fff' : '#f7f7f7';
+        const esCustom = it.esCustom ? '<span style="font-size:7pt;color:#9B59B6;margin-left:4px">a medida</span>' : '';
+        filasHTML += `<tr style="background:${bg}">
+          <td style="padding:7px 8px;font-size:9pt;font-weight:bold">${it.producto}${esCustom}</td>
+          <td style="padding:7px 8px;font-size:9pt;text-align:center;width:60px">${it.cantidad}</td>
+          <td style="padding:7px 8px;font-size:9pt;text-align:right;width:140px">${fmtA(it.precio * it.cantidad)}</td>
+        </tr>`;
+      });
+    });
+
+    // Descuento
+    if (descPct > 0) {
+      filasHTML += `
+        <tr style="background:#f7f7f7">
+          <td colspan="2" style="padding:6px 8px;font-size:9pt;text-align:right;color:#555">Subtotal</td>
+          <td style="padding:6px 8px;font-size:9pt;text-align:right">${fmtA(subtotal)}</td>
+        </tr>
+        <tr style="background:#FFF3E0">
+          <td colspan="2" style="padding:6px 8px;font-size:9pt;text-align:right;color:#E65100">
+            Descuento ${descPct}%${notaDesc ? ' — ' + notaDesc : ''}
+          </td>
+          <td style="padding:6px 8px;font-size:9pt;text-align:right;color:#E65100">(${fmtA(descuento)})</td>
+        </tr>`;
+    }
+
+    filasHTML += `<tr style="background:#F5E6B8;border-top:2px solid #C9A84C;border-bottom:2px solid #C9A84C">
+      <td colspan="2" style="padding:8px;font-size:11pt;font-weight:bold">TOTAL</td>
+      <td style="padding:8px;font-size:11pt;font-weight:bold;text-align:right;color:#C9A84C">${fmtA(total)}</td>
+    </tr>`;
+
+    // Sección de pago
+    const pagoHTML = modalidad === 'Seña + saldo' ? `
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:#1A1A2E">
+          <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:left">Concepto</th>
+          <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:right">Importe</th>
+          <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:left">Cuándo</th>
+        </tr></thead>
+        <tbody>
+          <tr style="background:#f7f7f7">
+            <td style="padding:6px 8px;font-size:9pt"><b>Seña (${senaPct}%) — Reserva de fecha</b></td>
+            <td style="padding:6px 8px;font-size:9pt;text-align:right">${fmtA(sena)}</td>
+            <td style="padding:6px 8px;font-size:9pt">Al confirmar</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;font-size:9pt">Saldo restante</td>
+            <td style="padding:6px 8px;font-size:9pt;text-align:right">${fmtA(saldo)}</td>
+            <td style="padding:6px 8px;font-size:9pt">Previo al evento</td>
+          </tr>
+          <tr style="background:#F5E6B8;border-top:2px solid #C9A84C">
+            <td style="padding:7px 8px;font-size:10pt;font-weight:bold">TOTAL</td>
+            <td style="padding:7px 8px;font-size:10pt;font-weight:bold;text-align:right;color:#C9A84C">${fmtA(total)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:8pt;color:#555;margin:4px 0 0;font-style:italic">La reserva de fecha queda confirmada con el pago de la seña.</p>` : `
+      <div style="background:#F5E6B8;border:2px solid #C9A84C;border-radius:4px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10pt;font-weight:bold">TOTAL — Pago al finalizar el evento</span>
+        <span style="font-size:14pt;font-weight:bold;color:#C9A84C">${fmtA(total)}</span>
+      </div>
+      <div style="background:#E3F2FD;border-left:4px solid #1565C0;padding:7px 10px;margin-top:6px;border-radius:0 4px 4px 0">
+        <p style="font-size:8pt;color:#1565C0;margin:0">No se requiere seña. El pago total se realiza una vez finalizado el evento.</p>
+      </div>`;
+
+    // ── HTML del PDF ──────────────────────────────────────
+    const htmlPDF = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; font-family: Arial, sans-serif; }
+  body { margin: 0; color: #1A1A2E; }
+  .page { padding: 0 16mm 16mm 16mm; }
+  .sh { background:#1A1A2E;color:#fff;font-weight:bold;font-size:8.5pt;padding:5px 8px;margin:5mm 0 2mm;letter-spacing:.5px; }
+  table { width:100%; border-collapse:collapse; }
+</style></head><body>
+<div style="background:#1A1A2E;padding:8mm 16mm;display:flex;justify-content:space-between;align-items:center;margin-bottom:5mm">
+  <div>
+    <div style="color:#fff;font-size:18pt;font-weight:bold;margin-bottom:2mm">GROSSO ARGENTINA</div>
+    <div style="color:#C9A84C;font-size:9pt">Iluminación Profesional para Eventos</div>
+  </div>
+  <div style="text-align:right;color:#ddd;font-size:8pt;line-height:1.7">
+    administracion@grossoarg.com<br>Lomas de Zamora, Buenos Aires<br>CUIT: 20-23091637-4
+  </div>
+</div>
+<div class="page">
+  <div style="height:2px;background:#C9A84C;margin-bottom:5mm"></div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:5mm">
+    <div style="font-size:14pt;font-weight:bold">PRESUPUESTO DE ILUMINACIÓN</div>
+    <div style="text-align:right;font-size:8.5pt;color:#555;line-height:1.8">
+      <b>N° ${numero}</b><br>Fecha: ${hoy}<br>
+      <span style="font-size:7.5pt;color:#888">Válido por ${validez} días</span>
+    </div>
+  </div>
+  <div class="sh">DATOS DEL EVENTO</div>
+  <div style="display:grid;grid-template-columns:130px 1fr 100px 1fr;background:#f7f7f7;font-size:8.5pt;margin-bottom:5mm">
+    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Cliente:</div>
+    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${cliente}</div>
+    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Tipo:</div>
+    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${tipo}</div>
+    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Fecha:</div>
+    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '—'}</div>
+    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Horario:</div>
+    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${horario || '—'}</div>
+    <div style="font-weight:bold;color:#555;padding:5px 8px">Venue:</div>
+    <div style="padding:5px 8px;grid-column:span 3">${venue || '—'}</div>
+  </div>
+  <div class="sh">DETALLE DE SERVICIOS</div>
+  <table style="margin-bottom:3mm">
+    <thead><tr style="background:#2C3E50">
+      <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:left">PRODUCTO</th>
+      <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:center;width:60px">CANT.</th>
+      <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:right;width:140px">TOTAL</th>
+    </tr></thead>
+    <tbody>${filasHTML}</tbody>
+  </table>
+  <p style="font-size:7.5pt;color:#888;margin:0 0 5mm 4px">* Precios en pesos argentinos (ARS).</p>
+  <div class="sh">CONDICIONES DE PAGO</div>
+  <div style="margin-bottom:5mm">${pagoHTML}</div>
+  <div class="sh">NOTAS Y CONDICIONES GENERALES</div>
+  <div style="margin-bottom:8mm">
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">1. El presupuesto incluye traslado dentro de GBA zona norte y zona sur.</p>
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">2. Montaje mínimo: 4 horas antes del evento.</p>
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">3. Consumo eléctrico a cargo del venue (220V trifásico requerido).</p>
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">4. La reserva de fecha se confirma con el pago de la seña.</p>
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">5. Precios expresados en pesos argentinos (ARS).</p>
+  </div>
+  <div style="display:flex;justify-content:space-between;border-top:.5px solid #ddd;padding-top:4mm">
+    <div style="font-size:8.5pt"><b>Grosso Argentina</b><br><span style="color:#888;font-size:8pt">administracion@grossoarg.com</span></div>
+    <div style="text-align:right;font-size:8pt;color:#888">Presupuesto N° ${numero}<br>Válido por ${validez} días desde ${hoy}</div>
+  </div>
+</div>
+<div style="background:#1A1A2E;color:#C9A84C;font-size:7.5pt;padding:3mm 16mm;display:flex;justify-content:space-between;margin-top:6mm">
+  <span>Grosso Argentina | Iluminación Profesional | administracion@grossoarg.com</span>
+  <span>N° ${numero}</span>
+</div>
+</body></html>`;
+
+    // ── Generar PDF con html2pdf ──────────────────────────
+    const nombreArchivo = slugify(`${new Date().toISOString().split('T')[0]}-${venue||'evento'}-${cliente}`) + '.pdf';
+
+    function slugify(s) {
+      return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    }
+
+    // Convertir HTML a blob PDF via html2pdf
+    const element = document.createElement('div');
+    element.innerHTML = htmlPDF;
+    element.style.position = 'absolute';
+    element.style.left = '-9999px';
+    document.body.appendChild(element);
+
+    const pdfBlob = await html2pdf().set({
+      margin: 0,
+      filename: nombreArchivo,
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(element).outputPdf('blob');
+
+    document.body.removeChild(element);
+
+    // ── Subir a Google Drive ──────────────────────────────
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const accessToken = session?.provider_token;
+
+    let pdfUrl = null;
+
+    if (accessToken) {
+      const metadata = { name: nombreArchivo, parents: [DRIVE_FOLDER_ID], mimeType: 'application/pdf' };
+      const formData = new FormData();
+      formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      formData.append('file', pdfBlob, nombreArchivo);
+
+      const uploadRes = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+        { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: formData }
+      );
+
+      if (uploadRes.ok) {
+        const fileData = await uploadRes.json();
+        pdfUrl = fileData.webViewLink;
+
+        // Hacer el archivo público (lectura)
+        await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+        });
+      }
+    } else {
+      // Sin token de Drive — solo descargar localmente
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url; a.download = nombreArchivo; a.click();
+      URL.revokeObjectURL(url);
+      toast('PDF descargado localmente (sin subir a Drive)');
+    }
+
+    // ── Guardar en Supabase ───────────────────────────────
+    try {
+      await sbPost('presupuestos', {
+        numero, cliente, tipo_evento: tipo,
+        fecha_evento: fecha || null, venue,
+        modalidad, sena_pct: senaPct,
+        descuento_pct: descPct,
+        subtotal_ars: subtotal, total_ars: total,
+        pdf_url: pdfUrl,
+        nombre_archivo: nombreArchivo,
+      });
+    } catch(e) { /* tabla puede no existir aún */ }
+
+    toast(pdfUrl ? '✅ PDF generado y guardado en Drive' : '✅ PDF generado');
+    closeModal('modal-presupuesto');
+    presItems = [];
+    loadPresupuestos();
+
+  } catch(e) {
+    toast('Error generando PDF: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    btn.textContent = '📄 Generar PDF y guardar';
+    btn.disabled = false;
+  }
 }
 
 // ── INIT ──────────────────────────────────────────────────
