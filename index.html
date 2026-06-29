@@ -2271,7 +2271,7 @@ async function generarPresupuesto() {
       ['Venue:', venue||'-', '', ''],
     ];
     eventoRows.forEach((row, ri) => {
-      fill(...(ri%2===0 ? GRIS_F : BLANCO));
+      fill(ri%2===0 ? GRIS_F : BLANCO);
       doc.rect(M, y, CW, 6, 'F');
       font('bold', 8); text(GRIS_T);
       doc.text(row[0], M+2, y+4);
@@ -2386,12 +2386,12 @@ async function generarPresupuesto() {
       ];
       pagoRows.forEach((row, ri) => {
         const isTot = ri === 2;
-        fill(...(isTot ? [245,230,184] : ri%2===0 ? GRIS_F : BLANCO));
+        fill(isTot ? [245,230,184] : ri%2===0 ? GRIS_F : BLANCO);
         doc.rect(M, y, CW, 6, 'F');
         font(isTot?'bold':'normal', 8);
-        text(...(isTot ? NEGRO : NEGRO));
+        text(isTot ? NEGRO : NEGRO);
         doc.text(row[0], M+2, y+4);
-        text(...(isTot ? ORO : NEGRO));
+        text(isTot ? ORO : NEGRO);
         doc.text(row[1], PW-M-42, y+4);
         if (row[2]) { text(NEGRO); doc.text(row[2], PW-M-2, y+4, { align:'right' }); }
         y += 6;
