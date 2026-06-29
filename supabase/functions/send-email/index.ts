@@ -27,7 +27,7 @@ serve(async (req) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'Grosso Argentina <onboarding@resend.dev>',
+        from: 'Grosso Argentina <administracion@grossoarg.com>',
         to: Array.isArray(to) ? to : [to],
         subject,
         html,
