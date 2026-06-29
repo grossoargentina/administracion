@@ -1835,7 +1835,7 @@ async function guardarJornadas() {
 
       const transporteVal = document.querySelector('input[name="jorn-transporte"]:checked')?.value || null;
       const row = {
-        codigo:       'J' + String(base++).padStart(4, '0'),
+        codigo:       `J${new Date().getFullYear()}-${String(base++).padStart(4, '0')}`,
         personal_id:  persId,
         tipo,
         fecha,
@@ -2322,6 +2322,10 @@ async function guardarLogistica() {
       await sbPost('logistica_eventos', logEventosDepIds.map(eid => ({ logistica_id: logId, evento_id: eid })));
     }
 
+    // Obtener base para codigos
+    const totalJornadas = await sb('jornadas', { select: 'id', limit: 1000 });
+    let base = (totalJornadas.length || 0) + 1;
+
     const jornadasToInsert = [];
     logDias.forEach(d => {
       d.personal.forEach(persId => {
@@ -2331,11 +2335,13 @@ async function guardarLogistica() {
           : d.tipo === 'Operador' ? p.tarifa_operador
           : p.tarifa_armado;
         jornadasToInsert.push({
+          codigo: `J${new Date().getFullYear()}-${String(base++).padStart(4, '0')}`,
           personal_id: persId,
           evento_id: eventoId ? parseInt(eventoId) : null,
           fecha: d.fecha,
           tipo: d.tipo,
           tarifa_ars: tarifa || null,
+          pagado: false,
           transporte: ['Armado','Desarmado'].includes(d.tipo) ? d.transporte : null,
           flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
           flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
