@@ -1885,6 +1885,8 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
     const evCount = await sb('eventos', { select: 'id' });
     const codigo  = 'EV' + String(evCount.length + 1).padStart(3,'0');
 
+    const esPagoTotal = modalidad === 'Pago total al finalizar';
+
     // Crear evento en pipeline
     await sbPost('eventos', {
       codigo,
@@ -1894,9 +1896,9 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
       fecha_evento:   fecha || null,
       venue:          venue || '',
       total_ars:      total || 0,
-      sena_pct:       senaPct || 30,
+      sena_pct:       esPagoTotal ? 0 : (senaPct || 30),
       modalidad_pago: modalidad || 'Pago total al finalizar',
-      sena_cobrada:   false,
+      sena_cobrada:   esPagoTotal ? true : false,  // si no hay seña, se marca como "cobrada" para no bloquear
       saldo_cobrado:  false,
       created_at:     new Date().toISOString(),
       updated_at:     new Date().toISOString(),
