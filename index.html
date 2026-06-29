@@ -2218,11 +2218,10 @@ async function generarPresupuesto() {
     const GRIS_F = [247, 247, 247];
     const GRIS_T = [85, 85, 85];
 
-    // Helper: setColor
-    const rgb   = (r,g,b) => ({r,g,b});
-    const fill  = (c) => doc.setFillColor(c[0]||c.r, c[1]||c.g, c[2]||c.b);
-    const stroke= (c) => doc.setDrawColor(c[0]||c.r, c[1]||c.g, c[2]||c.b);
-    const text  = (c) => doc.setTextColor(c[0]||c.r, c[1]||c.g, c[2]||c.b);
+    // Helper: setColor — usa ?? para no fallar con 0
+    const fill  = (c) => doc.setFillColor(c[0] ?? 0, c[1] ?? 0, c[2] ?? 0);
+    const stroke= (c) => doc.setDrawColor(c[0] ?? 0, c[1] ?? 0, c[2] ?? 0);
+    const text  = (c) => doc.setTextColor(c[0] ?? 0, c[1] ?? 0, c[2] ?? 0);
     const font  = (style, size) => { doc.setFont('helvetica', style); doc.setFontSize(size); };
 
     // ── HEADER ────────────────────────────────────────────
