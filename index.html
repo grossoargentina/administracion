@@ -1524,6 +1524,18 @@ function initDatePickers(root) {
       altFormat: 'd/m/Y',
       allowInput: false,
       disableMobile: true,
+      parseDate: (dateStr) => {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return new Date(y, m - 1, d);
+      },
+      formatDate: (date, fmt) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        if (fmt === 'Y-m-d') return `${y}-${m}-${d}`;
+        if (fmt === 'd/m/Y') return `${d}/${m}/${y}`;
+        return `${y}-${m}-${d}`;
+      },
     });
   });
 }
