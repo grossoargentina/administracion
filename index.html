@@ -769,6 +769,44 @@ textarea.inp { resize: vertical; min-height: 80px; }
   </div>
 </div>
 
+<!-- MODAL MES NUEVO -->
+<div class="modal-overlay" id="modal-mes-nuevo">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Generar mes nuevo</span>
+      <button class="modal-close" onclick="closeModal('modal-mes-nuevo')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label class="lbl">Copiar desde — Mes</label>
+          <select class="inp" id="mn-origen-mes">
+            <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
+            <option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option>
+            <option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Copiar desde — Año</label>
+          <input class="inp" type="number" id="mn-origen-anio" value="2026">
+        </div>
+        <div class="field"><label class="lbl">Crear mes — Mes</label>
+          <select class="inp" id="mn-destino-mes">
+            <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
+            <option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option>
+            <option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Crear mes — Año</label>
+          <input class="inp" type="number" id="mn-destino-anio" value="2026">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-mes-nuevo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarMesNuevo()">Generar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL PRESUPUESTO -->
 <div class="modal-overlay" id="modal-presupuesto" style="align-items:flex-start;padding:20px">
   <div class="modal" style="max-width:800px;margin:auto">
@@ -1629,12 +1667,12 @@ function renderImpuestos() {
       </td>
     </tr>`;
     const SECCION_BG = {
-      'Empresa / Fiscal': 'rgba(52,152,219,.07)',
-      'Familia / Casa':   'rgba(155,89,182,.07)',
-      'Suscripciones':    'rgba(26,188,156,.07)',
-      'Tarjetas':         'rgba(231,76,60,.07)',
-      'Planes de pago':   'rgba(241,196,15,.07)',
-      'Deudas':           'rgba(231,76,60,.12)',
+      'Empresa / Fiscal': 'rgba(52,152,219,.15)',
+      'Familia / Casa':   'rgba(155,89,182,.15)',
+      'Suscripciones':    'rgba(26,188,156,.15)',
+      'Tarjetas':         'rgba(231,76,60,.15)',
+      'Planes de pago':   'rgba(241,196,15,.15)',
+      'Deudas':           'rgba(231,76,60,.22)',
     };
 
     items.forEach(i => {
@@ -1726,24 +1764,33 @@ async function guardarImpuesto() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-async function generarMesNuevo() {
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function generarMesNuevo() {
   const hoy = new Date();
-  const mesActual = meses[hoy.getMonth()];
-  const anioActual = hoy.getFullYear();
-  const mesNuevoIdx = (hoy.getMonth() + 1) % 12;
-  const mesNuevo = meses[mesNuevoIdx];
-  const anioNuevo = mesNuevoIdx === 0 ? anioActual + 1 : anioActual;
+  const mesOrigenIdx = impMesIdx;
+  const mesDestinoIdx = (impMesIdx + 1) % 12;
+  const anioDestino = mesDestinoIdx === 0 ? impAnio + 1 : impAnio;
 
-  if (!confirm(`¿Generar los conceptos de ${mesNuevo} ${anioNuevo} basados en ${mesActual} ${anioActual}?`)) return;
+  document.getElementById('mn-origen-mes').value  = MESES_NAMES[mesOrigenIdx];
+  document.getElementById('mn-origen-anio').value = impAnio;
+  document.getElementById('mn-destino-mes').value  = MESES_NAMES[mesDestinoIdx];
+  document.getElementById('mn-destino-anio').value = anioDestino;
+
+  openModal('modal-mes-nuevo');
+}
+
+async function confirmarMesNuevo() {
+  const mesOrigen  = document.getElementById('mn-origen-mes').value;
+  const anioOrigen = parseInt(document.getElementById('mn-origen-anio').value);
+  const mesDestino = document.getElementById('mn-destino-mes').value;
+  const anioDestino = parseInt(document.getElementById('mn-destino-anio').value);
+
+  const delMes = todosImpuestos.filter(i => i.mes === mesOrigen && i.anio === anioOrigen);
+  if (!delMes.length) { toast(`No hay conceptos en ${mesOrigen} ${anioOrigen}`, 'err'); return; }
+
+  const yaExiste = todosImpuestos.some(i => i.mes === mesDestino && i.anio === anioDestino);
+  if (yaExiste) { toast(`${mesDestino} ${anioDestino} ya existe`, 'err'); return; }
 
   try {
-    const delMes = todosImpuestos.filter(i => i.mes === mesActual && i.anio === anioActual);
-    if (!delMes.length) { toast('No hay conceptos en el mes actual', 'err'); return; }
-
-    const yaExiste = todosImpuestos.some(i => i.mes === mesNuevo && i.anio === anioNuevo);
-    if (yaExiste) { toast(`${mesNuevo} ${anioNuevo} ya existe`, 'err'); return; }
-
     const variablesKeywords = ['iva','iibb','sircreb','cargas sociales','ganancias','anticipos','vep'];
     for (const item of delMes) {
       const esVariable = variablesKeywords.some(k => item.concepto.toLowerCase().includes(k));
@@ -1752,8 +1799,8 @@ async function generarMesNuevo() {
         seccion:   item.seccion,
         categoria: item.categoria,
         empresa:   item.empresa,
-        mes:       mesNuevo,
-        anio:      anioNuevo,
+        mes:       mesDestino,
+        anio:      anioDestino,
         vence_dia: item.vence_dia,
         monto_ars: esVariable ? null : item.monto_ars,
         monto_usd: esVariable ? null : item.monto_usd,
@@ -1761,7 +1808,10 @@ async function generarMesNuevo() {
         notas:     item.notas,
       });
     }
-    toast(`${mesNuevo} ${anioNuevo} generado — ${delMes.length} conceptos`);
+    toast(`✅ ${mesDestino} ${anioDestino} generado — ${delMes.length} conceptos`);
+    closeModal('modal-mes-nuevo');
+    impMesIdx = MESES_NAMES.indexOf(mesDestino);
+    impAnio = anioDestino;
     loadImpuestos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
