@@ -521,7 +521,6 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="page-header">
         <div><div class="page-title">Impuestos y costos fijos</div></div>
         <div style="display:flex;gap:10px">
-          <button class="btn btn-ghost" onclick="importarJulio2026()" id="btn-import-jul">⬇ Importar Julio 2026</button>
           <button class="btn btn-ghost" onclick="generarMesNuevo()">+ Mes nuevo</button>
           <button class="btn btn-primary" onclick="openModal('modal-impuesto')">+ Concepto</button>
         </div>
@@ -1068,6 +1067,7 @@ function goTo(page) {
   });
 
   currentPage = page;
+  localStorage.setItem('lastPage', page);
   loadPage(page);
 }
 
@@ -1098,7 +1098,8 @@ async function initApp() {
     llenarSelectEventos();
   } catch(e) {}
 
-  loadDashboard();
+  const lastPage = localStorage.getItem('lastPage') || 'dashboard';
+  goTo(lastPage);
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────
