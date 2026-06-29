@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grosso Argentina — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ─────────────────────────────────────────── */
+:root {
+  --bg:       #0D0D14;
+  --surface:  #1A1A2E;
+  --surface2: #222236;
+  --border:   #2E2E4A;
+  --gold:     #C9A84C;
+  --gold-dim: #8A6E2A;
+  --gold-bg:  rgba(201,168,76,.08);
+  --text:     #F0EDE8;
+  --text-2:   #9A97A8;
+  --text-3:   #5A5870;
+  --green:    #2ECC71;
+  --red:      #E74C3C;
+  --orange:   #E67E22;
+  --blue:     #3498DB;
+  --purple:   #9B59B6;
+  --radius:   10px;
+  --sidebar:  240px;
+}
+
+/* ── RESET ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+button { font-family: inherit; cursor: pointer; border: none; outline: none; }
+input, select, textarea { font-family: inherit; outline: none; }
+a { color: inherit; text-decoration: none; }
+
+/* ── LOGIN ───────────────────────────────────────────── */
+#login-screen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 30% 50%, rgba(201,168,76,.06) 0%, transparent 60%),
+              var(--bg);
+}
+.login-box {
+  width: 360px; padding: 48px 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.login-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; color: var(--gold);
+  margin-bottom: 4px;
+}
+.login-sub { color: var(--text-2); font-size: 12px; margin-bottom: 36px; letter-spacing: .5px; text-transform: uppercase; }
+.login-box label { display: block; font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px; }
+.login-box input {
+  width: 100%; padding: 12px 14px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 14px;
+  margin-bottom: 20px; transition: border-color .2s;
+}
+.login-box input:focus { border-color: var(--gold); }
+.btn-gold {
+  width: 100%; padding: 13px;
+  background: var(--gold); color: #0D0D14;
+  font-weight: 600; font-size: 14px;
+  border-radius: var(--radius); transition: opacity .2s;
+}
+.btn-gold:hover { opacity: .88; }
+.login-error { color: var(--red); font-size: 12px; margin-top: 10px; text-align: center; min-height: 18px; }
+
+/* ── APP SHELL ───────────────────────────────────────── */
+#app { display: none; height: 100vh; overflow: hidden; }
+#app.visible { display: flex; }
+
+/* ── SIDEBAR ─────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar); flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  height: 100vh; overflow-y: auto;
+}
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px; color: var(--gold); line-height: 1.2;
+}
+.sidebar-logo-sub { font-size: 10px; color: var(--text-3); letter-spacing: .5px; text-transform: uppercase; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 12px 0; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 20px; cursor: pointer;
+  color: var(--text-2); font-size: 13px; font-weight: 500;
+  transition: all .15s; border-left: 3px solid transparent;
+  user-select: none;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+.nav-item.active { color: var(--gold); border-left-color: var(--gold); background: var(--gold-bg); }
+.nav-icon { font-size: 16px; width: 20px; text-align: center; }
+.sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-3);
+}
+.btn-logout {
+  font-size: 12px; color: var(--text-3);
+  background: none; padding: 4px 0;
+  transition: color .15s;
+}
+.btn-logout:hover { color: var(--red); }
+
+/* ── MAIN ────────────────────────────────────────────── */
+.main {
+  flex: 1; overflow-y: auto;
+  background: var(--bg);
+}
+.page { display: none; padding: 28px 32px; max-width: 1100px; }
+.page.active { display: block; }
+
+/* ── PAGE HEADER ─────────────────────────────────────── */
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+}
+.page-title { font-size: 22px; font-weight: 600; }
+.page-sub { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+
+/* ── KPI CARDS ───────────────────────────────────────── */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 14px; margin-bottom: 28px; }
+.kpi {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+}
+.kpi-label { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px; }
+.kpi-value { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; }
+.kpi-value.gold { color: var(--gold); }
+.kpi-value.green { color: var(--green); }
+.kpi-value.red { color: var(--red); }
+.kpi-value.orange { color: var(--orange); }
+
+/* ── CARDS ───────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; margin-bottom: 20px;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.card-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-2); }
+.card-body { padding: 20px; }
+
+/* ── TABLA ───────────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; padding: 10px 14px;
+  font-size: 11px; font-weight: 600;
+  color: var(--text-3); text-transform: uppercase; letter-spacing: .6px;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 12px 14px; font-size: 13px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,.02); }
+
+/* ── ESTADO BADGES ───────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+.badge.cotizado   { background: rgba(52,152,219,.15); color: var(--blue); }
+.badge.confirmado { background: rgba(46,204,113,.15); color: var(--green); }
+.badge.logistica  { background: rgba(230,126,34,.15); color: var(--orange); }
+.badge.realizado  { background: rgba(155,89,182,.15); color: var(--purple); }
+.badge.perdido    { background: rgba(231,76,60,.12);  color: var(--red); }
+.badge.cancelado  { background: rgba(255,255,255,.06); color: var(--text-3); }
+
+/* Pulso en confirmado */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.badge.confirmado .badge-dot,
+.badge.logistica  .badge-dot { animation: pulse 2s ease-in-out infinite; }
+.badge.cotizado   .badge-dot { background: var(--blue); }
+.badge.confirmado .badge-dot { background: var(--green); }
+.badge.logistica  .badge-dot { background: var(--orange); }
+.badge.realizado  .badge-dot { background: var(--purple); }
+.badge.perdido    .badge-dot { background: var(--red); }
+.badge.cancelado  .badge-dot { background: var(--text-3); }
+
+/* ── BOTONES ─────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; transition: all .15s;
+}
+.btn-primary { background: var(--gold); color: #0D0D14; }
+.btn-primary:hover { opacity: .88; }
+.btn-ghost { background: rgba(255,255,255,.06); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: rgba(255,255,255,.1); }
+.btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+.btn-danger { background: rgba(231,76,60,.15); color: var(--red); border: 1px solid rgba(231,76,60,.3); }
+
+/* ── FORMULARIOS ─────────────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-grid.cols-1 { grid-template-columns: 1fr; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: 1 / -1; }
+label.lbl { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .6px; }
+.inp {
+  padding: 10px 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px;
+  transition: border-color .15s;
+}
+.inp:focus { border-color: var(--gold); }
+select.inp { appearance: none; cursor: pointer; }
+textarea.inp { resize: vertical; min-height: 80px; }
+
+/* ── MODAL ───────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.7); z-index: 100;
+  align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; width: 100%; max-width: 600px;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px; border-bottom: 1px solid var(--border);
+}
+.modal-title { font-size: 16px; font-weight: 600; }
+.modal-close { font-size: 20px; color: var(--text-3); background: none; line-height: 1; padding: 4px; }
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 24px; }
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 24px; border-top: 1px solid var(--border);
+}
+
+/* ── TOAST ───────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 18px;
+  font-size: 13px; color: var(--text);
+  z-index: 999; opacity: 0; transform: translateY(8px);
+  transition: all .25s; pointer-events: none; max-width: 320px;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+#toast.ok  { border-color: var(--green); }
+#toast.err { border-color: var(--red); }
+
+/* ── FILTROS ─────────────────────────────────────────── */
+.filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.filter-btn {
+  padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text-2); transition: all .15s; cursor: pointer;
+}
+.filter-btn.active { background: var(--gold-bg); border-color: var(--gold); color: var(--gold); }
+
+/* ── COBROS ──────────────────────────────────────────── */
+.cobro-bar { height: 4px; border-radius: 2px; background: var(--border); margin-top: 4px; overflow: hidden; }
+.cobro-fill { height: 100%; border-radius: 2px; background: var(--gold); transition: width .3s; }
+
+/* ── EMPTY STATE ─────────────────────────────────────── */
+.empty {
+  text-align: center; padding: 48px 20px;
+  color: var(--text-3); font-size: 13px;
+}
+.empty-icon { font-size: 32px; margin-bottom: 10px; opacity: .4; }
+
+/* ── JORNADAS TIPO ───────────────────────────────────── */
+.tipo-deposito   { color: var(--blue); }
+.tipo-armado     { color: var(--orange); }
+.tipo-operador   { color: var(--purple); }
+
+/* ── IMPUESTOS ───────────────────────────────────────── */
+.imp-vencido { color: var(--red); font-weight: 600; }
+.imp-pagado  { color: var(--green); }
+
+/* ── MOBILE ──────────────────────────────────────────── */
+.mobile-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--surface); border-top: 1px solid var(--border);
+  z-index: 50; padding: 8px 0 env(safe-area-inset-bottom);
+}
+.mobile-nav-items { display: flex; justify-content: space-around; }
+.mobile-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 12px; cursor: pointer; color: var(--text-3);
+  font-size: 10px; transition: color .15s;
+}
+.mobile-nav-item.active { color: var(--gold); }
+.mobile-nav-item .mn-icon { font-size: 20px; }
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .mobile-nav { display: block; }
+  .page { padding: 20px 16px 80px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid.cols-3 { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── LOADING ─────────────────────────────────────────── */
+.loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--text-3); gap: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Grosso Argentina</div>
+    <div class="login-sub">Sistema de gestión</div>
+    <label>Usuario</label>
+    <input type="text" id="l-user" placeholder="admin" autocomplete="username">
+    <label>Contraseña</label>
+    <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn-gold" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="l-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-name">Grosso Argentina</div>
+      <div class="sidebar-logo-sub">Iluminación · Gestión</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="goTo('dashboard')">
+        <span class="nav-icon">⚡</span> Dashboard
+      </div>
+      <div class="nav-item" onclick="goTo('eventos')">
+        <span class="nav-icon">📋</span> Eventos
+      </div>
+      <div class="nav-item" onclick="goTo('cobros')">
+        <span class="nav-icon">💰</span> Cobros pendientes
+      </div>
+      <div class="nav-item" onclick="goTo('jornadas')">
+        <span class="nav-icon">👷</span> Jornadas
+      </div>
+      <div class="nav-item" onclick="goTo('personal')">
+        <span class="nav-icon">👥</span> Personal
+      </div>
+      <div class="nav-item" onclick="goTo('impuestos')">
+        <span class="nav-icon">🗓️</span> Impuestos
+      </div>
+      <div class="nav-item" onclick="goTo('catalogo')">
+        <span class="nav-icon">📦</span> Catálogo
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="margin-bottom:6px">administracion@grossoarg.com</div>
+      <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="p-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-sub" id="dash-fecha"></div>
+        </div>
+        <button class="btn btn-primary" onclick="goTo('eventos'); openModal('modal-evento')">+ Nuevo evento</button>
+      </div>
+      <div class="kpi-grid" id="dash-kpis">
+        <div class="loading"><div class="spinner"></div> Cargando...</div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Próximos eventos</span>
+          <button class="btn btn-ghost btn-sm" onclick="goTo('eventos')">Ver todos</button>
+        </div>
+        <div class="tbl-wrap">
+          <table id="dash-proximos">
+            <thead><tr><th>Estado</th><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Venue</th><th>Total</th></tr></thead>
+            <tbody id="dash-tbody"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Cobros pendientes urgentes</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Pendiente</th><th>Estado cobro</th></tr></thead>
+            <tbody id="dash-cobros"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- EVENTOS -->
+    <div class="page" id="p-eventos">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Pipeline de eventos</div>
+          <div class="page-sub">Cotizados, confirmados, en logística y realizados</div>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('modal-evento')">+ Nuevo evento</button>
+      </div>
+      <div class="filters" id="ev-filters">
+        <button class="filter-btn active" onclick="filterEventos('todos',this)">Todos</button>
+        <button class="filter-btn" onclick="filterEventos('Cotizado',this)">Cotizados</button>
+        <button class="filter-btn" onclick="filterEventos('Confirmado',this)">Confirmados</button>
+        <button class="filter-btn" onclick="filterEventos('En logística',this)">En logística</button>
+        <button class="filter-btn" onclick="filterEventos('Realizado',this)">Realizados</button>
+        <button class="filter-btn" onclick="filterEventos('Perdido',this)">Perdidos</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Estado</th><th>Cliente</th><th>Tipo</th><th>Fecha evento</th><th>Venue</th><th>Total ARS</th><th>Cobro</th><th></th></tr></thead>
+            <tbody id="ev-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- COBROS -->
+    <div class="page" id="p-cobros">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Cobros pendientes</div>
+          <div class="page-sub">Eventos confirmados o realizados con pagos incompletos</div>
+        </div>
+      </div>
+      <div class="kpi-grid" id="cobros-kpis"></div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Total</th><th>Pendiente</th><th>Seña</th><th>Saldo</th><th></th></tr></thead>
+            <tbody id="cobros-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- JORNADAS -->
+    <div class="page" id="p-jornadas">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Jornadas de trabajo</div>
+          <div class="page-sub">Registro de trabajo del personal</div>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('modal-jornada')">+ Nueva jornada</button>
+      </div>
+      <div class="kpi-grid" id="jorn-kpis"></div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Personal</th><th>Tipo</th><th>Evento</th><th>Tarifa</th><th>Pagado</th><th></th></tr></thead>
+            <tbody id="jorn-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PERSONAL -->
+    <div class="page" id="p-personal">
+      <div class="page-header">
+        <div><div class="page-title">Personal</div></div>
+        <button class="btn btn-primary" onclick="openModal('modal-personal')">+ Agregar</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>Tipo</th><th>Depósito</th><th>Armado</th><th>Operador</th><th>Tel</th><th></th></tr></thead>
+            <tbody id="pers-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPUESTOS -->
+    <div class="page" id="p-impuestos">
+      <div class="page-header">
+        <div><div class="page-title">Impuestos y costos fijos</div></div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost" onclick="generarMesNuevo()">+ Mes nuevo</button>
+          <button class="btn btn-primary" onclick="openModal('modal-impuesto')">+ Concepto</button>
+        </div>
+      </div>
+      <div class="kpi-grid" id="imp-kpis"></div>
+      <div class="filters" id="imp-filters">
+        <button class="filter-btn active" onclick="filterImpuestos('todos',this)">Todos</button>
+        <button class="filter-btn" onclick="filterImpuestos('Impuesto',this)">Impuestos</button>
+        <button class="filter-btn" onclick="filterImpuestos('Operativo',this)">Operativos</button>
+        <button class="filter-btn" onclick="filterImpuestos('pendiente',this)">Pendientes</button>
+        <button class="filter-btn" onclick="filterImpuestos('vencido',this)">Vencidos</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Mes</th><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Monto ARS</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="imp-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATÁLOGO -->
+    <div class="page" id="p-catalogo">
+      <div class="page-header">
+        <div><div class="page-title">Catálogo de productos</div></div>
+      </div>
+      <div class="filters" id="cat-filters"></div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Código</th><th>Categoría</th><th>Producto</th><th>Precio ARS</th></tr></thead>
+            <tbody id="cat-tbody"><tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MOBILE NAV -->
+  <nav class="mobile-nav">
+    <div class="mobile-nav-items">
+      <div class="mobile-nav-item active" onclick="goTo('dashboard')"><span class="mn-icon">⚡</span>Inicio</div>
+      <div class="mobile-nav-item" onclick="goTo('eventos')"><span class="mn-icon">📋</span>Eventos</div>
+      <div class="mobile-nav-item" onclick="goTo('cobros')"><span class="mn-icon">💰</span>Cobros</div>
+      <div class="mobile-nav-item" onclick="goTo('jornadas')"><span class="mn-icon">👷</span>Jornadas</div>
+      <div class="mobile-nav-item" onclick="goTo('impuestos')"><span class="mn-icon">🗓️</span>Impuestos</div>
+    </div>
+  </nav>
+</div>
+
+<!-- ── MODALES ──────────────────────────────────────────── -->
+
+<!-- MODAL EVENTO -->
+<div class="modal-overlay" id="modal-evento">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-evento-title">Nuevo evento</span>
+      <button class="modal-close" onclick="closeModal('modal-evento')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label class="lbl">Cliente *</label><input class="inp" id="ev-cliente" placeholder="Nombre del cliente"></div>
+        <div class="field"><label class="lbl">Tipo de evento</label>
+          <select class="inp" id="ev-tipo">
+            <option>Casamiento</option><option>Corporativo</option>
+            <option>Social</option><option>Cumpleaños</option><option>Otro</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="ev-fecha"></div>
+        <div class="field"><label class="lbl">Horario</label><input class="inp" id="ev-horario" placeholder="20:00 hs"></div>
+        <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="ev-venue" placeholder="Nombre del salón"></div>
+        <div class="field"><label class="lbl">Total ARS</label><input class="inp" type="number" id="ev-total" placeholder="0"></div>
+        <div class="field"><label class="lbl">Modalidad de pago</label>
+          <select class="inp" id="ev-modalidad">
+            <option>Seña + saldo</option>
+            <option>Pago total al finalizar</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="ev-sena" value="30" min="0" max="100"></div>
+        <div class="field"><label class="lbl">Estado</label>
+          <select class="inp" id="ev-estado">
+            <option>Cotizado</option><option>Confirmado</option>
+            <option>En logística</option><option>Realizado</option>
+            <option>Perdido</option><option>Cancelado</option>
+          </select>
+        </div>
+        <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
+        <div class="field full" id="ev-motivo-wrap" style="display:none">
+          <label class="lbl">Motivo de pérdida</label>
+          <select class="inp" id="ev-motivo">
+            <option value="">— Seleccionar —</option>
+            <option>Precio</option><option>Ya tenía proveedor</option>
+            <option>No respondió</option><option>Fecha no disponible</option>
+            <option>Canceló el evento</option><option>Otro</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-evento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEvento()">Guardar evento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL JORNADA -->
+<div class="modal-overlay" id="modal-jornada">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Nueva jornada</span>
+      <button class="modal-close" onclick="closeModal('modal-jornada')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label class="lbl">Personal *</label>
+          <select class="inp" id="jorn-personal" onchange="autoTarifa()">
+            <option value="">— Seleccionar —</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Tipo de jornada *</label>
+          <select class="inp" id="jorn-tipo" onchange="autoTarifa()">
+            <option value="">— Seleccionar —</option>
+            <option>Depósito</option><option>Armado/Desarmado</option><option>Operador</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Fecha *</label><input class="inp" type="date" id="jorn-fecha"></div>
+        <div class="field"><label class="lbl">Evento (opcional)</label>
+          <select class="inp" id="jorn-evento">
+            <option value="">— Sin evento asociado —</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Tarifa ARS</label><input class="inp" type="number" id="jorn-tarifa" placeholder="Auto desde personal"></div>
+        <div class="field"><label class="lbl">Pagado</label>
+          <select class="inp" id="jorn-pagado">
+            <option value="false">No</option><option value="true">Sí</option>
+          </select>
+        </div>
+        <div class="field full"><label class="lbl">Notas</label><input class="inp" id="jorn-notas" placeholder="Opcional"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-jornada')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarJornada()">Guardar jornada</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PERSONAL -->
+<div class="modal-overlay" id="modal-personal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Agregar personal</span>
+      <button class="modal-close" onclick="closeModal('modal-personal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label class="lbl">Nombre *</label><input class="inp" id="pers-nombre" placeholder="Nombre completo"></div>
+        <div class="field"><label class="lbl">Tipo</label>
+          <select class="inp" id="pers-tipo"><option>Fijo</option><option>Freelance</option></select>
+        </div>
+        <div class="field"><label class="lbl">Tarifa Depósito (ARS)</label><input class="inp" type="number" id="pers-dep" placeholder="0"></div>
+        <div class="field"><label class="lbl">Tarifa Armado (ARS)</label><input class="inp" type="number" id="pers-arm" placeholder="0"></div>
+        <div class="field"><label class="lbl">Tarifa Operador (ARS)</label><input class="inp" type="number" id="pers-op" placeholder="0"></div>
+        <div class="field"><label class="lbl">Teléfono</label><input class="inp" id="pers-tel" placeholder="+54 11..."></div>
+        <div class="field full"><label class="lbl">Notas</label><input class="inp" id="pers-notas" placeholder="Opcional"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-personal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarPersonal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPUESTO -->
+<div class="modal-overlay" id="modal-impuesto">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Agregar concepto</span>
+      <button class="modal-close" onclick="closeModal('modal-impuesto')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label class="lbl">Concepto *</label><input class="inp" id="imp-concepto" placeholder="Ej: Monotributo"></div>
+        <div class="field"><label class="lbl">Categoría</label>
+          <select class="inp" id="imp-cat"><option>Impuesto</option><option>Operativo</option></select>
+        </div>
+        <div class="field"><label class="lbl">Mes</label>
+          <select class="inp" id="imp-mes">
+            <option>Enero</option><option>Febrero</option><option>Marzo</option><option>Abril</option>
+            <option>Mayo</option><option>Junio</option><option>Julio</option><option>Agosto</option>
+            <option>Septiembre</option><option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+          </select>
+        </div>
+        <div class="field"><label class="lbl">Año</label><input class="inp" type="number" id="imp-anio" value="2026"></div>
+        <div class="field"><label class="lbl">Vence día</label><input class="inp" type="number" id="imp-vence" placeholder="22" min="1" max="31"></div>
+        <div class="field"><label class="lbl">Monto ARS</label><input class="inp" type="number" id="imp-monto" placeholder="0"></div>
+        <div class="field full"><label class="lbl">Notas</label><input class="inp" id="imp-notas" placeholder="Opcional"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-impuesto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarImpuesto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── CONFIG SUPABASE ───────────────────────────────────────
+const SB_URL = 'https://mitosihorpjmrosdxqbt.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pdG9zaWhvcnBqbXJvc2R4cWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2ODA5NjQsImV4cCI6MjA5ODI1Njk2NH0._YP5PhtHrjFbE2a11gBd9Stq4J4BhrwrS2xnHHcUYgI';
+
+async function sb(table, opts = {}) {
+  const { method = 'GET', body, select = '*', filters = [], order, limit } = opts;
+  let url = `${SB_URL}/rest/v1/${table}?select=${select}`;
+  filters.forEach(f => url += `&${f}`);
+  if (order) url += `&order=${order}`;
+  if (limit) url += `&limit=${limit}`;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.message || 'Error Supabase'); }
+  if (method === 'GET') return res.json();
+  return res.status === 204 ? null : res.json();
+}
+
+async function sbPost(table, body) { return sb(table, { method: 'POST', body }); }
+async function sbPatch(table, id, body) {
+  const res = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.ok;
+}
+async function sbDelete(table, id) {
+  const res = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
+  });
+  return res.ok;
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+const fmtARS = v => v == null ? '—' : '$ ' + Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
+const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR') : '—';
+const today = () => new Date().toISOString().split('T')[0];
+
+function badge(estado) {
+  const map = {
+    'Cotizado':    'cotizado',
+    'Confirmado':  'confirmado',
+    'En logística':'logistica',
+    'Realizado':   'realizado',
+    'Perdido':     'perdido',
+    'Cancelado':   'cancelado',
+  };
+  const cls = map[estado] || 'cancelado';
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${estado}</span>`;
+}
+
+function toast(msg, type = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3000);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Cerrar modal al click fuera
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ── AUTH ──────────────────────────────────────────────────
+let AUTH = false;
+let PASS_ADMIN = 'grosso2026'; // default, se actualiza desde config
+
+async function initAuth() {
+  try {
+    const cfg = await sb('config', { filters: ['clave=eq.password_admin'] });
+    if (cfg[0]) PASS_ADMIN = cfg[0].valor;
+  } catch(e) {}
+}
+
+function doLogin() {
+  const user = document.getElementById('l-user').value.trim();
+  const pass = document.getElementById('l-pass').value;
+  if (user === 'admin' && pass === PASS_ADMIN) {
+    AUTH = true;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    initApp();
+  } else {
+    document.getElementById('l-err').textContent = 'Usuario o contraseña incorrectos.';
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !AUTH) doLogin();
+});
+
+function logout() {
+  AUTH = false;
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-pass').value = '';
+  document.getElementById('l-err').textContent = '';
+}
+
+// ── NAVEGACIÓN ────────────────────────────────────────────
+let currentPage = 'dashboard';
+let evCache = [], persCache = [], evConfirmados = [];
+
+function goTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+
+  document.getElementById(`p-${page}`).classList.add('active');
+
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim().toLowerCase().includes(page === 'dashboard' ? 'dashboard' : page))
+      n.classList.add('active');
+  });
+  document.querySelectorAll('.mobile-nav-item').forEach(n => {
+    if (n.textContent.trim().toLowerCase().includes(page === 'dashboard' ? 'inicio' : page))
+      n.classList.add('active');
+  });
+
+  currentPage = page;
+  loadPage(page);
+}
+
+async function loadPage(page) {
+  switch(page) {
+    case 'dashboard':  loadDashboard(); break;
+    case 'eventos':    loadEventos(); break;
+    case 'cobros':     loadCobros(); break;
+    case 'jornadas':   loadJornadas(); break;
+    case 'personal':   loadPersonal(); break;
+    case 'impuestos':  loadImpuestos(); break;
+    case 'catalogo':   loadCatalogo(); break;
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────
+async function initApp() {
+  const fecha = new Date();
+  document.getElementById('dash-fecha').textContent =
+    fecha.toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  // Precargar personal y eventos para modales
+  try {
+    persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
+    evCache   = await sb('eventos',  { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
+    llenarSelectPersonal();
+    llenarSelectEventos();
+  } catch(e) {}
+
+  loadDashboard();
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const [eventos, cobros] = await Promise.all([
+      sb('v_pipeline', { limit: 50 }),
+      sb('v_cobros_pendientes', { limit: 5 }),
+    ]);
+
+    // KPIs
+    const cotizados   = eventos.filter(e => e.estado === 'Cotizado').length;
+    const confirmados = eventos.filter(e => e.estado === 'Confirmado').length;
+    const logistica   = eventos.filter(e => e.estado === 'En logística').length;
+    const realizados  = eventos.filter(e => e.estado === 'Realizado').length;
+    const pendienteTotal = cobros.reduce((s,c) => s + Number(c.pendiente_ars||0), 0);
+
+    document.getElementById('dash-kpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Cotizados</div><div class="kpi-value">${cotizados}</div></div>
+      <div class="kpi"><div class="kpi-label">Confirmados</div><div class="kpi-value green">${confirmados}</div></div>
+      <div class="kpi"><div class="kpi-label">En logística</div><div class="kpi-value orange">${logistica}</div></div>
+      <div class="kpi"><div class="kpi-label">Realizados</div><div class="kpi-value">${realizados}</div></div>
+      <div class="kpi"><div class="kpi-label">Por cobrar</div><div class="kpi-value gold">${fmtARS(pendienteTotal)}</div></div>
+    `;
+
+    // Próximos eventos (solo confirmados/logística)
+    const proximos = eventos
+      .filter(e => ['Confirmado','En logística'].includes(e.estado))
+      .slice(0, 6);
+
+    document.getElementById('dash-tbody').innerHTML = proximos.length
+      ? proximos.map(e => `<tr>
+          <td>${badge(e.estado)}</td>
+          <td><b>${e.cliente_nombre}</b></td>
+          <td>${e.tipo_evento || '—'}</td>
+          <td>${fmtDate(e.fecha_evento)}</td>
+          <td>${e.venue || '—'}</td>
+          <td>${fmtARS(e.total_ars)}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📅</div>Sin eventos próximos confirmados</div></td></tr>`;
+
+    // Cobros urgentes
+    document.getElementById('dash-cobros').innerHTML = cobros.length
+      ? cobros.map(c => `<tr>
+          <td><b>${c.cliente_nombre}</b></td>
+          <td>${c.tipo_evento || '—'}</td>
+          <td>${fmtDate(c.fecha_evento)}</td>
+          <td>${fmtARS(c.total_ars)}</td>
+          <td style="color:var(--red);font-weight:600">${fmtARS(c.pendiente_ars)}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="5"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes</div></td></tr>`;
+
+  } catch(e) {
+    toast('Error cargando dashboard: ' + e.message, 'err');
+  }
+}
+
+// ── EVENTOS ───────────────────────────────────────────────
+let todosEventos = [];
+let filtroEvento = 'todos';
+
+async function loadEventos() {
+  try {
+    todosEventos = await sb('v_pipeline', { limit: 200 });
+    renderEventos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+function renderEventos() {
+  const lista = filtroEvento === 'todos'
+    ? todosEventos
+    : todosEventos.filter(e => e.estado === filtroEvento);
+
+  document.getElementById('ev-tbody').innerHTML = lista.length
+    ? lista.map(e => `<tr>
+        <td>${badge(e.estado)}</td>
+        <td><b>${e.cliente_nombre}</b></td>
+        <td>${e.tipo_evento || '—'}</td>
+        <td>${fmtDate(e.fecha_evento)}</td>
+        <td>${e.venue || '—'}</td>
+        <td>${fmtARS(e.total_ars)}</td>
+        <td>
+          <div style="font-size:11px;color:${e.estado_cobro==='Cobrado completo'?'var(--green)':e.estado_cobro==='Seña cobrada'?'var(--orange)':'var(--red)'}">
+            ${e.estado_cobro}
+          </div>
+        </td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="editEvento(${e.id})">Editar</button>
+            ${e.estado === 'Confirmado' || e.estado === 'En logística'
+              ? `<button class="btn btn-ghost btn-sm" onclick="registrarCobro(${e.id},'${e.cliente_nombre}',${e.sena_cobrada},${e.saldo_cobrado})">Cobro</button>`
+              : ''}
+          </div>
+        </td>
+      </tr>`).join('')
+    : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">📋</div>Sin eventos en este estado</div></td></tr>`;
+}
+
+function filterEventos(estado, btn) {
+  filtroEvento = estado;
+  document.querySelectorAll('#ev-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEventos();
+}
+
+// Modal evento — mostrar/ocultar motivo pérdida
+document.getElementById('ev-estado').addEventListener('change', function() {
+  document.getElementById('ev-motivo-wrap').style.display =
+    this.value === 'Perdido' ? 'block' : 'none';
+});
+
+let editingEventoId = null;
+
+async function editEvento(id) {
+  const ev = todosEventos.find(e => e.id === id);
+  if (!ev) return;
+  editingEventoId = id;
+  document.getElementById('modal-evento-title').textContent = 'Editar evento';
+  document.getElementById('ev-cliente').value   = ev.cliente_nombre;
+  document.getElementById('ev-tipo').value      = ev.tipo_evento || 'Casamiento';
+  document.getElementById('ev-fecha').value     = ev.fecha_evento || '';
+  document.getElementById('ev-venue').value     = ev.venue || '';
+  document.getElementById('ev-total').value     = ev.total_ars || 0;
+  document.getElementById('ev-estado').value    = ev.estado;
+  document.getElementById('ev-notas').value     = ev.notas || '';
+  document.getElementById('ev-motivo-wrap').style.display = ev.estado === 'Perdido' ? 'block' : 'none';
+  openModal('modal-evento');
+}
+
+async function guardarEvento() {
+  const cliente = document.getElementById('ev-cliente').value.trim();
+  if (!cliente) { toast('El cliente es obligatorio', 'err'); return; }
+
+  const data = {
+    cliente_nombre: cliente,
+    tipo_evento:    document.getElementById('ev-tipo').value,
+    fecha_evento:   document.getElementById('ev-fecha').value || null,
+    horario:        document.getElementById('ev-horario')?.value || null,
+    venue:          document.getElementById('ev-venue').value,
+    total_ars:      parseFloat(document.getElementById('ev-total').value) || 0,
+    modalidad_pago: document.getElementById('ev-modalidad').value,
+    sena_pct:       parseFloat(document.getElementById('ev-sena').value) || 30,
+    estado:         document.getElementById('ev-estado').value,
+    notas:          document.getElementById('ev-notas').value,
+    motivo_perdida: document.getElementById('ev-motivo').value || null,
+    updated_at:     new Date().toISOString(),
+  };
+
+  try {
+    if (editingEventoId) {
+      await sbPatch('eventos', editingEventoId, data);
+      toast('Evento actualizado');
+    } else {
+      // Generar código único
+      const count = await sb('eventos', { select: 'id' });
+      data.codigo = 'EV' + String(count.length + 1).padStart(3, '0');
+      data.created_at = new Date().toISOString();
+      await sbPost('eventos', data);
+      toast('Evento creado');
+    }
+    closeModal('modal-evento');
+    editingEventoId = null;
+    document.getElementById('modal-evento-title').textContent = 'Nuevo evento';
+    loadEventos();
+    evCache = await sb('eventos', { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
+    llenarSelectEventos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function registrarCobro(id, cliente, senaOk, saldoOk) {
+  const opciones = [];
+  if (!senaOk) opciones.push('Seña');
+  if (senaOk && !saldoOk) opciones.push('Saldo');
+  if (!opciones.length) { toast('Este evento ya está cobrado completo'); return; }
+
+  const tipo = opciones.length === 1 ? opciones[0]
+    : prompt(`¿Qué cobrás?\n${opciones.map((o,i)=>`${i+1}. ${o}`).join('\n')}`);
+  if (!tipo) return;
+
+  try {
+    await sbPost('pagos', {
+      evento_id: id, tipo,
+      monto_ars: null,
+      fecha_cobro: today(),
+    });
+    const patch = tipo === 'Seña'
+      ? { sena_cobrada: true,  fecha_sena: today() }
+      : { saldo_cobrado: true, fecha_saldo: today(), estado: 'Realizado' };
+    await sbPatch('eventos', id, patch);
+    toast(`${tipo} registrada para ${cliente}`);
+    loadEventos();
+    if (currentPage === 'dashboard') loadDashboard();
+    if (currentPage === 'cobros') loadCobros();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ── COBROS ────────────────────────────────────────────────
+async function loadCobros() {
+  try {
+    const cobros = await sb('v_cobros_pendientes');
+    const total = cobros.reduce((s,c) => s + Number(c.pendiente_ars||0), 0);
+    const eventos = cobros.length;
+
+    document.getElementById('cobros-kpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Eventos con deuda</div><div class="kpi-value red">${eventos}</div></div>
+      <div class="kpi"><div class="kpi-label">Total pendiente ARS</div><div class="kpi-value gold">${fmtARS(total)}</div></div>
+    `;
+
+    document.getElementById('cobros-tbody').innerHTML = cobros.length
+      ? cobros.map(c => {
+          const pct = c.total_ars > 0 ? Math.round((c.total_ars - c.pendiente_ars) / c.total_ars * 100) : 0;
+          return `<tr>
+            <td><b>${c.cliente_nombre}</b></td>
+            <td>${c.tipo_evento || '—'}</td>
+            <td>${fmtDate(c.fecha_evento)}</td>
+            <td>${fmtARS(c.total_ars)}</td>
+            <td style="color:var(--red);font-weight:600">${fmtARS(c.pendiente_ars)}</td>
+            <td>${c.sena_cobrada ? '✅' : '❌'}</td>
+            <td>${c.saldo_cobrado ? '✅' : '❌'}</td>
+            <td>
+              <div class="cobro-bar" style="width:80px">
+                <div class="cobro-fill" style="width:${pct}%"></div>
+              </div>
+              <div style="font-size:10px;color:var(--text-3);margin-top:2px">${pct}%</div>
+            </td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes. Todo al día.</div></td></tr>`;
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ── JORNADAS ──────────────────────────────────────────────
+async function loadJornadas() {
+  try {
+    const jornadas = await sb('v_jornadas', { limit: 100 });
+    const semana = jornadas.filter(j => {
+      const d = new Date(j.fecha);
+      const hoy = new Date();
+      const diff = (hoy - d) / 86400000;
+      return diff <= 7;
+    });
+    const pendiente = jornadas.filter(j => !j.pagado)
+      .reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+
+    document.getElementById('jorn-kpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Jornadas esta semana</div><div class="kpi-value">${semana.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Total pendiente pago ARS</div><div class="kpi-value gold">${fmtARS(pendiente)}</div></div>
+      <div class="kpi"><div class="kpi-label">Total jornadas</div><div class="kpi-value">${jornadas.length}</div></div>
+    `;
+
+    document.getElementById('jorn-tbody').innerHTML = jornadas.length
+      ? jornadas.map(j => {
+          const tipoClass = j.tipo === 'Depósito' ? 'tipo-deposito'
+            : j.tipo === 'Armado/Desarmado' ? 'tipo-armado' : 'tipo-operador';
+          return `<tr>
+            <td>${fmtDate(j.fecha)}</td>
+            <td><b>${j.personal_nombre || '—'}</b><br><span style="font-size:11px;color:var(--text-3)">${j.personal_tipo || ''}</span></td>
+            <td><span class="${tipoClass}" style="font-weight:500">${j.tipo}</span></td>
+            <td>${j.evento_codigo ? `<span style="font-size:11px;color:var(--text-2)">${j.evento_codigo}</span><br>${j.evento_venue || ''}` : '—'}</td>
+            <td>${fmtARS(j.tarifa_ars)}</td>
+            <td>
+              ${j.pagado
+                ? `<span style="color:var(--green);font-size:12px">✅ Pagado</span>`
+                : `<button class="btn btn-ghost btn-sm" onclick="marcarPagada(${j.id})">Marcar pagada</button>`}
+            </td>
+            <td>
+              <button class="btn btn-danger btn-sm" onclick="eliminarJornada(${j.id})">✕</button>
+            </td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">👷</div>Sin jornadas registradas</div></td></tr>`;
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+function llenarSelectPersonal() {
+  const sel = document.getElementById('jorn-personal');
+  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
+    persCache.map(p => `<option value="${p.id}" data-dep="${p.tarifa_deposito}" data-arm="${p.tarifa_armado}" data-op="${p.tarifa_operador}">${p.nombre}</option>`).join('');
+}
+
+function llenarSelectEventos() {
+  const sel = document.getElementById('jorn-evento');
+  sel.innerHTML = '<option value="">— Sin evento asociado —</option>' +
+    evCache.map(e => `<option value="${e.id}">${e.codigo} · ${e.cliente_nombre} · ${e.venue || ''}</option>`).join('');
+}
+
+function autoTarifa() {
+  const persOpt = document.querySelector('#jorn-personal option:checked');
+  const tipo    = document.getElementById('jorn-tipo').value;
+  if (!persOpt || !tipo || !persOpt.value) return;
+  const tarifa = tipo === 'Depósito' ? persOpt.dataset.dep
+    : tipo === 'Armado/Desarmado'   ? persOpt.dataset.arm
+    : persOpt.dataset.op;
+  document.getElementById('jorn-tarifa').value = tarifa || '';
+}
+
+async function guardarJornada() {
+  const persId = document.getElementById('jorn-personal').value;
+  const tipo   = document.getElementById('jorn-tipo').value;
+  const fecha  = document.getElementById('jorn-fecha').value;
+  if (!persId || !tipo || !fecha) { toast('Personal, tipo y fecha son obligatorios', 'err'); return; }
+
+  const count = await sb('jornadas', { select: 'id' });
+  const data = {
+    codigo:      'J' + String(count.length + 1).padStart(4, '0'),
+    personal_id: parseInt(persId),
+    tipo,
+    fecha,
+    evento_id:   parseInt(document.getElementById('jorn-evento').value) || null,
+    tarifa_ars:  parseFloat(document.getElementById('jorn-tarifa').value) || 0,
+    pagado:      document.getElementById('jorn-pagado').value === 'true',
+    notas:       document.getElementById('jorn-notas').value,
+  };
+
+  try {
+    await sbPost('jornadas', data);
+    toast('Jornada registrada');
+    closeModal('modal-jornada');
+    loadJornadas();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function marcarPagada(id) {
+  await sbPatch('jornadas', id, { pagado: true, fecha_pago: today() });
+  toast('Jornada marcada como pagada');
+  loadJornadas();
+}
+
+async function eliminarJornada(id) {
+  if (!confirm('¿Eliminar esta jornada?')) return;
+  await sbDelete('jornadas', id);
+  toast('Jornada eliminada');
+  loadJornadas();
+}
+
+// ── PERSONAL ──────────────────────────────────────────────
+async function loadPersonal() {
+  try {
+    const lista = await sb('personal', { order: 'nombre' });
+    document.getElementById('pers-tbody').innerHTML = lista.length
+      ? lista.map(p => `<tr>
+          <td><b>${p.nombre}</b></td>
+          <td><span style="color:${p.tipo==='Fijo'?'var(--green)':'var(--blue)'};font-size:12px">${p.tipo}</span></td>
+          <td>${fmtARS(p.tarifa_deposito)}</td>
+          <td>${fmtARS(p.tarifa_armado)}</td>
+          <td>${fmtARS(p.tarifa_operador)}</td>
+          <td style="color:var(--text-2)">${p.telefono || '—'}</td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="togglePersonal(${p.id},${p.activo})">
+              ${p.activo ? 'Dar de baja' : 'Reactivar'}
+            </button>
+          </td>
+        </tr>`).join('')
+      : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">👥</div>Sin personal cargado</div></td></tr>`;
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function guardarPersonal() {
+  const nombre = document.getElementById('pers-nombre').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  const count = await sb('personal', { select: 'id' });
+  const data = {
+    codigo:          'P' + String(count.length + 1).padStart(3, '0'),
+    nombre,
+    tipo:            document.getElementById('pers-tipo').value,
+    tarifa_deposito: parseFloat(document.getElementById('pers-dep').value) || 0,
+    tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
+    tarifa_operador: parseFloat(document.getElementById('pers-op').value) || 0,
+    telefono:        document.getElementById('pers-tel').value,
+    notas:           document.getElementById('pers-notas').value,
+  };
+  try {
+    await sbPost('personal', data);
+    toast('Personal agregado');
+    closeModal('modal-personal');
+    persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
+    llenarSelectPersonal();
+    loadPersonal();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function togglePersonal(id, activo) {
+  await sbPatch('personal', id, { activo: !activo });
+  toast(activo ? 'Personal dado de baja' : 'Personal reactivado');
+  loadPersonal();
+}
+
+// ── IMPUESTOS ─────────────────────────────────────────────
+let todosImpuestos = [];
+
+async function loadImpuestos() {
+  try {
+    todosImpuestos = await sb('costos_fijos', { order: 'anio.desc,id.asc' });
+    renderImpuestos('todos');
+
+    const hoy = new Date();
+    const mesActual = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][hoy.getMonth()];
+    const anioActual = hoy.getFullYear();
+
+    const delMes = todosImpuestos.filter(i => i.mes === mesActual && i.anio === anioActual);
+    const pagados = delMes.filter(i => i.pagado).length;
+    const totalMes = delMes.reduce((s,i) => s + Number(i.monto_ars||0), 0);
+    const vencidos = delMes.filter(i => {
+      if (i.pagado || !i.vence_dia) return false;
+      const vence = new Date(anioActual, hoy.getMonth(), i.vence_dia);
+      return vence < hoy;
+    }).length;
+
+    document.getElementById('imp-kpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">${mesActual} — Total</div><div class="kpi-value gold">${fmtARS(totalMes)}</div></div>
+      <div class="kpi"><div class="kpi-label">Pagados</div><div class="kpi-value green">${pagados} / ${delMes.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Vencidos sin pagar</div><div class="kpi-value red">${vencidos}</div></div>
+    `;
+
+    // Set mes en modal
+    document.getElementById('imp-mes').value = mesActual;
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+function renderImpuestos(filtro) {
+  const hoy = new Date();
+  let lista = todosImpuestos;
+  if (filtro !== 'todos') {
+    if (filtro === 'pendiente') lista = lista.filter(i => !i.pagado && !esVencido(i, hoy));
+    else if (filtro === 'vencido') lista = lista.filter(i => !i.pagado && esVencido(i, hoy));
+    else lista = lista.filter(i => i.categoria === filtro);
+  }
+
+  document.getElementById('imp-tbody').innerHTML = lista.length
+    ? lista.map(i => {
+        const vencido = !i.pagado && esVencido(i, hoy);
+        return `<tr>
+          <td>${i.mes} ${i.anio}</td>
+          <td><b>${i.concepto}</b></td>
+          <td><span style="font-size:11px;color:var(--text-2)">${i.categoria}</span></td>
+          <td>${i.vence_dia ? `día ${i.vence_dia}` : '—'}</td>
+          <td>${i.monto_ars ? fmtARS(i.monto_ars) : '<span style="color:var(--orange);font-size:11px">⚠️ Cargar monto</span>'}</td>
+          <td>
+            ${i.pagado
+              ? `<span class="imp-pagado">✅ Pagado</span>`
+              : vencido
+                ? `<span class="imp-vencido">🔴 Vencido</span>`
+                : `<button class="btn btn-ghost btn-sm" onclick="marcarPagadoImp(${i.id})">Marcar pagado</button>`}
+          </td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="eliminarImpuesto(${i.id})">✕</button>
+          </td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🗓️</div>Sin conceptos en este filtro</div></td></tr>`;
+}
+
+function esVencido(imp, hoy) {
+  if (!imp.vence_dia) return false;
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mesIdx = meses.indexOf(imp.mes);
+  if (mesIdx < 0) return false;
+  const vence = new Date(imp.anio, mesIdx, imp.vence_dia);
+  return vence < hoy;
+}
+
+function filterImpuestos(filtro, btn) {
+  document.querySelectorAll('#imp-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderImpuestos(filtro);
+}
+
+async function marcarPagadoImp(id) {
+  await sbPatch('costos_fijos', id, { pagado: true, fecha_pago: today() });
+  toast('Marcado como pagado');
+  loadImpuestos();
+}
+
+async function eliminarImpuesto(id) {
+  if (!confirm('¿Eliminar este concepto?')) return;
+  await sbDelete('costos_fijos', id);
+  toast('Concepto eliminado');
+  loadImpuestos();
+}
+
+async function guardarImpuesto() {
+  const concepto = document.getElementById('imp-concepto').value.trim();
+  if (!concepto) { toast('El concepto es obligatorio', 'err'); return; }
+  const data = {
+    concepto,
+    categoria:  document.getElementById('imp-cat').value,
+    mes:        document.getElementById('imp-mes').value,
+    anio:       parseInt(document.getElementById('imp-anio').value),
+    vence_dia:  parseInt(document.getElementById('imp-vence').value) || null,
+    monto_ars:  parseFloat(document.getElementById('imp-monto').value) || null,
+    notas:      document.getElementById('imp-notas').value,
+  };
+  try {
+    await sbPost('costos_fijos', data);
+    toast('Concepto agregado');
+    closeModal('modal-impuesto');
+    loadImpuestos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function generarMesNuevo() {
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hoy = new Date();
+  const mesActual = meses[hoy.getMonth()];
+  const anioActual = hoy.getFullYear();
+  const mesNuevoIdx = (hoy.getMonth() + 1) % 12;
+  const mesNuevo = meses[mesNuevoIdx];
+  const anioNuevo = mesNuevoIdx === 0 ? anioActual + 1 : anioActual;
+
+  if (!confirm(`¿Generar los conceptos de ${mesNuevo} ${anioNuevo} basados en ${mesActual} ${anioActual}?`)) return;
+
+  try {
+    const delMes = todosImpuestos.filter(i => i.mes === mesActual && i.anio === anioActual);
+    if (!delMes.length) { toast('No hay conceptos en el mes actual', 'err'); return; }
+
+    const yaExiste = todosImpuestos.some(i => i.mes === mesNuevo && i.anio === anioNuevo);
+    if (yaExiste) { toast(`${mesNuevo} ${anioNuevo} ya existe`, 'err'); return; }
+
+    const variablesKeywords = ['iva','iibb','sircreb','cargas sociales','ganancias','anticipos','vep'];
+    for (const item of delMes) {
+      const esVariable = variablesKeywords.some(k => item.concepto.toLowerCase().includes(k));
+      await sbPost('costos_fijos', {
+        concepto:  item.concepto,
+        categoria: item.categoria,
+        mes:       mesNuevo,
+        anio:      anioNuevo,
+        vence_dia: item.vence_dia,
+        monto_ars: esVariable ? null : item.monto_ars,
+        pagado:    false,
+        notas:     item.notas,
+      });
+    }
+    toast(`${mesNuevo} ${anioNuevo} generado — ${delMes.length} conceptos`);
+    loadImpuestos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ── CATÁLOGO ──────────────────────────────────────────────
+async function loadCatalogo() {
+  try {
+    const lista = await sb('catalogo', { filters:['activo=eq.true'], order:'categoria,codigo' });
+    const cats = [...new Set(lista.map(i => i.categoria))];
+
+    // Botones de filtro por categoría
+    document.getElementById('cat-filters').innerHTML =
+      `<button class="filter-btn active" onclick="filterCat('todos',this)">Todos (${lista.length})</button>` +
+      cats.map(c => `<button class="filter-btn" onclick="filterCat('${c}',this)">${c}</button>`).join('');
+
+    window._catLista = lista;
+    renderCatalogo('todos');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+function filterCat(cat, btn) {
+  document.querySelectorAll('#cat-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCatalogo(cat);
+}
+
+function renderCatalogo(cat) {
+  const lista = cat === 'todos' ? window._catLista : window._catLista.filter(i => i.categoria === cat);
+  document.getElementById('cat-tbody').innerHTML = lista.map(i => `<tr>
+    <td style="color:var(--text-3);font-size:12px">${i.codigo}</td>
+    <td><span style="font-size:11px;color:var(--gold)">${i.categoria}</span></td>
+    <td>
+      <div style="font-weight:500">${i.producto}</div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:2px">${(i.descripcion||'').substring(0,80)}${i.descripcion?.length>80?'…':''}</div>
+    </td>
+    <td style="font-weight:600;color:var(--gold)">${fmtARS(i.precio_ars)}</td>
+  </tr>`).join('');
+}
+
+// ── INIT ──────────────────────────────────────────────────
+initAuth();
+</script>
+</body>
+</html>
