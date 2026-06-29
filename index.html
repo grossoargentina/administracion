@@ -6,6 +6,7 @@
 <title>Grosso Argentina — Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root {
@@ -62,6 +63,17 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 20px; transition: border-color .2s;
 }
 .login-box input:focus { border-color: var(--gold); }
+#g-btn-wrap { display: flex; justify-content: center; margin: 8px 0; }
+.g-custom-btn {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 24px; border-radius: var(--radius);
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); font-size: 14px; font-weight: 500;
+  cursor: pointer; width: 100%; justify-content: center;
+  transition: border-color .2s, background .2s;
+}
+.g-custom-btn:hover { border-color: var(--gold); background: rgba(201,168,76,.05); }
+.g-custom-btn img { width: 20px; height: 20px; }
 .btn-gold {
   width: 100%; padding: 13px;
   background: var(--gold); color: #0D0D14;
@@ -332,12 +344,13 @@ textarea.inp { resize: vertical; min-height: 80px; }
   <div class="login-box">
     <div class="login-logo">Grosso Argentina</div>
     <div class="login-sub">Sistema de gestión</div>
-    <label>Usuario</label>
-    <input type="text" id="l-user" placeholder="admin" autocomplete="username">
-    <label>Contraseña</label>
-    <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password">
-    <button class="btn-gold" onclick="doLogin()">Ingresar</button>
+    <div id="g-btn-wrap" style="margin-top:8px">
+      <div id="g-signin-btn"></div>
+    </div>
     <div class="login-error" id="l-err"></div>
+    <div style="margin-top:20px;font-size:11px;color:var(--text-3);text-align:center">
+      Solo accesible con la cuenta autorizada de Grosso Argentina
+    </div>
   </div>
 </div>
 
@@ -792,39 +805,88 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
-// ── AUTH ──────────────────────────────────────────────────
+// ── AUTH SUPABASE + GOOGLE ────────────────────────────────
+const ALLOWED_EMAIL = 'administracion@grossoarg.com';
 let AUTH = false;
-let PASS_ADMIN = 'grosso2026'; // default, se actualiza desde config
+
+// Inicializar cliente Supabase Auth via CDN
+const { createClient } = supabase;
+const supabaseClient = createClient(SB_URL, SB_KEY);
 
 async function initAuth() {
-  try {
-    const cfg = await sb('config', { filters: ['clave=eq.password_admin'] });
-    if (cfg[0]) PASS_ADMIN = cfg[0].valor;
-  } catch(e) {}
-}
-
-function doLogin() {
-  const user = document.getElementById('l-user').value.trim();
-  const pass = document.getElementById('l-pass').value;
-  if (user === 'admin' && pass === PASS_ADMIN) {
+  // Verificar sesión existente
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session?.user?.email === ALLOWED_EMAIL) {
     AUTH = true;
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').classList.add('visible');
-    initApp();
-  } else {
-    document.getElementById('l-err').textContent = 'Usuario o contraseña incorrectos.';
+    showApp();
+    return;
   }
+
+  // Verificar callback OAuth (hash en la URL)
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    const { data: { session: newSession }, error } =
+      await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
+    if (newSession?.user?.email === ALLOWED_EMAIL) {
+      AUTH = true;
+      history.replaceState(null, '', window.location.pathname);
+      showApp();
+      return;
+    } else if (newSession) {
+      await supabaseClient.auth.signOut();
+      showError('Cuenta no autorizada. Solo puede acceder administracion@grossoarg.com');
+      return;
+    }
+  }
+
+  // Escuchar cambios de sesión
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session?.user?.email === ALLOWED_EMAIL) {
+      AUTH = true;
+      showApp();
+    } else if (event === 'SIGNED_IN' && session?.user?.email !== ALLOWED_EMAIL) {
+      supabaseClient.auth.signOut();
+      showError('Cuenta no autorizada. Solo puede acceder administracion@grossoarg.com');
+    }
+  });
+
+  // Renderizar botón de Google
+  renderGoogleBtn();
 }
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !AUTH) doLogin();
-});
+function renderGoogleBtn() {
+  document.getElementById('g-signin-btn').innerHTML = `
+    <button class="g-custom-btn" onclick="loginConGoogle()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+      Continuar con Google
+    </button>`;
+}
 
-function logout() {
+async function loginConGoogle() {
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.href,
+    }
+  });
+  if (error) showError('Error al conectar con Google: ' + error.message);
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  initApp();
+}
+
+function showError(msg) {
+  document.getElementById('l-err').textContent = msg;
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
   AUTH = false;
   document.getElementById('app').classList.remove('visible');
   document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('l-pass').value = '';
   document.getElementById('l-err').textContent = '';
 }
 
