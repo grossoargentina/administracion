@@ -1211,7 +1211,6 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="pres-fecha"></div>
-        <div class="field"><label class="lbl">Horario</label><select class="inp" id="pres-horario"></select></div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón"></div>
       </div>
 
@@ -1540,7 +1539,7 @@ async function initApp() {
     evCache   = await sb('eventos',  { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
     llenarSelectPersonal();
     llenarSelectEventos();
-    ['ev-horario','pres-horario'].forEach(id => {
+    ['ev-horario'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = buildTimeOpts('');
     });
@@ -4175,7 +4174,7 @@ let presItems = [];       // items seleccionados
 let catalogoCache = [];   // catálogo completo
 
 // ── CONFIRMAR PRESUPUESTO → crea evento en pipeline ─────
-async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaPct) {
+async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaPct, horario) {
   const ui_confirm = confirm(`¿Confirmar el presupuesto de ${cliente}?\n\nEsto creará el evento en el pipeline como "Confirmado".`);
   if (!ui_confirm) return;
 
@@ -4193,6 +4192,7 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
       cliente_nombre: cliente,
       tipo_evento:    tipo || '',
       fecha_evento:   fecha || null,
+      horario:        horario || null,
       venue:          venue || '',
       total_ars:      total || 0,
       sena_pct:       esPagoTotal ? 0 : (senaPct || 30),
@@ -4284,7 +4284,7 @@ async function loadPresupuestos() {
                 ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>` : ''}
                 ${estado === 'Pendiente' ? `
                   <button class="btn btn-sm" style="background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)"
-                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30})">
+                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30},'${p.horario||''}')">
                     ✅ Confirmar
                   </button>
                   <button class="btn btn-sm btn-danger"
@@ -4491,7 +4491,7 @@ async function generarPresupuesto() {
     const numero    = document.getElementById('pres-numero').value;
     const tipo      = document.getElementById('pres-tipo').value;
     const fecha     = document.getElementById('pres-fecha').value;
-    const horario   = document.getElementById('pres-horario').value;
+    const horario   = '';
     const modalidad = document.getElementById('pres-modalidad').value;
     const senaPct   = parseFloat(document.getElementById('pres-sena').value) || 30;
     const validez   = parseInt(document.getElementById('pres-validez').value) || 10;
@@ -4619,8 +4619,6 @@ async function generarPresupuesto() {
     <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${tipo}</div>
     <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Fecha:</div>
     <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '—'}</div>
-    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Horario:</div>
-    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${horario || '—'}</div>
     <div style="font-weight:bold;color:#555;padding:5px 8px">Venue:</div>
     <div style="padding:5px 8px;grid-column:span 3">${venue || '—'}</div>
   </div>
@@ -4732,7 +4730,7 @@ async function generarPresupuesto() {
 
     const eventoRows = [
       ['Cliente:', cliente, 'Tipo:', tipo],
-      ['Fecha:', fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '-', 'Horario:', horario||'-'],
+      ['Fecha:', fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '-', '', ''],
       ['Venue:', venue||'-', '', ''],
     ];
     eventoRows.forEach((row, ri) => {
