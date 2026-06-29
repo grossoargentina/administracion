@@ -616,8 +616,8 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div class="field"><label class="lbl">Total ARS</label><input class="inp" type="number" id="ev-total" placeholder="0"></div>
         <div class="field"><label class="lbl">Modalidad de pago</label>
           <select class="inp" id="ev-modalidad">
-            <option>Seña + saldo</option>
             <option>Pago total al finalizar</option>
+            <option>Seña + saldo</option>
           </select>
         </div>
         <div class="field"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="ev-sena" value="30" min="0" max="100"></div>
@@ -816,12 +816,12 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Condiciones de pago</div>
       <div class="form-grid" style="margin-bottom:16px">
         <div class="field"><label class="lbl">Modalidad</label>
-          <select class="inp" id="pres-modalidad">
-            <option>Seña + saldo</option>
+          <select class="inp" id="pres-modalidad" onchange="toggleSena(this.value)">
             <option>Pago total al finalizar</option>
+            <option>Seña + saldo</option>
           </select>
         </div>
-        <div class="field"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="pres-sena" value="30" min="0" max="100"></div>
+        <div class="field" id="pres-sena-wrap"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="pres-sena" value="30" min="0" max="100"></div>
         <div class="field"><label class="lbl">Descuento (%)</label><input class="inp" type="number" id="pres-descuento" value="0" min="0" max="100"></div>
         <div class="field"><label class="lbl">Validez (días)</label><input class="inp" type="number" id="pres-validez" value="10"></div>
         <div class="field full"><label class="lbl">Nota descuento</label><input class="inp" id="pres-nota-desc" placeholder="Opcional"></div>
@@ -1687,10 +1687,18 @@ async function abrirModalPresupuesto() {
   // Número automático
   try {
     const count = await sb('presupuestos', { select: 'id' });
-    document.getElementById('pres-numero').value =
+    // Resetear modalidad y mostrar seña
+  document.getElementById('pres-modalidad').value = 'Pago total al finalizar';
+  toggleSena('Pago total al finalizar');
+
+  document.getElementById('pres-numero').value =
       new Date().getFullYear() + '-' + String(count.length + 1).padStart(3,'0');
   } catch(e) {
-    document.getElementById('pres-numero').value = new Date().getFullYear() + '-001';
+    // Resetear modalidad y mostrar seña
+  document.getElementById('pres-modalidad').value = 'Pago total al finalizar';
+  toggleSena('Pago total al finalizar');
+
+  document.getElementById('pres-numero').value = new Date().getFullYear() + '-001';
   }
 
   document.getElementById('pres-buscar').value = '';
@@ -1824,6 +1832,13 @@ function calcularTotal() {
 document.addEventListener('input', e => {
   if (e.target.id === 'pres-descuento') calcularTotal();
 });
+
+// Mostrar/ocultar seña según modalidad
+function toggleSena(modalidad) {
+  const wrap = document.getElementById('pres-sena-wrap');
+  if (!wrap) return;
+  wrap.style.display = modalidad === 'Pago total al finalizar' ? 'none' : '';
+}
 
 // ── GENERAR PDF Y SUBIR A DRIVE ───────────────────────────
 async function generarPresupuesto() {
