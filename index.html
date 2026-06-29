@@ -3476,7 +3476,7 @@ async function loadPersonal() {
           <td><b>${p.apellido || '—'}</b></td>
           <td>${p.nombre || '—'}</td>
           <td style="color:var(--text-2);font-size:12px">${p.dni || '—'}</td>
-          <td><span style="color:${p.tipo==='Fijo'?'var(--green)':'var(--blue)'};font-size:12px">${p.tipo}</span></td>
+          <td><span style="color:${p.tipo==='Fijo'?'var(--green)':p.tipo==='Chofer'?'var(--orange)':'var(--blue)'};font-size:12px">${p.tipo}</span></td>
           <td>${fmtARS(p.tarifa_deposito)}</td>
           <td>${fmtARS(p.tarifa_armado)}</td>
           <td>${fmtARS(p.tarifa_operador)}</td>
