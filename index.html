@@ -1421,6 +1421,11 @@ async function loadJornadas() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
+function llenarSelectPersonal() {
+  // persCache ya está cargado — no hay select de personal en uso actualmente
+  // pero se mantiene para futuras extensiones
+}
+
 function llenarSelectEventos() {
   const sel = document.getElementById('jorn-evento');
   if (!sel) return;
