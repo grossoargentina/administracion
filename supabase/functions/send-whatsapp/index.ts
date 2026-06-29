@@ -20,7 +20,7 @@ serve(async (req) => {
     }
 
     // Número real de Grosso Argentina por defecto
-    const phoneId = phone_number_id || '482676874937376';
+    const phoneId = phone_number_id || Deno.env.get('WHATSAPP_PHONE_ID') || '482676874937376';
 
     // Limpiar el número: solo dígitos, sin + ni espacios
     const toClean = to.replace(/\D/g, '');
