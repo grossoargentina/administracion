@@ -929,6 +929,24 @@ const { createClient } = supabase;
 const supabaseClient = createClient(SB_URL, SB_KEY);
 
 async function initAuth() {
+  // Escuchar cambios de sesión PRIMERO (captura el callback OAuth)
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    console.log('Auth event:', event, session?.user?.email);
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (session?.user?.email === ALLOWED_EMAIL) {
+        AUTH = true;
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        showApp();
+      } else if (session?.user?.email) {
+        await supabaseClient.auth.signOut();
+        showError('Cuenta no autorizada: ' + session.user.email);
+        renderGoogleBtn();
+      }
+    } else if (event === 'SIGNED_OUT') {
+      AUTH = false;
+    }
+  });
+
   // Verificar sesión existente
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (session?.user?.email === ALLOWED_EMAIL) {
@@ -936,34 +954,6 @@ async function initAuth() {
     showApp();
     return;
   }
-
-  // Verificar callback OAuth (hash en la URL)
-  const hash = window.location.hash;
-  if (hash && hash.includes('access_token')) {
-    const { data: { session: newSession }, error } =
-      await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
-    if (newSession?.user?.email === ALLOWED_EMAIL) {
-      AUTH = true;
-      history.replaceState(null, '', window.location.pathname);
-      showApp();
-      return;
-    } else if (newSession) {
-      await supabaseClient.auth.signOut();
-      showError('Cuenta no autorizada. Solo puede acceder administracion@grossoarg.com');
-      return;
-    }
-  }
-
-  // Escuchar cambios de sesión
-  supabaseClient.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' && session?.user?.email === ALLOWED_EMAIL) {
-      AUTH = true;
-      showApp();
-    } else if (event === 'SIGNED_IN' && session?.user?.email !== ALLOWED_EMAIL) {
-      supabaseClient.auth.signOut();
-      showError('Cuenta no autorizada. Solo puede acceder administracion@grossoarg.com');
-    }
-  });
 
   // Renderizar botón de Google
   renderGoogleBtn();
