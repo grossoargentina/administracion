@@ -929,13 +929,19 @@ const { createClient } = supabase;
 const supabaseClient = createClient(SB_URL, SB_KEY);
 
 async function initAuth() {
-  // Escuchar cambios de sesión PRIMERO (captura el callback OAuth)
+  // Si hay hash de OAuth en la URL, dejar que Supabase lo procese
+  const hasOAuthHash = window.location.hash.includes('access_token');
+
+  // Escuchar cambios de sesión PRIMERO
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth event:', event, session?.user?.email);
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
       if (session?.user?.email === ALLOWED_EMAIL) {
         AUTH = true;
-        history.replaceState(null, '', window.location.pathname + window.location.search);
+        // Limpiar hash de la URL
+        if (window.location.hash) {
+          history.replaceState(null, '', window.location.pathname);
+        }
         showApp();
       } else if (session?.user?.email) {
         await supabaseClient.auth.signOut();
@@ -944,18 +950,33 @@ async function initAuth() {
       }
     } else if (event === 'SIGNED_OUT') {
       AUTH = false;
+      document.getElementById('app').classList.remove('visible');
+      document.getElementById('login-screen').style.display = 'flex';
+      renderGoogleBtn();
     }
   });
 
   // Verificar sesión existente
   const { data: { session } } = await supabaseClient.auth.getSession();
+  console.log('Sesión existente:', session?.user?.email || 'ninguna');
+
   if (session?.user?.email === ALLOWED_EMAIL) {
     AUTH = true;
     showApp();
     return;
   }
 
-  // Renderizar botón de Google
+  // Si hay hash OAuth, esperar al onAuthStateChange
+  if (hasOAuthHash) {
+    console.log('Procesando callback OAuth...');
+    // Supabase procesa el hash automáticamente, esperamos el evento
+    setTimeout(() => {
+      if (!AUTH) renderGoogleBtn();
+    }, 3000);
+    return;
+  }
+
+  // Sin sesión y sin hash — mostrar botón
   renderGoogleBtn();
 }
 
