@@ -413,9 +413,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('cobros')">
         <span class="nav-icon">💰</span> Cobros pendientes
       </div>
-      <div class="nav-item" onclick="goTo('jornadas')">
-        <span class="nav-icon">👷</span> Jornadas
-      </div>
+
       <div class="nav-item" onclick="goTo('logistica')">
         <span class="nav-icon">🗺️</span> Logística
       </div>
@@ -719,7 +717,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="mobile-nav-item active" onclick="goTo('dashboard')"><span class="mn-icon">⚡</span>Inicio</div>
       <div class="mobile-nav-item" onclick="goTo('eventos')"><span class="mn-icon">📋</span>Eventos</div>
       <div class="mobile-nav-item" onclick="goTo('cobros')"><span class="mn-icon">💰</span>Cobros</div>
-      <div class="mobile-nav-item" onclick="goTo('jornadas')"><span class="mn-icon">👷</span>Jornadas</div>
+
       <div class="mobile-nav-item" onclick="goTo('impuestos')"><span class="mn-icon">🗓️</span>Impuestos</div>
     </div>
   </nav>
@@ -869,6 +867,29 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-caja')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarMovimientoCaja()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MÉTODO DE PAGO -->
+<div class="modal-overlay" id="modal-pago-metodo">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <span class="modal-title">¿Cómo pagás?</span>
+      <button class="modal-close" onclick="closeModal('modal-pago-metodo')">×</button>
+    </div>
+    <div class="modal-body" style="text-align:center;padding:24px 20px">
+      <div style="font-size:14px;color:var(--text-2);margin-bottom:4px">Pago a</div>
+      <div id="pago-metodo-nombre" style="font-size:18px;font-weight:700;margin-bottom:4px"></div>
+      <div id="pago-metodo-total" style="font-size:22px;font-weight:700;color:var(--gold);margin-bottom:24px"></div>
+      <input type="hidden" id="pago-metodo-persId">
+      <input type="hidden" id="pago-metodo-desde">
+      <input type="hidden" id="pago-metodo-hasta">
+      <input type="hidden" id="pago-metodo-total-val">
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button class="btn btn-ghost" style="flex:1;padding:16px;font-size:15px" onclick="confirmarPagoPersona('transferencia')">🏦 Transferencia</button>
+        <button class="btn btn-primary" style="flex:1;padding:16px;font-size:15px" onclick="confirmarPagoPersona('efectivo')">💵 Efectivo</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2966,7 +2987,7 @@ async function loadPagos() {
           <div style="display:flex;align-items:center;gap:12px">
             <span style="font-size:18px;font-weight:700;color:var(--gold)">${fmtARS(total)}</span>
             <button class="btn btn-ghost btn-sm" onclick="generarReciboIndividual(${JSON.stringify(p).replace(/"/g,'&quot;')})">📄 Recibo</button>
-            <button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}')">✓ Pagar</button>
+            <button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}','${p.apellido} ${p.nombre}',${total})">✓ Pagar</button>
           </div>
         </div>
         <table style="width:100%;border-collapse:collapse">
@@ -2978,13 +2999,33 @@ async function loadPagos() {
   } catch(e) { content.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
 
-async function marcarPagadoPersona(persId, desde, hasta) {
-  if (!confirm('¿Marcar todas las jornadas de esta semana como pagadas?')) return;
+function marcarPagadoPersona(persId, desde, hasta, nombre, total) {
+  document.getElementById('pago-metodo-nombre').textContent = nombre;
+  document.getElementById('pago-metodo-total').textContent = fmtARS(total);
+  document.getElementById('pago-metodo-persId').value = persId;
+  document.getElementById('pago-metodo-desde').value = desde;
+  document.getElementById('pago-metodo-hasta').value = hasta;
+  document.getElementById('pago-metodo-total-val').value = total;
+  openModal('modal-pago-metodo');
+}
+
+async function confirmarPagoPersona(metodo) {
+  const persId = document.getElementById('pago-metodo-persId').value;
+  const desde  = document.getElementById('pago-metodo-desde').value;
+  const hasta  = document.getElementById('pago-metodo-hasta').value;
+  const total  = parseFloat(document.getElementById('pago-metodo-total-val').value);
+  const nombre = document.getElementById('pago-metodo-nombre').textContent;
+  closeModal('modal-pago-metodo');
   const hoy = new Date().toISOString().split('T')[0];
-  const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 });
-  for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
-  toast('✅ Marcado como pagado');
-  loadPagos();
+  try {
+    const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 });
+    for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
+    if (metodo === 'efectivo' && total > 0) {
+      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy });
+    }
+    toast(`✅ Pago registrado${metodo === 'efectivo' ? ' — egreso descontado de caja' : ''}`);
+    loadPagos();
+  } catch(e) { toast('Error: ' + e.message, true); }
 }
 
 function generarReciboIndividual(p) {
