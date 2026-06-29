@@ -4189,7 +4189,7 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
     await sbPatch('presupuestos', id, {
       estado_evento: 'Confirmado',
       evento_codigo: codigo,
-      evento_id:     nuevoEv?.id || null,
+      evento_id:     (Array.isArray(nuevoEv) ? nuevoEv[0]?.id : nuevoEv?.id) || null,
     });
 
     toast(`✅ Evento ${codigo} creado como Confirmado`);
@@ -4963,10 +4963,11 @@ async function generarPresupuesto() {
         estado_evento: 'Pendiente',
       });
       // Guardar items
-      if (pres?.id && presItems.length) {
+      const presId = Array.isArray(pres) ? pres[0]?.id : pres?.id;
+      if (presId && presItems.length) {
         for (const it of presItems) {
           await sbInsert('presupuesto_items', {
-            presupuesto_id: pres.id,
+            presupuesto_id: presId,
             catalogo_id: it.esCustom ? null : (it.id || null),
             producto: it.producto,
             categoria: it.categoria || null,
