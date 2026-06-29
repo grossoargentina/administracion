@@ -2306,7 +2306,6 @@ async function guardarLogistica() {
           flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
           flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
           logistica_id: logId,
-          estado: 'Pendiente',
         });
       });
     });
