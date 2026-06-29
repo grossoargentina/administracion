@@ -2049,24 +2049,36 @@ async function generarPresupuesto() {
         .toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
     }
 
-    // Generar PDF via iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:0;left:0;width:210mm;height:297mm;border:none;opacity:0;pointer-events:none;z-index:-999';
-    document.body.appendChild(iframe);
-    const iDoc = iframe.contentDocument || iframe.contentWindow.document;
-    iDoc.open(); iDoc.write(htmlPDF); iDoc.close();
-    await new Promise(resolve => {
-      if (iDoc.readyState === 'complete') { setTimeout(resolve, 800); }
-      else { iframe.onload = () => setTimeout(resolve, 800); }
-      setTimeout(resolve, 2500);
-    });
+    // Mostrar overlay mientras genera
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99998;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px';
+    overlay.innerHTML = '<div style="width:32px;height:32px;border:3px solid #333;border-top-color:#C9A84C;border-radius:50%;animation:spin .7s linear infinite"></div><div style="color:#C9A84C;font-size:14px;font-family:Arial">Generando PDF...</div>';
+    document.body.appendChild(overlay);
+    await new Promise(r => setTimeout(r, 100));
+
+    // Generar PDF — renderizar en div visible temporalmente
+    const pdfContainer = document.createElement('div');
+    pdfContainer.id = 'pdf-render-container';
+    pdfContainer.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'width:210mm',
+      'background:white', 'z-index:99999',
+      'overflow:hidden', 'pointer-events:none',
+    ].join(';');
+    pdfContainer.innerHTML = htmlPDF;
+    document.body.appendChild(pdfContainer);
+
+    // Esperar render completo
+    await new Promise(r => setTimeout(r, 600));
+
     const pdfBlob = await html2pdf().set({
-      margin: 0,
-      filename: nombreArchivo,
-      html2canvas: { scale: 2, useCORS: true, allowTaint: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(iDoc.body).outputPdf('blob');
-    document.body.removeChild(iframe);
+      margin:      0,
+      filename:    nombreArchivo,
+      html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' },
+      jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(pdfContainer).outputPdf('blob');
+
+    document.body.removeChild(pdfContainer);
+    document.body.removeChild(overlay);
 
     // ── Subir a Google Drive ──────────────────────────────
     const { data: { session } } = await supabaseClient.auth.getSession();
