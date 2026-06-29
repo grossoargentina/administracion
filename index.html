@@ -1005,7 +1005,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       </div>
       <!-- Evento: single select -->
       <div id="nlg-sec-evento" class="form-grid" style="margin-bottom:16px">
-        <div class="field" style="grid-column:1/-1"><label class="lbl">Evento *</label><select class="inp" id="nlg-evento"></select></div>
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Evento *</label><select class="inp" id="nlg-evento" onchange="onCambioEventoLog()"></select></div>
       </div>
       <!-- Depósito: multi-event checkboxes -->
       <div id="nlg-sec-deposito" style="display:none;margin-bottom:16px">
@@ -1669,15 +1669,11 @@ async function loadDashboard() {
       const fechasArmadoSolo = fechaDesarme ? fechasArmado.slice(0, -1) : fechasArmado;
 
       function renderColumna(titulo, jorns) {
-        if (!jorns.length) return `<div style="flex:1;min-width:120px;opacity:.35">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${titulo}</div>
-          <div style="font-size:11px;color:var(--text-3)">—</div>
-        </div>`;
         const fecha = new Date(jorns[0].fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
         const hora  = jorns[0].hora_inicio || '';
         const pers  = [...new Map(jorns.map(j => [j.personal_id, `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim()])).values()].filter(Boolean);
-        return `<div style="flex:1;min-width:120px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${titulo}</div>
+        return `<div style="min-width:130px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:5px">${titulo}</div>
           <div style="font-size:12px;color:var(--text-1);margin-bottom:2px">${fecha}</div>
           ${hora ? `<div style="font-size:11px;color:var(--text-2);margin-bottom:4px">🕐 ${hora}</div>` : ''}
           <div style="display:flex;flex-wrap:wrap;gap:3px">
@@ -1686,22 +1682,22 @@ async function loadDashboard() {
         </div>`;
       }
 
-      // Construir columnas
-      const colsArmado = fechasArmadoSolo.map((f, i) => {
-        const titulo = fechasArmadoSolo.length > 1 ? `Armado ${i+1}` : 'Armado';
-        return renderColumna(titulo, armados.filter(j => j.fecha === f));
+      // Construir columnas — solo las que tienen datos
+      const cols = [];
+      fechasArmadoSolo.forEach((f, i) => {
+        const jorns = armados.filter(j => j.fecha === f);
+        if (jorns.length) cols.push(renderColumna(fechasArmadoSolo.length > 1 ? `Armado ${i+1}` : 'Armado', jorns));
       });
-      const colDesarme = renderColumna('Desarme', fechaDesarme ? armados.filter(j => j.fecha === fechaDesarme) : []);
-      const colOperador = renderColumna('Operador', operadors);
-      const colDeposito = depositos.length ? renderColumna('Depósito', depositos) : '';
+      if (fechaDesarme) {
+        const jorns = armados.filter(j => j.fecha === fechaDesarme);
+        if (jorns.length) cols.push(renderColumna('Desarme', jorns));
+      }
+      if (operadors.length) cols.push(renderColumna('Operador', operadors));
+      if (depositos.length) cols.push(renderColumna('Depósito', depositos));
 
-      const columnsHtml = `
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-          ${colsArmado.join('')}
-          ${colDesarme}
-          ${colOperador}
-          ${colDeposito}
-        </div>`;
+      const columnsHtml = cols.length
+        ? `<div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">${cols.join('')}</div>`
+        : `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3)">Sin personal asignado</div>`;
 
       const items = presByEvento[ev.id] || [];
       const productosHtml = items.length
@@ -2440,6 +2436,22 @@ function toggleEvDep(evId) {
   if (idx === -1) logEventosDepIds.push(evId); else logEventosDepIds.splice(idx, 1);
 }
 
+function onCambioEventoLog() {
+  const evId = parseInt(document.getElementById('nlg-evento').value);
+  const ev = (evCache || []).find(e => e.id === evId);
+  if (!ev) return;
+  const fechaEv = ev.fecha_evento || new Date().toISOString().split('T')[0];
+  const horaEv  = ev.horario || '';
+  // Actualizar fecha y hora del día Operador
+  logDias.forEach(d => {
+    if (d.tipo === 'Operador') {
+      d.fecha = fechaEv;
+      d.hora_inicio = horaEv;
+    }
+  });
+  renderDiasLog();
+}
+
 function agregarDiaLog() {
   const hoy = new Date().toISOString().split('T')[0];
   if (logTipo === 'Deposito') {
@@ -2664,12 +2676,21 @@ async function enviarMailSeguro(logId) {
 }
 
 async function eliminarLogistica(id) {
-  if (!confirm('¿Eliminar esta logística? Las jornadas asociadas quedarán sin logística asignada.')) return;
+  if (!confirm('¿Eliminar esta logística? Se eliminarán también todas las jornadas y pagos asociados.')) return;
   try {
-    await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=eq.${id}`, {
-      method: 'PATCH',
-      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ logistica_id: null }),
+    // Obtener jornadas de esta logística para borrar pagos
+    const jorns = await sb('jornadas', { filters: [`logistica_id=eq.${id}`], select: 'id', limit: 500 });
+    // Eliminar jornadas (y sus pagos si hubiera tabla de pagos por jornada)
+    if (jorns.length) {
+      await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=eq.${id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
+      });
+    }
+    // Eliminar relaciones logistica_eventos
+    await fetch(`${SB_URL}/rest/v1/logistica_eventos?logistica_id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
     });
     await sbDelete('logisticas', id);
     toast('Logística eliminada');
