@@ -1488,6 +1488,9 @@ async function initApp() {
 }
 
 function initRealtime() {
+  // Evitar suscribirse dos veces al mismo canal
+  const canalesActivos = supabaseClient.getChannels();
+  if (canalesActivos.some(c => c.topic === 'realtime:realtime-cambios')) return;
   // Mapa tabla → página que la usa
   const tablaAPagina = {
     eventos:    ['dashboard', 'eventos', 'cobros'],
@@ -3577,7 +3580,7 @@ async function confirmarMesNuevo() {
 // ── CATÁLOGO ──────────────────────────────────────────────
 async function loadCatalogo() {
   try {
-    const lista = await sb('catalogo', { filters:['activo=eq.true'], order:'categoria,codigo' });
+    const lista = await sb('catalogo', { select: 'id,codigo,categoria,producto,descripcion,precio_ars,activo,tiene_foto', filters:['activo=eq.true'], order:'categoria,codigo' });
     const cats = [...new Set(lista.map(i => i.categoria))];
 
     // Botones de filtro por categoría
@@ -3590,8 +3593,14 @@ async function loadCatalogo() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-function abrirModalProductoById(id) {
-  const item = (window._catLista || []).find(i => String(i.id) === String(id));
+async function abrirModalProductoById(id) {
+  const base = (window._catLista || []).find(i => String(i.id) === String(id));
+  // Cargar foto_base64 solo ahora, bajo demanda
+  let item = base ? { ...base } : { id };
+  try {
+    const rows = await sb('catalogo', { select: 'foto_base64', filters: [`id=eq.${id}`], limit: 1 });
+    if (rows[0]?.foto_base64) item.foto_base64 = rows[0].foto_base64;
+  } catch(e) { /* sin foto */ }
   abrirModalProducto(item);
 }
 
@@ -3711,11 +3720,10 @@ async function guardarProducto() {
     }
     if (window._fotoBlob) {
       const b64 = await blobToBase64(window._fotoBlob);
-      if (id) await sbPatch('catalogo', id, { foto_base64: b64 });
+      if (id) await sbPatch('catalogo', id, { foto_base64: b64, tiene_foto: true });
       else {
-        // buscar el registro recién insertado por codigo para parchear foto
         const rows = await sb('catalogo', { filters: [`codigo=eq.${codigo}`], limit: 1 });
-        if (rows[0]) await sbPatch('catalogo', rows[0].id, { foto_base64: b64 });
+        if (rows[0]) await sbPatch('catalogo', rows[0].id, { foto_base64: b64, tiene_foto: true });
       }
     }
     closeModal('modal-producto');
@@ -3741,14 +3749,43 @@ function filterCat(cat, btn) {
   renderCatalogo(cat);
 }
 
+function initThumbObserver() {
+  if (window._thumbObserver) window._thumbObserver.disconnect();
+  window._thumbObserver = new IntersectionObserver(async (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const el = entry.target;
+      const id = el.dataset.id;
+      if (!id || el.dataset.loaded) continue;
+      el.dataset.loaded = '1';
+      window._thumbObserver.unobserve(el);
+      try {
+        const rows = await sb('catalogo', { select: 'foto_base64', filters: [`id=eq.${id}`], limit: 1 });
+        if (rows[0]?.foto_base64) {
+          el.innerHTML = '';
+          const img = document.createElement('img');
+          img.src = rows[0].foto_base64;
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+          el.appendChild(img);
+        } else {
+          el.textContent = '📷';
+        }
+      } catch(e) { el.textContent = '📷'; }
+    }
+  }, { rootMargin: '100px' });
+
+  document.querySelectorAll('[data-id][data-thumb]').forEach(el => window._thumbObserver.observe(el));
+}
+
 function renderCatalogo(cat) {
   const lista = cat === 'todos' ? window._catLista : window._catLista.filter(i => i.categoria === cat);
+  const catActual = cat;
   document.getElementById('cat-tbody').innerHTML = lista.map(i => `<tr>
-    <td style="color:var(--text-3);font-size:12px">${i.codigo}</td>
+    <td style="color:var(--text-3);font-size:12px">${i.codigo || i.id}</td>
     <td><span style="font-size:11px;color:var(--gold)">${i.categoria}</span></td>
     <td>
       <div style="display:flex;align-items:center;gap:10px">
-        ${i.foto_base64 ? `<img src="${i.foto_base64}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0">` : '<div style="width:40px;height:40px;border-radius:6px;border:1px dashed var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:16px">📷</div>'}
+        <div ${i.tiene_foto ? `data-id="${i.id}" data-thumb="1"` : ''} style="width:40px;height:40px;border-radius:6px;border:1px solid var(--border);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:16px;background:var(--bg-2)">${i.tiene_foto ? '⏳' : '📷'}</div>
         <div>
           <div style="font-weight:500">${i.producto}</div>
           <div style="font-size:11px;color:var(--text-3);margin-top:2px">${(i.descripcion||'').substring(0,80)}${(i.descripcion||'').length>80?'…':''}</div>
@@ -3761,6 +3798,7 @@ function renderCatalogo(cat) {
       <button class="btn btn-ghost btn-sm" onclick="eliminarProducto('${i.id}')" style="color:var(--red)">✕</button>
     </td>
   </tr>`).join('');
+  initThumbObserver();
 }
 
 
