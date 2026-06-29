@@ -769,12 +769,23 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <button class="modal-close" onclick="closeModal('modal-nueva-logistica')">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-grid" style="margin-bottom:16px">
+      <!-- Tipo selector -->
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button id="nlg-btn-evento"   class="btn btn-primary btn-sm"  onclick="setTipoLog('Evento')">📋 Evento</button>
+        <button id="nlg-btn-deposito" class="btn btn-ghost btn-sm"    onclick="setTipoLog('Deposito')">📦 Depósito</button>
+      </div>
+      <!-- Evento: single select -->
+      <div id="nlg-sec-evento" class="form-grid" style="margin-bottom:16px">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Evento *</label><select class="inp" id="nlg-evento"></select></div>
-        <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Notas generales (uniforme, reglas, etc.)</label>
-          <textarea class="inp" id="nlg-notas" rows="2" style="resize:vertical;width:100%" placeholder="Ej: Remera Grosso + pantalón negro + herramientas + DNI"></textarea>
-        </div>
+      </div>
+      <!-- Depósito: multi-event checkboxes -->
+      <div id="nlg-sec-deposito" style="display:none;margin-bottom:16px">
+        <label class="lbl" style="margin-bottom:8px;display:block">Eventos incluidos *</label>
+        <div id="nlg-eventos-dep" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="lbl">Notas generales</label>
+        <textarea class="inp" id="nlg-notas" rows="2" style="resize:vertical;width:100%" placeholder="Ej: Remera Grosso + pantalón negro + herramientas + DNI"></textarea>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <span style="font-weight:600;font-size:13px;color:var(--gold)">Días</span>
@@ -846,11 +857,12 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div class="field"><label class="lbl">Nombre *</label><input class="inp" id="pers-nombre" placeholder="Sergio"></div>
         <div class="field"><label class="lbl">DNI</label><input class="inp" id="pers-dni" placeholder="12345678" type="number"></div>
         <div class="field"><label class="lbl">Tipo</label>
-          <select class="inp" id="pers-tipo"><option>Fijo</option><option>Freelance</option></select>
+          <select class="inp" id="pers-tipo" onchange="onPersTipoChange()"><option>Fijo</option><option>Freelance</option><option>Chofer</option></select>
         </div>
-        <div class="field"><label class="lbl">Tarifa Depósito (ARS)</label><input class="inp" type="number" id="pers-dep" placeholder="0"></div>
-        <div class="field"><label class="lbl">Tarifa Armado (ARS)</label><input class="inp" type="number" id="pers-arm" placeholder="0"></div>
-        <div class="field"><label class="lbl">Tarifa Operador (ARS)</label><input class="inp" type="number" id="pers-op" placeholder="0"></div>
+        <div class="field" id="pers-field-sueldo"><label class="lbl">Sueldo mensual (ARS)</label><input class="inp" type="number" id="pers-sueldo" placeholder="0"></div>
+        <div class="field" id="pers-field-dep"><label class="lbl">Tarifa Depósito (ARS)</label><input class="inp" type="number" id="pers-dep" placeholder="0"></div>
+        <div class="field" id="pers-field-arm"><label class="lbl">Tarifa Armado (ARS)</label><input class="inp" type="number" id="pers-arm" placeholder="0"></div>
+        <div class="field" id="pers-field-op"><label class="lbl">Tarifa Operador (ARS)</label><input class="inp" type="number" id="pers-op" placeholder="0"></div>
         <div class="field"><label class="lbl">Teléfono</label><input class="inp" id="pers-tel" placeholder="+54 11..."></div>
         <div class="field full"><label class="lbl">Notas</label><input class="inp" id="pers-notas" placeholder="Opcional"></div>
       </div>
@@ -1822,10 +1834,14 @@ async function liquidarSemana() {
   if (!confirm(`Liquidar ${pendientes.length} jornada(s) del ${fmtPeriodo}?\nSe generará un PDF por persona y se subirá a Drive.`)) return;
 
   // Agrupar por persona
+  const persData = await sb('personal', { limit: 500 });
   const porPersona = {};
   pendientes.forEach(j => {
     const key = j.personal_id;
-    if (!porPersona[key]) porPersona[key] = { apellido: j.personal_apellido||'', nombre: j.personal_nombre||'', jornadas: [] };
+    if (!porPersona[key]) {
+      const p = persData.find(x => x.id === j.personal_id) || {};
+      porPersona[key] = { apellido: j.personal_apellido||'', nombre: j.personal_nombre||'', tipo: p.tipo||'Freelance', sueldo_fijo: p.sueldo_fijo||0, jornadas: [] };
+    }
     porPersona[key].jornadas.push(j);
   });
 
@@ -1917,19 +1933,49 @@ function generarReciboPDF(data, periodo, lunesDate) {
   doc.text('TARIFA',       PW - M - 2,   y + 4, { align: 'right' });
   y += 7;
 
-  let total = 0;
-  data.jornadas.sort((a, b) => a.fecha.localeCompare(b.fecha)).forEach((j, idx) => {
-    if (y > PH - 35) { doc.addPage(); y = 15; }
-    fill(idx % 2 === 0 ? BLANCO : GRIS_F); doc.rect(M, y, CW, 8, 'F');
-    font('normal', 8); text(NEGRO);
-    const fechaStr = new Date(j.fecha + 'T12:00:00').toLocaleDateString('es-AR');
-    doc.text(fechaStr,               M + 2,      y + 5.5);
-    doc.text(j.tipo || '',           M + 32,     y + 5.5);
-    const eventoStr = j.evento_codigo ? `${j.evento_codigo} · ${j.evento_venue || ''}` : '—';
-    doc.text(eventoStr.substring(0, 30), M + 72, y + 5.5);
+  const esFijo = data.tipo === 'Fijo';
+
+  const esIncluida = j => {
+    if (!esFijo) return false;
+    const dow = new Date(j.fecha + 'T12:00:00').getDay(); // 0=dom, 6=sab
+    const esFinDeSemana = dow === 0 || dow === 6;
+    if (j.tipo === 'Depósito') return true;
+    if ((j.tipo === 'Armado' || j.tipo === 'Desarmado') && !esFinDeSemana) return true;
+    return false;
+  };
+
+  const jSorted = data.jornadas.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  let total = esFijo ? (data.sueldo_fijo || 0) : 0;
+
+  // Para Fijo: mostrar sueldo mensual como primera línea
+  if (esFijo) {
+    fill(GRIS_F); doc.rect(M, y, CW, 8, 'F');
     font('bold', 8); text(NEGRO);
-    doc.text(fmtARS(j.tarifa_ars),   PW - M - 2, y + 5.5, { align: 'right' });
-    total += Number(j.tarifa_ars || 0);
+    doc.text('Sueldo mensual', M + 2, y + 5.5);
+    font('bold', 8); text([0, 128, 0]);
+    doc.text(fmtARS(data.sueldo_fijo || 0), PW - M - 2, y + 5.5, { align: 'right' });
+    y += 8;
+  }
+
+  jSorted.forEach((j, idx) => {
+    if (y > PH - 35) { doc.addPage(); y = 15; }
+    const incluida = esIncluida(j);
+    fill(idx % 2 === 0 ? BLANCO : GRIS_F); doc.rect(M, y, CW, 8, 'F');
+    font('normal', 8); text(incluida ? [150,150,150] : NEGRO);
+    const fechaStr = new Date(j.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+    doc.text(fechaStr, M + 2, y + 5.5);
+    doc.text((j.tipo || '') + (incluida ? ' (incluida)' : ''), M + 32, y + 5.5);
+    const eventoStr = j.evento_codigo ? `${j.evento_codigo} · ${j.evento_venue || ''}` : '—';
+    doc.text(eventoStr.substring(0, 28), M + 82, y + 5.5);
+    font('bold', 8);
+    if (incluida) {
+      text([150,150,150]);
+      doc.text('—', PW - M - 2, y + 5.5, { align: 'right' });
+    } else {
+      text(NEGRO);
+      doc.text(fmtARS(j.tarifa_ars), PW - M - 2, y + 5.5, { align: 'right' });
+      total += Number(j.tarifa_ars || 0);
+    }
     y += 8;
   });
 
@@ -1964,7 +2010,9 @@ const DIAS_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sá
 const MESES_ES_GEN = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
 // ── LOGÍSTICA PANEL ────────────────────────────────────────
-let logDias = []; // días temporales al crear una logística
+let logDias = [];
+let logTipo = 'Evento';
+let logEventosDepIds = []; // para tipo Depósito
 
 async function loadLogisticas() {
   const tbody = document.getElementById('log-lista-tbody');
@@ -1975,23 +2023,40 @@ async function loadLogisticas() {
       tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas cargadas</div></td></tr>';
       return;
     }
-    // Para cada logistica, cargar sus jornadas
     const ids = rows.map(r => r.id);
-    const jornadas = await sb('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,fecha,tipo,personal_id', limit: 2000 });
+    const [jornadas, logEvRels] = await Promise.all([
+      sb('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,fecha,personal_id', limit: 2000 }),
+      sb('logistica_eventos', { filters: [`logistica_id=in.(${ids.join(',')})`], limit: 500 }),
+    ]);
 
     tbody.innerHTML = rows.map(r => {
-      const jors = jornadas.filter(j => j.logistica_id === r.id);
-      const dias = [...new Set(jors.map(j => j.fecha))].sort();
+      const jors  = jornadas.filter(j => j.logistica_id === r.id);
+      const dias  = [...new Set(jors.map(j => j.fecha))].sort();
       const persIds = [...new Set(jors.map(j => j.personal_id))];
-      const ev = (evCache || []).find(e => e.id === r.evento_id);
-      const evLabel = ev ? (ev.venue || ev.codigo || ev.id) : `Evento #${r.evento_id}`;
+      const esDeposito = r.tipo === 'Deposito';
+
+      let evLabel;
+      if (esDeposito) {
+        const evIds = logEvRels.filter(x => x.logistica_id === r.id).map(x => x.evento_id);
+        const names = evIds.map(eid => { const e = (evCache||[]).find(x=>x.id===eid); return e ? (e.venue||e.codigo||e.id) : `#${eid}`; });
+        evLabel = names.length ? names.join(', ') : '—';
+      } else {
+        const ev = (evCache||[]).find(e => e.id === r.evento_id);
+        evLabel = ev ? (ev.venue || ev.codigo || ev.id) : (r.evento_id ? `#${r.evento_id}` : '—');
+      }
+
       const fechaLabel = dias.length
         ? dias.length === 1
           ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
           : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
         : '—';
+
+      const tipoBadge = esDeposito
+        ? `<span style="font-size:10px;color:var(--orange);font-weight:600">📦 DEPÓSITO</span>`
+        : `<span style="font-size:10px;color:var(--blue);font-weight:600">📋 EVENTO</span>`;
+
       return `<tr>
-        <td><b>${evLabel}</b></td>
+        <td>${tipoBadge}<br><b style="font-size:13px">${evLabel}</b></td>
         <td style="font-size:12px;color:var(--text-2)">${fechaLabel}</td>
         <td style="font-size:12px">${dias.length} día(s)</td>
         <td style="font-size:12px">${persIds.length} persona(s)</td>
@@ -2006,26 +2071,66 @@ async function loadLogisticas() {
 }
 
 function abrirNuevaLogistica() {
-  logDias = [];
+  logEventosDepIds = [];
   document.getElementById('nlg-notas').value = '';
+  // Poblar evento single select
   const sel = document.getElementById('nlg-evento');
   sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
-  (evCache || [])
+  const evRelevantes = (evCache || [])
     .filter(e => ['Confirmado','En logística'].includes(e.estado))
-    .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''))
-    .forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e.id;
-      const fecha = e.fecha_evento ? new Date(e.fecha_evento+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '';
-      opt.textContent = `${fecha} — ${e.venue || e.codigo || e.id}`;
-      sel.appendChild(opt);
-    });
-  renderDiasLog();
+    .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
+  evRelevantes.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id;
+    const fecha = e.fecha_evento ? new Date(e.fecha_evento+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '';
+    opt.textContent = `${fecha} — ${e.venue || e.codigo || e.id}`;
+    sel.appendChild(opt);
+  });
+  // Poblar multi-evento para depósito
+  document.getElementById('nlg-eventos-dep').innerHTML = evRelevantes.map(e => {
+    const fecha = e.fecha_evento ? new Date(e.fecha_evento+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '';
+    return `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap">
+      <input type="checkbox" value="${e.id}" onchange="toggleEvDep(${e.id})">
+      ${fecha} — ${e.venue || e.codigo || e.id}
+    </label>`;
+  }).join('');
+  setTipoLog('Evento');
   openModal('modal-nueva-logistica');
 }
 
+function setTipoLog(tipo) {
+  logTipo = tipo;
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('nlg-btn-evento').className   = tipo === 'Evento'   ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('nlg-btn-deposito').className = tipo === 'Deposito' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('nlg-sec-evento').style.display   = tipo === 'Evento'   ? '' : 'none';
+  document.getElementById('nlg-sec-deposito').style.display = tipo === 'Deposito' ? '' : 'none';
+  if (tipo === 'Evento') {
+    logDias = [
+      { id: Date.now()+1, tipo: 'Armado',    fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
+      { id: Date.now()+2, tipo: 'Operador',  fecha: hoy, personal: [], transporte: 'Sin transporte',   flete_personal: '', flete_monto: '' },
+      { id: Date.now()+3, tipo: 'Desarmado', fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
+    ];
+  } else {
+    logDias = [
+      { id: Date.now()+1, tipo: 'Depósito', fecha: hoy, personal: [], transporte: 'Sin transporte', flete_personal: '', flete_monto: '' },
+    ];
+  }
+  renderDiasLog();
+}
+
+function toggleEvDep(evId) {
+  const idx = logEventosDepIds.indexOf(evId);
+  if (idx === -1) logEventosDepIds.push(evId); else logEventosDepIds.splice(idx, 1);
+}
+
 function agregarDiaLog() {
-  logDias.push({ id: Date.now(), tipo: 'Armado', fecha: new Date().toISOString().split('T')[0], personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' });
+  const hoy = new Date().toISOString().split('T')[0];
+  if (logTipo === 'Deposito') {
+    logDias.push({ id: Date.now(), tipo: 'Depósito', fecha: hoy, personal: [], transporte: 'Sin transporte', flete_personal: '', flete_monto: '' });
+  } else {
+    logDias.push({ id: Date.now(), tipo: 'Armado', fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' });
+  }
   renderDiasLog();
 }
 
@@ -2039,6 +2144,14 @@ function updateDiaLog(id, field, value) {
   if (!d) return;
   d[field] = value;
   if (field === 'tipo' || field === 'transporte') renderDiasLog();
+}
+
+function onFleteChofer(diaId, value) {
+  const d = logDias.find(d => d.id === diaId);
+  if (!d) return;
+  if (value === '__otro__') { d.flete_personal = ''; }
+  else { d.flete_personal = value; }
+  renderDiasLog();
 }
 
 function togglePersonalDia(diaId, persId) {
@@ -2062,15 +2175,20 @@ function renderDiasLog() {
         <input type="checkbox" ${d.personal.includes(p.id)?'checked':''} onchange="togglePersonalDia(${d.id},${p.id})">
         ${p.apellido} ${p.nombre}
       </label>`).join('');
+    const choferes = (persCache || []).filter(p => p.tipo === 'Chofer' && p.activo !== false);
+    const choferOpts = `<option value="">— Chofer —</option>` + choferes.map(p => `<option value="${p.apellido} ${p.nombre}" ${d.flete_personal === p.apellido+' '+p.nombre ? 'selected' : ''}>${p.apellido} ${p.nombre}</option>`).join('') + `<option value="__otro__" ${d.flete_personal && !choferes.some(p=>p.apellido+' '+p.nombre===d.flete_personal)?'selected':''}>Otro...</option>`;
     const fleteExtra = d.transporte === 'Flete' ? `
-      <input class="inp" style="width:140px" placeholder="Encargado flete" value="${d.flete_personal}" onchange="updateDiaLog(${d.id},'flete_personal',this.value)">
+      <select class="inp" style="width:160px" onchange="onFleteChofer(${d.id},this.value)">${choferOpts}</select>
+      ${d.flete_personal && !choferes.some(p=>p.apellido+' '+p.nombre===d.flete_personal) ? `<input class="inp" style="width:130px" placeholder="Nombre chofer" value="${d.flete_personal}" onchange="updateDiaLog(${d.id},'flete_personal',this.value)">` : ''}
       <input class="inp" style="width:110px" type="number" placeholder="Monto" value="${d.flete_monto}" onchange="updateDiaLog(${d.id},'flete_monto',this.value)">` : '';
     return `<div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select class="inp" style="width:140px" onchange="updateDiaLog(${d.id},'tipo',this.value)">
-            ${['Armado','Operador','Desarmado','Depósito'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
-          </select>
+          ${logTipo === 'Deposito'
+            ? `<span style="font-size:12px;font-weight:600;color:var(--orange)">📦 Depósito</span>`
+            : `<select class="inp" style="width:140px" onchange="updateDiaLog(${d.id},'tipo',this.value)">
+                ${['Armado','Operador','Desarmado'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
+               </select>`}
           <input type="date" class="inp" style="width:150px" value="${d.fecha}" onchange="updateDiaLog(${d.id},'fecha',this.value)">
           ${conTransporte ? `<select class="inp" style="width:160px" onchange="updateDiaLog(${d.id},'transporte',this.value)">
             ${['Camioneta propia','Flete','Sin transporte'].map(t=>`<option ${d.transporte===t?'selected':''}>${t}</option>`).join('')}
@@ -2084,14 +2202,31 @@ function renderDiasLog() {
 }
 
 async function guardarLogistica() {
-  const eventoId = document.getElementById('nlg-evento').value;
-  if (!eventoId) { toast('Seleccioná un evento', 'err'); return; }
   if (!logDias.length) { toast('Agregá al menos un día', 'err'); return; }
   if (!logDias.some(d => d.personal.length)) { toast('Asigná personal a al menos un día', 'err'); return; }
   const notas = document.getElementById('nlg-notas').value.trim();
+
+  let eventoId = null;
+  if (logTipo === 'Evento') {
+    eventoId = document.getElementById('nlg-evento').value;
+    if (!eventoId) { toast('Seleccioná un evento', 'err'); return; }
+  } else {
+    if (!logEventosDepIds.length) { toast('Seleccioná al menos un evento para el depósito', 'err'); return; }
+  }
+
   try {
-    const logRow = await sbPost('logisticas', { evento_id: parseInt(eventoId), notas: notas || null });
+    const logRow = await sbPost('logisticas', {
+      tipo: logTipo,
+      evento_id: eventoId ? parseInt(eventoId) : null,
+      notas: notas || null,
+    });
     const logId = Array.isArray(logRow) ? logRow[0].id : logRow.id;
+
+    // Para depósito: insertar relaciones en logistica_eventos
+    if (logTipo === 'Deposito' && logEventosDepIds.length) {
+      await sbPost('logistica_eventos', logEventosDepIds.map(eid => ({ logistica_id: logId, evento_id: eid })));
+    }
+
     const jornadasToInsert = [];
     logDias.forEach(d => {
       d.personal.forEach(persId => {
@@ -2102,7 +2237,7 @@ async function guardarLogistica() {
           : p.tarifa_armado;
         jornadasToInsert.push({
           personal_id: persId,
-          evento_id: parseInt(eventoId),
+          evento_id: eventoId ? parseInt(eventoId) : null,
           fecha: d.fecha,
           tipo: d.tipo,
           tarifa: tarifa || null,
@@ -2484,6 +2619,13 @@ async function loadPersonal() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
+function onPersTipoChange() {
+  const tipo = document.getElementById('pers-tipo').value;
+  const esFijo = tipo === 'Fijo';
+  document.getElementById('pers-field-sueldo').style.display = esFijo ? '' : 'none';
+  document.getElementById('pers-field-dep').style.display    = esFijo ? 'none' : '';
+}
+
 function abrirModalPersonal() {
   document.getElementById('pers-id').value       = '';
   document.getElementById('pers-modal-title').textContent = 'Agregar personal';
@@ -2491,19 +2633,17 @@ function abrirModalPersonal() {
   document.getElementById('pers-nombre').value   = '';
   document.getElementById('pers-dni').value      = '';
   document.getElementById('pers-tipo').value     = 'Fijo';
+  document.getElementById('pers-sueldo').value   = '';
   document.getElementById('pers-dep').value      = '';
   document.getElementById('pers-arm').value      = '';
   document.getElementById('pers-op').value       = '';
   document.getElementById('pers-tel').value      = '';
   document.getElementById('pers-notas').value    = '';
+  onPersTipoChange();
   openModal('modal-personal');
 }
 
 function editarPersonal(id) {
-  const lista = persCache.length
-    ? persCache
-    : JSON.parse(localStorage.getItem('persAll') || '[]');
-  // Buscar en todas (activos e inactivos) usando un fetch directo
   sb('personal', { filters: [`id=eq.${id}`] }).then(rows => {
     const p = rows[0]; if (!p) return;
     document.getElementById('pers-id').value       = p.id;
@@ -2512,11 +2652,13 @@ function editarPersonal(id) {
     document.getElementById('pers-nombre').value   = p.nombre || '';
     document.getElementById('pers-dni').value      = p.dni || '';
     document.getElementById('pers-tipo').value     = p.tipo || 'Fijo';
+    document.getElementById('pers-sueldo').value   = p.sueldo_fijo || '';
     document.getElementById('pers-dep').value      = p.tarifa_deposito || '';
     document.getElementById('pers-arm').value      = p.tarifa_armado || '';
     document.getElementById('pers-op').value       = p.tarifa_operador || '';
     document.getElementById('pers-tel').value      = p.telefono || '';
     document.getElementById('pers-notas').value    = p.notas || '';
+    onPersTipoChange();
     openModal('modal-personal');
   });
 }
@@ -2525,13 +2667,15 @@ async function guardarPersonal() {
   const apellido = document.getElementById('pers-apellido').value.trim();
   const nombre   = document.getElementById('pers-nombre').value.trim();
   if (!apellido || !nombre) { toast('Apellido y nombre son obligatorios', 'err'); return; }
-  const id = document.getElementById('pers-id').value;
+  const id   = document.getElementById('pers-id').value;
+  const tipo = document.getElementById('pers-tipo').value;
   const data = {
     apellido,
     nombre,
     dni:             document.getElementById('pers-dni').value || null,
-    tipo:            document.getElementById('pers-tipo').value,
-    tarifa_deposito: parseFloat(document.getElementById('pers-dep').value) || 0,
+    tipo,
+    sueldo_fijo:     tipo === 'Fijo' ? (parseFloat(document.getElementById('pers-sueldo').value) || null) : null,
+    tarifa_deposito: tipo !== 'Fijo' ? (parseFloat(document.getElementById('pers-dep').value) || 0) : null,
     tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
     tarifa_operador: parseFloat(document.getElementById('pers-op').value) || 0,
     telefono:        document.getElementById('pers-tel').value || null,
