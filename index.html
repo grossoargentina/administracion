@@ -2405,7 +2405,7 @@ async function generarPresupuesto() {
     font('bold', 16); text(BLANCO);
     doc.text('GROSSO ARGENTINA', M + 27, 11);
     font('normal', 9); text(ORO);
-    doc.text('Iluminacion Profesional para Eventos', M + 27, 18);
+    doc.text('Soluciones Tecnologicas para Eventos', M + 27, 18);
 
     // Datos contacto (derecha)
     font('normal', 7.5); text([200,200,200]);
@@ -2585,7 +2585,7 @@ async function generarPresupuesto() {
     y += 2;
     fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
     font('bold', 8); text(BLANCO);
-    doc.text('NOTAS Y CONDICIONES GENERALES', M+2, y+4); y += 8;
+    doc.text('NOTAS Y CONDICIONES GENERALES', M+2, y+4); y += 12;
 
     const notas = [
       'Precios expresados en pesos argentinos (ARS).',
@@ -2598,12 +2598,12 @@ async function generarPresupuesto() {
       doc.text(`${i+1}. ${n}`, M, y); y += 5;
     });
 
-    // ── FOOTER — va justo después del contenido ──────────
-    y += 6;
-    fill(NEGRO); doc.rect(0, y, PW, 12, 'F');
+    // ── FOOTER — fijo al pie de la hoja ──────────────────
+    const footerY = PH - 12;
+    fill(NEGRO); doc.rect(0, footerY, PW, 12, 'F');
     font('normal', 7.5); text(ORO);
-    doc.text('Grosso Argentina | Iluminacion Profesional | administracion@grossoarg.com', M, y + 7);
-    doc.text(`N\u00b0 ${numero}`, PW - M, y + 7, { align: 'right' });
+    doc.text('Grosso Argentina | Soluciones Tecnologicas | administracion@grossoarg.com', M, footerY + 7);
+    doc.text(`N\u00b0 ${numero}`, PW - M, footerY + 7, { align: 'right' });
 
     // ── Exportar como Blob ────────────────────────────────
     const pdfBlob = doc.output('blob');
