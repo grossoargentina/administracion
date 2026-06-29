@@ -507,7 +507,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
     <div class="page" id="p-personal">
       <div class="page-header">
         <div><div class="page-title">Personal</div></div>
-        <button class="btn btn-primary" onclick="openModal('modal-personal')">+ Agregar</button>
+        <button class="btn btn-primary" onclick="abrirModalPersonal()">+ Agregar</button>
       </div>
       <div class="card">
         <div class="tbl-wrap">
@@ -704,8 +704,9 @@ textarea.inp { resize: vertical; min-height: 80px; }
 <!-- MODAL PERSONAL -->
 <div class="modal-overlay" id="modal-personal">
   <div class="modal">
+    <input type="hidden" id="pers-id">
     <div class="modal-header">
-      <span class="modal-title">Agregar personal</span>
+      <span class="modal-title" id="pers-modal-title">Agregar personal</span>
       <button class="modal-close" onclick="closeModal('modal-personal')">×</button>
     </div>
     <div class="modal-body">
@@ -1733,9 +1734,10 @@ async function loadPersonal() {
           <td>${fmtARS(p.tarifa_armado)}</td>
           <td>${fmtARS(p.tarifa_operador)}</td>
           <td style="color:var(--text-2)">${p.telefono || '—'}</td>
-          <td>
+          <td style="display:flex;gap:4px">
+            <button class="btn btn-ghost btn-sm" onclick="editarPersonal(${p.id})">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="togglePersonal(${p.id},${p.activo})">
-              ${p.activo ? 'Dar de baja' : 'Reactivar'}
+              ${p.activo ? 'Baja' : 'Activar'}
             </button>
           </td>
         </tr>`).join('')
@@ -1743,13 +1745,49 @@ async function loadPersonal() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
+function abrirModalPersonal() {
+  document.getElementById('pers-id').value       = '';
+  document.getElementById('pers-modal-title').textContent = 'Agregar personal';
+  document.getElementById('pers-apellido').value = '';
+  document.getElementById('pers-nombre').value   = '';
+  document.getElementById('pers-dni').value      = '';
+  document.getElementById('pers-tipo').value     = 'Fijo';
+  document.getElementById('pers-dep').value      = '';
+  document.getElementById('pers-arm').value      = '';
+  document.getElementById('pers-op').value       = '';
+  document.getElementById('pers-tel').value      = '';
+  document.getElementById('pers-notas').value    = '';
+  openModal('modal-personal');
+}
+
+function editarPersonal(id) {
+  const lista = persCache.length
+    ? persCache
+    : JSON.parse(localStorage.getItem('persAll') || '[]');
+  // Buscar en todas (activos e inactivos) usando un fetch directo
+  sb('personal', { filters: [`id=eq.${id}`] }).then(rows => {
+    const p = rows[0]; if (!p) return;
+    document.getElementById('pers-id').value       = p.id;
+    document.getElementById('pers-modal-title').textContent = 'Editar personal';
+    document.getElementById('pers-apellido').value = p.apellido || '';
+    document.getElementById('pers-nombre').value   = p.nombre || '';
+    document.getElementById('pers-dni').value      = p.dni || '';
+    document.getElementById('pers-tipo').value     = p.tipo || 'Fijo';
+    document.getElementById('pers-dep').value      = p.tarifa_deposito || '';
+    document.getElementById('pers-arm').value      = p.tarifa_armado || '';
+    document.getElementById('pers-op').value       = p.tarifa_operador || '';
+    document.getElementById('pers-tel').value      = p.telefono || '';
+    document.getElementById('pers-notas').value    = p.notas || '';
+    openModal('modal-personal');
+  });
+}
+
 async function guardarPersonal() {
   const apellido = document.getElementById('pers-apellido').value.trim();
   const nombre   = document.getElementById('pers-nombre').value.trim();
   if (!apellido || !nombre) { toast('Apellido y nombre son obligatorios', 'err'); return; }
-  const count = await sb('personal', { select: 'id' });
+  const id = document.getElementById('pers-id').value;
   const data = {
-    codigo:          'P' + String(count.length + 1).padStart(3, '0'),
     apellido,
     nombre,
     dni:             document.getElementById('pers-dni').value || null,
@@ -1757,12 +1795,19 @@ async function guardarPersonal() {
     tarifa_deposito: parseFloat(document.getElementById('pers-dep').value) || 0,
     tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
     tarifa_operador: parseFloat(document.getElementById('pers-op').value) || 0,
-    telefono:        document.getElementById('pers-tel').value,
-    notas:           document.getElementById('pers-notas').value,
+    telefono:        document.getElementById('pers-tel').value || null,
+    notas:           document.getElementById('pers-notas').value || null,
   };
   try {
-    await sbPost('personal', data);
-    toast('Personal agregado');
+    if (id) {
+      await sbPatch('personal', parseInt(id), data);
+      toast('Personal actualizado');
+    } else {
+      const count = await sb('personal', { select: 'id' });
+      data.codigo = 'P' + String(count.length + 1).padStart(3, '0');
+      await sbPost('personal', data);
+      toast('Personal agregado');
+    }
     closeModal('modal-personal');
     persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
     llenarSelectPersonal();
