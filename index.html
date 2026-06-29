@@ -2334,12 +2334,13 @@ async function guardarLogistica() {
         const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito
           : d.tipo === 'Operador' ? p.tarifa_operador
           : p.tarifa_armado;
+        const tipoJornada = (d.tipo === 'Armado' || d.tipo === 'Desarmado') ? 'Armado/Desarmado' : d.tipo;
         jornadasToInsert.push({
           codigo: `J${new Date().getFullYear()}-${String(base++).padStart(4, '0')}`,
           personal_id: persId,
           evento_id: eventoId ? parseInt(eventoId) : null,
           fecha: d.fecha,
-          tipo: d.tipo,
+          tipo: tipoJornada,
           tarifa_ars: tarifa || null,
           pagado: false,
           transporte: ['Armado','Desarmado'].includes(d.tipo) ? d.transporte : null,
