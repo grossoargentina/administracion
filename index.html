@@ -487,7 +487,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
           <div class="page-title">Jornadas de trabajo</div>
           <div class="page-sub">Registro de trabajo del personal</div>
         </div>
-        <button class="btn btn-primary" onclick="openModal('modal-jornada')">+ Nueva jornada</button>
+        <button class="btn btn-primary" onclick="abrirModalJornada()">+ Nueva jornada</button>
       </div>
       <div class="kpi-grid" id="jorn-kpis"></div>
       <div class="card">
@@ -649,42 +649,53 @@ textarea.inp { resize: vertical; min-height: 80px; }
 
 <!-- MODAL JORNADA -->
 <div class="modal-overlay" id="modal-jornada">
-  <div class="modal">
+  <div class="modal" style="max-width:580px">
     <div class="modal-header">
       <span class="modal-title">Nueva jornada</span>
       <button class="modal-close" onclick="closeModal('modal-jornada')">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-grid">
-        <div class="field"><label class="lbl">Personal *</label>
-          <select class="inp" id="jorn-personal" onchange="autoTarifa()">
-            <option value="">— Seleccionar —</option>
-          </select>
-        </div>
-        <div class="field"><label class="lbl">Tipo de jornada *</label>
-          <select class="inp" id="jorn-tipo" onchange="autoTarifa()">
-            <option value="">— Seleccionar —</option>
-            <option>Depósito</option><option>Armado/Desarmado</option><option>Operador</option>
-          </select>
-        </div>
-        <div class="field"><label class="lbl">Fecha *</label><input class="inp" type="date" id="jorn-fecha"></div>
-        <div class="field"><label class="lbl">Evento (opcional)</label>
+      <div class="form-grid" style="margin-bottom:16px">
+        <!-- Evento primero -->
+        <div class="field full">
+          <label class="lbl">Evento *</label>
           <select class="inp" id="jorn-evento">
-            <option value="">— Sin evento asociado —</option>
+            <option value="">— Sin evento (jornada de depósito suelta) —</option>
           </select>
         </div>
-        <div class="field"><label class="lbl">Tarifa ARS</label><input class="inp" type="number" id="jorn-tarifa" placeholder="Auto desde personal"></div>
-        <div class="field"><label class="lbl">Pagado</label>
-          <select class="inp" id="jorn-pagado">
-            <option value="false">No</option><option value="true">Sí</option>
+        <div class="field">
+          <label class="lbl">Tipo de jornada *</label>
+          <select class="inp" id="jorn-tipo">
+            <option value="">— Seleccionar —</option>
+            <option>Depósito</option>
+            <option>Armado/Desarmado</option>
+            <option>Operador</option>
           </select>
         </div>
-        <div class="field full"><label class="lbl">Notas</label><input class="inp" id="jorn-notas" placeholder="Opcional"></div>
+        <div class="field">
+          <label class="lbl">Fecha *</label>
+          <input class="inp" type="date" id="jorn-fecha">
+        </div>
+        <div class="field full">
+          <label class="lbl">Notas</label>
+          <input class="inp" id="jorn-notas" placeholder="Opcional">
+        </div>
+      </div>
+
+      <!-- Selección de personal -->
+      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">
+        Personal asignado — seleccioná uno o más
+      </div>
+      <div id="jorn-personal-lista" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;max-height:280px;overflow-y:auto">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:6px">
+        Las tarifas se cargan automáticamente según el tipo de jornada de cada persona.
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-jornada')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarJornada()">Guardar jornada</button>
+      <button class="btn btn-primary" onclick="guardarJornadas()">Guardar jornadas</button>
     </div>
   </div>
 </div>
@@ -1347,49 +1358,101 @@ async function loadJornadas() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-function llenarSelectPersonal() {
-  const sel = document.getElementById('jorn-personal');
-  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
-    persCache.map(p => `<option value="${p.id}" data-dep="${p.tarifa_deposito}" data-arm="${p.tarifa_armado}" data-op="${p.tarifa_operador}">${p.apellido || ''} ${p.nombre}</option>`).join('');
-}
-
 function llenarSelectEventos() {
   const sel = document.getElementById('jorn-evento');
-  sel.innerHTML = '<option value="">— Sin evento asociado —</option>' +
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Sin evento (jornada de depósito suelta) —</option>' +
     evCache.map(e => `<option value="${e.id}">${e.codigo} · ${e.cliente_nombre} · ${e.venue || ''}</option>`).join('');
 }
 
-function autoTarifa() {
-  const persOpt = document.querySelector('#jorn-personal option:checked');
-  const tipo    = document.getElementById('jorn-tipo').value;
-  if (!persOpt || !tipo || !persOpt.value) return;
-  const tarifa = tipo === 'Depósito' ? persOpt.dataset.dep
-    : tipo === 'Armado/Desarmado'   ? persOpt.dataset.arm
-    : persOpt.dataset.op;
-  document.getElementById('jorn-tarifa').value = tarifa || '';
+// Abrir modal de jornada y renderizar lista de personal
+async function abrirModalJornada() {
+  // Resetear
+  document.getElementById('jorn-tipo').value = '';
+  document.getElementById('jorn-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('jorn-notas').value = '';
+
+  // Llenar evento
+  llenarSelectEventos();
+
+  // Renderizar lista de personal con checkboxes
+  renderListaPersonal();
+
+  // Escuchar cambio de tipo para actualizar tarifas mostradas
+  document.getElementById('jorn-tipo').onchange = renderListaPersonal;
+
+  openModal('modal-jornada');
 }
 
-async function guardarJornada() {
-  const persId = document.getElementById('jorn-personal').value;
-  const tipo   = document.getElementById('jorn-tipo').value;
-  const fecha  = document.getElementById('jorn-fecha').value;
-  if (!persId || !tipo || !fecha) { toast('Personal, tipo y fecha son obligatorios', 'err'); return; }
+function renderListaPersonal() {
+  const tipo  = document.getElementById('jorn-tipo').value;
+  const lista = document.getElementById('jorn-personal-lista');
+  if (!persCache.length) {
+    lista.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">No hay personal cargado. Agregá personal primero.</div>';
+    return;
+  }
+  lista.innerHTML = persCache.map((p, i) => {
+    const tarifa = tipo === 'Depósito'         ? p.tarifa_deposito
+                 : tipo === 'Armado/Desarmado' ? p.tarifa_armado
+                 : tipo === 'Operador'          ? p.tarifa_operador
+                 : null;
+    const bg = i % 2 === 0 ? 'var(--bg)' : 'var(--surface2)';
+    return `<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;
+                          background:${bg};cursor:pointer;border-bottom:1px solid var(--border)">
+      <input type="checkbox" value="${p.id}" data-dep="${p.tarifa_deposito||0}"
+             data-arm="${p.tarifa_armado||0}" data-op="${p.tarifa_operador||0}"
+             style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${p.apellido||''} ${p.nombre}</div>
+        <div style="font-size:11px;color:var(--text-3)">${p.tipo}</div>
+      </div>
+      <div style="text-align:right">
+        ${tarifa
+          ? `<div style="font-size:12px;font-weight:600;color:var(--gold)">${fmtARS(tarifa)}</div>
+             <div style="font-size:10px;color:var(--text-3)">${tipo || 'seleccioná tipo'}</div>`
+          : `<div style="font-size:11px;color:var(--text-3)">${tipo ? 'sin tarifa' : '—'}</div>`}
+      </div>
+    </label>`;
+  }).join('');
+}
 
-  const count = await sb('jornadas', { select: 'id' });
-  const data = {
-    codigo:      'J' + String(count.length + 1).padStart(4, '0'),
-    personal_id: parseInt(persId),
-    tipo,
-    fecha,
-    evento_id:   parseInt(document.getElementById('jorn-evento').value) || null,
-    tarifa_ars:  parseFloat(document.getElementById('jorn-tarifa').value) || 0,
-    pagado:      document.getElementById('jorn-pagado').value === 'true',
-    notas:       document.getElementById('jorn-notas').value,
-  };
+// Guardar una jornada por cada persona seleccionada
+async function guardarJornadas() {
+  const tipo  = document.getElementById('jorn-tipo').value;
+  const fecha = document.getElementById('jorn-fecha').value;
+  const notas = document.getElementById('jorn-notas').value;
+  const evId  = parseInt(document.getElementById('jorn-evento').value) || null;
+
+  if (!tipo)  { toast('Seleccioná el tipo de jornada', 'err'); return; }
+  if (!fecha) { toast('La fecha es obligatoria', 'err'); return; }
+
+  // Obtener checkboxes seleccionados
+  const checks = document.querySelectorAll('#jorn-personal-lista input[type=checkbox]:checked');
+  if (!checks.length) { toast('Seleccioná al menos una persona', 'err'); return; }
 
   try {
-    await sbPost('jornadas', data);
-    toast('Jornada registrada');
+    const count = await sb('jornadas', { select: 'id' });
+    let base = count.length + 1;
+
+    for (const cb of checks) {
+      const persId = parseInt(cb.value);
+      const tarifa = tipo === 'Depósito'         ? parseFloat(cb.dataset.dep)
+                   : tipo === 'Armado/Desarmado' ? parseFloat(cb.dataset.arm)
+                   : parseFloat(cb.dataset.op);
+
+      await sbPost('jornadas', {
+        codigo:      'J' + String(base++).padStart(4, '0'),
+        personal_id: persId,
+        tipo,
+        fecha,
+        evento_id:   evId,
+        tarifa_ars:  tarifa || 0,
+        pagado:      false,
+        notas,
+      });
+    }
+
+    toast(`✅ ${checks.length} jornada${checks.length > 1 ? 's' : ''} registrada${checks.length > 1 ? 's' : ''}`);
     closeModal('modal-jornada');
     loadJornadas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
