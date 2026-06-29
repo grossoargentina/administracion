@@ -2342,11 +2342,9 @@ async function generarPresupuesto() {
   <div style="margin-bottom:5mm">${pagoHTML}</div>
   <div class="sh">NOTAS Y CONDICIONES GENERALES</div>
   <div style="margin-bottom:8mm">
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">1. El presupuesto incluye traslado dentro de GBA zona norte y zona sur.</p>
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">2. Montaje mínimo: 4 horas antes del evento.</p>
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">3. Consumo eléctrico a cargo del venue (220V trifásico requerido).</p>
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">4. La reserva de fecha se confirma con el pago de la seña.</p>
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">5. Precios expresados en pesos argentinos (ARS).</p>
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">1. El presupuesto incluye traslado dentro de CABA y alrededores.</p>
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">2. Consumo eléctrico a cargo del venue (220V trifásico requerido).</p>
+    <p style="font-size:8.5pt;color:#444;margin:3px 0">3. Precios expresados en pesos argentinos (ARS).</p>
   </div>
   <div style="display:flex;justify-content:space-between;border-top:.5px solid #ddd;padding-top:4mm">
     <div style="font-size:8.5pt"><b>Grosso Argentina</b><br><span style="color:#888;font-size:8pt">administracion@grossoarg.com</span></div>
@@ -2442,18 +2440,18 @@ async function generarPresupuesto() {
     ];
     eventoRows.forEach((row, ri) => {
       fill(ri%2===0 ? GRIS_F : BLANCO);
-      doc.rect(M, y, CW, 6, 'F');
-      font('bold', 8); text(GRIS_T);
-      doc.text(row[0], M+2, y+4);
-      font('normal', 8); text(NEGRO);
-      doc.text(String(row[1]), M+28, y+4);
+      doc.rect(M, y, CW, 8, 'F');
+      font('bold', 8.5); text(GRIS_T);
+      doc.text(row[0], M+2, y+5.5);
+      font('normal', 8.5); text(NEGRO);
+      doc.text(String(row[1]), M+28, y+5.5);
       if (row[2]) {
-        font('bold', 8); text(GRIS_T);
-        doc.text(row[2], M+CW/2+2, y+4);
-        font('normal', 8); text(NEGRO);
-        doc.text(String(row[3]), M+CW/2+22, y+4);
+        font('bold', 8.5); text(GRIS_T);
+        doc.text(row[2], M+CW/2+2, y+5.5);
+        font('normal', 8.5); text(NEGRO);
+        doc.text(String(row[3]), M+CW/2+22, y+5.5);
       }
-      y += 6;
+      y += 8;
     });
     y += 3;
 
@@ -2485,8 +2483,9 @@ async function generarPresupuesto() {
         const rowH  = foto ? 16 : 7; // fila más alta si tiene foto
 
         if (y + rowH > PH - 30) { doc.addPage(); y = 15; }
+        const rowHFinal = foto ? 18 : 9;
         fill(idx2%2===0 ? BLANCO : GRIS_F);
-        doc.rect(M, y, CW, rowH, 'F');
+        doc.rect(M, y, CW, rowHFinal, 'F');
 
         // Foto si existe
         if (foto) {
@@ -2495,13 +2494,13 @@ async function generarPresupuesto() {
           } catch(e) {}
         }
         const xText = foto ? M+17 : M+2;
-        font('bold', 8); text(NEGRO);
+        font('bold', 8.5); text(NEGRO);
         const prod = it.producto.length > (foto?48:55) ? it.producto.substring(0,foto?45:52)+'...' : it.producto;
-        doc.text(prod, xText, y + (foto ? 6 : 5));
-        font('normal', 8);
-        doc.text(String(it.cantidad), M+CW-50, y + (foto ? 9 : 5), { align:'center' });
-        doc.text(fmtA(it.precio * it.cantidad), PW-M-2, y + (foto ? 9 : 5), { align:'right' });
-        y += rowH; idx2++;
+        doc.text(prod, xText, y + (foto ? 7 : 6));
+        font('normal', 8.5);
+        doc.text(String(it.cantidad), M+CW-50, y + (foto ? 10 : 6), { align:'center' });
+        doc.text(fmtA(it.precio * it.cantidad), PW-M-2, y + (foto ? 10 : 6), { align:'right' });
+        y += rowHFinal; idx2++;
       });
     });
 
@@ -2568,8 +2567,7 @@ async function generarPresupuesto() {
       });
       y += 2;
       font('normal', 7); text(GRIS_T);
-      doc.text('La reserva de fecha queda confirmada con el pago de la seña.', M, y);
-      y += 5;
+      y += 2;
     } else {
       fill([245,230,184]); doc.rect(M, y, CW, 8, 'F');
       font('bold', 10); text(NEGRO);
@@ -2590,24 +2588,22 @@ async function generarPresupuesto() {
     doc.text('NOTAS Y CONDICIONES GENERALES', M+2, y+4); y += 8;
 
     const notas = [
-      'El presupuesto incluye traslado dentro de GBA zona norte y zona sur.',
-      'Montaje minimo: 4 horas antes del evento.',
+      'El presupuesto incluye traslado dentro de CABA y alrededores.',
       'Consumo electrico a cargo del venue (220V trifasico requerido).',
-      'La reserva de fecha se confirma con el pago de la seña.',
       'Precios expresados en pesos argentinos (ARS).',
     ];
-    font('normal', 8); text(NEGRO);
+    font('normal', 8.5); text(NEGRO);
     notas.forEach((n, i) => {
       if (y > PH - 20) { doc.addPage(); y = 15; }
-      doc.text(`${i+1}. ${n}`, M, y); y += 5;
+      doc.text(`${i+1}. ${n}`, M, y); y += 7;
     });
 
-    // ── FOOTER ────────────────────────────────────────────
-    const footerY = PH - 10;
-    fill(NEGRO); doc.rect(0, footerY - 3, PW, 13, 'F');
+    // ── FOOTER — va justo después del contenido ──────────
+    y += 6;
+    fill(NEGRO); doc.rect(0, y, PW, 12, 'F');
     font('normal', 7.5); text(ORO);
-    doc.text('Grosso Argentina | Iluminacion Profesional | administracion@grossoarg.com', M, footerY + 3);
-    doc.text(`N\u00b0 ${numero}`, PW - M, footerY + 3, { align: 'right' });
+    doc.text('Grosso Argentina | Iluminacion Profesional | administracion@grossoarg.com', M, y + 7);
+    doc.text(`N\u00b0 ${numero}`, PW - M, y + 7, { align: 'right' });
 
     // ── Exportar como Blob ────────────────────────────────
     const pdfBlob = doc.output('blob');
