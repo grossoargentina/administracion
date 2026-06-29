@@ -505,7 +505,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Nombre</th><th>Tipo</th><th>Depósito</th><th>Armado</th><th>Operador</th><th>Tel</th><th></th></tr></thead>
+            <thead><tr><th>Apellido</th><th>Nombre</th><th>DNI</th><th>Tipo</th><th>Depósito</th><th>Armado</th><th>Operador</th><th>Tel</th><th></th></tr></thead>
             <tbody id="pers-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
@@ -675,7 +675,9 @@ textarea.inp { resize: vertical; min-height: 80px; }
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label class="lbl">Nombre *</label><input class="inp" id="pers-nombre" placeholder="Nombre completo"></div>
+        <div class="field"><label class="lbl">Apellido *</label><input class="inp" id="pers-apellido" placeholder="Grosso"></div>
+        <div class="field"><label class="lbl">Nombre *</label><input class="inp" id="pers-nombre" placeholder="Sergio"></div>
+        <div class="field"><label class="lbl">DNI</label><input class="inp" id="pers-dni" placeholder="12345678" type="number"></div>
         <div class="field"><label class="lbl">Tipo</label>
           <select class="inp" id="pers-tipo"><option>Fijo</option><option>Freelance</option></select>
         </div>
@@ -1197,7 +1199,7 @@ async function loadJornadas() {
             : j.tipo === 'Armado/Desarmado' ? 'tipo-armado' : 'tipo-operador';
           return `<tr>
             <td>${fmtDate(j.fecha)}</td>
-            <td><b>${j.personal_nombre || '—'}</b><br><span style="font-size:11px;color:var(--text-3)">${j.personal_tipo || ''}</span></td>
+            <td><b>${j.personal_apellido ? j.personal_apellido + ' ' : ''}${j.personal_nombre || '—'}</b><br><span style="font-size:11px;color:var(--text-3)">${j.personal_tipo || ''}</span></td>
             <td><span class="${tipoClass}" style="font-weight:500">${j.tipo}</span></td>
             <td>${j.evento_codigo ? `<span style="font-size:11px;color:var(--text-2)">${j.evento_codigo}</span><br>${j.evento_venue || ''}` : '—'}</td>
             <td>${fmtARS(j.tarifa_ars)}</td>
@@ -1218,7 +1220,7 @@ async function loadJornadas() {
 function llenarSelectPersonal() {
   const sel = document.getElementById('jorn-personal');
   sel.innerHTML = '<option value="">— Seleccionar —</option>' +
-    persCache.map(p => `<option value="${p.id}" data-dep="${p.tarifa_deposito}" data-arm="${p.tarifa_armado}" data-op="${p.tarifa_operador}">${p.nombre}</option>`).join('');
+    persCache.map(p => `<option value="${p.id}" data-dep="${p.tarifa_deposito}" data-arm="${p.tarifa_armado}" data-op="${p.tarifa_operador}">${p.apellido || ''} ${p.nombre}</option>`).join('');
 }
 
 function llenarSelectEventos() {
@@ -1282,7 +1284,9 @@ async function loadPersonal() {
     const lista = await sb('personal', { order: 'nombre' });
     document.getElementById('pers-tbody').innerHTML = lista.length
       ? lista.map(p => `<tr>
-          <td><b>${p.nombre}</b></td>
+          <td><b>${p.apellido || '—'}</b></td>
+          <td>${p.nombre || '—'}</td>
+          <td style="color:var(--text-2);font-size:12px">${p.dni || '—'}</td>
           <td><span style="color:${p.tipo==='Fijo'?'var(--green)':'var(--blue)'};font-size:12px">${p.tipo}</span></td>
           <td>${fmtARS(p.tarifa_deposito)}</td>
           <td>${fmtARS(p.tarifa_armado)}</td>
@@ -1299,12 +1303,15 @@ async function loadPersonal() {
 }
 
 async function guardarPersonal() {
-  const nombre = document.getElementById('pers-nombre').value.trim();
-  if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  const apellido = document.getElementById('pers-apellido').value.trim();
+  const nombre   = document.getElementById('pers-nombre').value.trim();
+  if (!apellido || !nombre) { toast('Apellido y nombre son obligatorios', 'err'); return; }
   const count = await sb('personal', { select: 'id' });
   const data = {
     codigo:          'P' + String(count.length + 1).padStart(3, '0'),
+    apellido,
     nombre,
+    dni:             document.getElementById('pers-dni').value || null,
     tipo:            document.getElementById('pers-tipo').value,
     tarifa_deposito: parseFloat(document.getElementById('pers-dep').value) || 0,
     tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
