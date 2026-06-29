@@ -426,6 +426,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('caja')">
         <span class="nav-icon">🏦</span> Caja
       </div>
+      <div class="nav-item" onclick="goTo('mensajes')">
+        <span class="nav-icon">💬</span> Mensajes <span id="nav-mensajes-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px"></span>
+      </div>
       <div class="nav-item" onclick="goTo('impuestos')">
         <span class="nav-icon">🗓️</span> Impuestos
       </div>
@@ -612,6 +615,25 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <table>
             <thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th>Monto</th><th>Saldo</th><th></th></tr></thead>
             <tbody id="caja-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MENSAJES WHATSAPP -->
+    <div class="page" id="p-mensajes">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Mensajes recibidos</div>
+          <div class="page-sub">Respuestas de WhatsApp</div>
+        </div>
+        <button class="btn btn-ghost" onclick="marcarTodosLeidos()">✓ Marcar todos leídos</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>De</th><th>Mensaje</th><th></th></tr></thead>
+            <tbody id="mensajes-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -1445,6 +1467,7 @@ async function loadPage(page) {
     case 'logistica':  loadLogisticas(); break;
     case 'pagos':      loadPagos(); break;
     case 'caja':       loadCaja(); break;
+    case 'mensajes':   loadMensajes(); break;
     case 'personal':   loadPersonal(); break;
     case 'impuestos':  loadImpuestos(); break;
     case 'presupuestos': loadPresupuestos(); break;
@@ -1483,6 +1506,8 @@ async function initApp() {
 
   initDatePickers();
   initRealtime();
+  checkMensajesNuevos();
+  setInterval(checkMensajesNuevos, 60000); // revisar cada minuto
   const lastPage = localStorage.getItem('lastPage') || 'dashboard';
   goTo(lastPage);
 }
@@ -1520,6 +1545,10 @@ function initRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'cobros' },     () => reloadSiCorresponde('cobros'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'costos_fijos'},() => reloadSiCorresponde('costos_fijos'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'presupuestos'},() => reloadSiCorresponde('presupuestos'))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_mensajes'}, () => {
+      checkMensajesNuevos();
+      if (currentPage === 'mensajes') loadMensajes();
+    })
     .subscribe();
 }
 
@@ -3082,6 +3111,60 @@ function generarReciboIndividual(p) {
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
     });
+}
+
+// ── MENSAJES WHATSAPP ─────────────────────────────────────
+async function loadMensajes() {
+  try {
+    const lista = await sb('whatsapp_mensajes', { order: 'timestamp.desc', limit: 200 });
+    const noLeidos = lista.filter(m => !m.leido).length;
+    const badge = document.getElementById('nav-mensajes-badge');
+    if (noLeidos > 0) { badge.textContent = noLeidos; badge.style.display = 'inline'; }
+    else badge.style.display = 'none';
+
+    document.getElementById('mensajes-tbody').innerHTML = lista.length
+      ? lista.map(m => {
+          const fecha = new Date(m.timestamp).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+          const estilo = m.leido ? 'color:var(--text-3)' : 'font-weight:600';
+          return `<tr style="${estilo}">
+            <td style="white-space:nowrap;font-size:12px">${fecha}</td>
+            <td style="white-space:nowrap">
+              <div>${m.nombre || m.de}</div>
+              <div style="font-size:11px;color:var(--text-3)">+${m.de}</div>
+            </td>
+            <td>${m.mensaje}</td>
+            <td>${!m.leido ? `<button class="btn btn-ghost btn-sm" onclick="marcarLeido(${m.id})">✓</button>` : ''}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="4" style="text-align:center;color:var(--text-3)">Sin mensajes recibidos</td></tr>';
+  } catch(e) { toast('Error cargando mensajes: ' + e.message, true); }
+}
+
+async function marcarLeido(id) {
+  await sbPatch('whatsapp_mensajes', id, { leido: true });
+  loadMensajes();
+}
+
+async function marcarTodosLeidos() {
+  const lista = await sb('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 200 });
+  for (const m of lista) await sbPatch('whatsapp_mensajes', m.id, { leido: true });
+  toast('✅ Todos marcados como leídos');
+  loadMensajes();
+}
+
+async function checkMensajesNuevos() {
+  try {
+    const lista = await sb('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 1 });
+    const badge = document.getElementById('nav-mensajes-badge');
+    if (!badge) return;
+    if (lista.length > 0) {
+      const total = await sb('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 99 });
+      badge.textContent = total.length;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
 }
 
 // ── CAJA ──────────────────────────────────────────────────
