@@ -1619,7 +1619,7 @@ async function loadDashboard() {
       sb('eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
       sb('logisticas', { limit: 200 }),
       sb('logistica_eventos', { limit: 500 }),
-      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], select: 'id,evento_id,logistica_id,tipo,fecha,hora,personal_id,personal_nombre,personal_apellido', limit: 500 }),
+      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], select: 'id,evento_id,logistica_id,tipo,fecha,hora_inicio,personal_id,personal_nombre,personal_apellido', limit: 500 }),
     ]);
 
     if (!eventos.length) {
@@ -1674,7 +1674,7 @@ async function loadDashboard() {
           <div style="font-size:11px;color:var(--text-3)">—</div>
         </div>`;
         const fecha = new Date(jorns[0].fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
-        const hora  = jorns[0].hora || '';
+        const hora  = jorns[0].hora_inicio || '';
         const pers  = [...new Map(jorns.map(j => [j.personal_id, `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim()])).values()].filter(Boolean);
         return `<div style="flex:1;min-width:120px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${titulo}</div>
@@ -2506,6 +2506,7 @@ function renderDiasLog() {
                 ${['Armado','Operador','Desarmado'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
                </select>`}
           <input type="date" class="inp" style="width:150px" value="${d.fecha}" onchange="updateDiaLog(${d.id},'fecha',this.value)">
+          <input type="time" class="inp" style="width:120px" value="${d.hora_inicio||''}" placeholder="Hora inicio" onchange="updateDiaLog(${d.id},'hora_inicio',this.value)">
           ${conTransporte ? `<select class="inp" style="width:160px" onchange="updateDiaLog(${d.id},'transporte',this.value)">
             ${['Camioneta propia','Flete','Sin transporte'].map(t=>`<option ${d.transporte===t?'selected':''}>${t}</option>`).join('')}
           </select>${fleteExtra}` : ''}
@@ -2562,6 +2563,7 @@ async function guardarLogistica() {
           personal_id: persId,
           evento_id: eventoId ? parseInt(eventoId) : null,
           fecha: d.fecha,
+          hora_inicio: d.hora_inicio || null,
           tipo: tipoJornada,
           tarifa_ars: tarifa || null,
           pagado: false,
