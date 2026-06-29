@@ -422,6 +422,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('personal')">
         <span class="nav-icon">👥</span> Personal
       </div>
+      <div class="nav-item" onclick="goTo('pagos')">
+        <span class="nav-icon">💸</span> Pagos
+      </div>
       <div class="nav-item" onclick="goTo('impuestos')">
         <span class="nav-icon">🗓️</span> Impuestos
       </div>
@@ -582,6 +585,22 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- PAGOS -->
+    <div class="page" id="p-pagos">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Pagos</div>
+          <div class="page-sub" id="pagos-periodo-sub">Seleccioná una semana</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost" onclick="cambiarSemanaPagos(-1)">← Anterior</button>
+          <span id="pagos-semana-label" style="font-size:13px;color:var(--text-2);min-width:180px;text-align:center"></span>
+          <button class="btn btn-ghost" onclick="cambiarSemanaPagos(1)">Siguiente →</button>
+        </div>
+      </div>
+      <div id="pagos-content"></div>
     </div>
 
     <!-- PERSONAL -->
@@ -1311,6 +1330,7 @@ async function loadPage(page) {
     case 'cobros':     loadCobros(); break;
     case 'jornadas':   loadJornadas(); break;
     case 'logistica':  loadLogisticas(); break;
+    case 'pagos':      loadPagos(); break;
     case 'personal':   loadPersonal(); break;
     case 'impuestos':  loadImpuestos(); break;
     case 'presupuestos': loadPresupuestos(); break;
@@ -2775,6 +2795,156 @@ async function generarPDFLogistica() {
   toast('Subiendo a Drive...');
   const url = await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_LOGISTICAS);
   if (url) toast('✅ Logística guardada en Drive');
+}
+
+// ── PAGOS ─────────────────────────────────────────────────
+let pagosOffset = 0; // 0 = semana actual, -1 = anterior, etc.
+
+function getSemana(offset) {
+  const hoy = new Date();
+  const dow = hoy.getDay() === 0 ? 7 : hoy.getDay();
+  const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - dow + 1 + offset * 7);
+  const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+  const fmt = d => d.toISOString().split('T')[0];
+  return { desde: fmt(lunes), hasta: fmt(domingo), lunes, domingo };
+}
+
+function cambiarSemanaPagos(dir) {
+  pagosOffset += dir;
+  loadPagos();
+}
+
+function esIncluida(tipo, fecha) {
+  const dow = new Date(fecha + 'T12:00:00').getDay();
+  const esFinde = dow === 0 || dow === 6;
+  if (tipo === 'Depósito') return true;
+  if ((tipo === 'Armado/Desarmado') && !esFinde) return true;
+  return false;
+}
+
+async function loadPagos() {
+  const { desde, hasta, lunes, domingo } = getSemana(pagosOffset);
+
+  const label = `${lunes.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} — ${domingo.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`;
+  document.getElementById('pagos-semana-label').textContent = label;
+  document.getElementById('pagos-periodo-sub').textContent = `Semana del ${label}`;
+
+  const content = document.getElementById('pagos-content');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    const [jornadas, personal] = await Promise.all([
+      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 500 }),
+      sb('personal', { limit: 200 }),
+    ]);
+
+    // Agrupar jornadas por persona
+    const porPersona = {};
+    jornadas.forEach(j => {
+      if (!porPersona[j.personal_id]) {
+        const p = personal.find(x => x.id === j.personal_id) || {};
+        porPersona[j.personal_id] = {
+          id: j.personal_id,
+          apellido: j.personal_apellido || '',
+          nombre: j.personal_nombre || '',
+          tipo: p.tipo || 'Freelance',
+          sueldo_fijo: p.sueldo_fijo || 0,
+          jornadas: [],
+        };
+      }
+      porPersona[j.personal_id].jornadas.push(j);
+    });
+
+    // Fijos sin jornadas esa semana pero con sueldo en semana del 1° del mes
+    const semanaContieneUno = lunes.getDate() <= 7 && lunes.getMonth() === domingo.getMonth() || (domingo.getDate() >= 1 && lunes.getMonth() !== domingo.getMonth());
+    const primeroDentroSemana = (() => {
+      for (let d = new Date(lunes); d <= domingo; d.setDate(d.getDate() + 1)) {
+        if (d.getDate() === 1) return true;
+      }
+      return false;
+    })();
+
+    if (primeroDentroSemana) {
+      personal.filter(p => p.tipo === 'Fijo' && p.sueldo_fijo && !porPersona[p.id]).forEach(p => {
+        porPersona[p.id] = { id: p.id, apellido: p.apellido, nombre: p.nombre, tipo: 'Fijo', sueldo_fijo: p.sueldo_fijo, jornadas: [] };
+      });
+    }
+
+    const filas = Object.values(porPersona).sort((a,b) => a.apellido.localeCompare(b.apellido));
+
+    if (!filas.length) {
+      content.innerHTML = '<div class="empty"><div class="empty-icon">💸</div>Sin pagos pendientes esta semana</div>';
+      return;
+    }
+
+    content.innerHTML = filas.map(p => {
+      const esFijo = p.tipo === 'Fijo';
+      const incluidas = p.jornadas.filter(j => esFijo && esIncluida(j.tipo, j.fecha));
+      const extras    = p.jornadas.filter(j => !esFijo || !esIncluida(j.tipo, j.fecha));
+      const totalExtras = extras.reduce((s, j) => s + Number(j.tarifa_ars || 0), 0);
+      const sueldo = (esFijo && primeroDentroSemana) ? p.sueldo_fijo : 0;
+      const total = sueldo + totalExtras;
+
+      const filaJornadas = p.jornadas.sort((a,b) => a.fecha.localeCompare(b.fecha)).map(j => {
+        const inc = esFijo && esIncluida(j.tipo, j.fecha);
+        const dow = new Date(j.fecha+'T12:00:00').toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'2-digit'});
+        return `<tr style="font-size:12px;color:${inc?'var(--text-3)':'var(--text)'}">
+          <td style="padding:4px 8px">${dow}</td>
+          <td style="padding:4px 8px">${j.tipo}</td>
+          <td style="padding:4px 8px;color:var(--text-2)">${j.venue||j.evento_codigo||'—'}</td>
+          <td style="padding:4px 8px;text-align:right">${inc ? '<span style="color:var(--text-3);font-size:11px">incl. en sueldo</span>' : fmtARS(j.tarifa_ars)}</td>
+        </tr>`;
+      }).join('');
+
+      const sueldoRow = (esFijo && primeroDentroSemana) ? `
+        <tr style="font-size:12px;color:var(--green)">
+          <td style="padding:4px 8px" colspan="3">Sueldo mensual</td>
+          <td style="padding:4px 8px;text-align:right;font-weight:600">${fmtARS(p.sueldo_fijo)}</td>
+        </tr>` : '';
+
+      return `<div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <span style="font-weight:600;font-size:15px">${p.apellido} ${p.nombre}</span>
+            <span style="margin-left:8px;font-size:11px;color:${esFijo?'var(--green)':'var(--blue)'}">${p.tipo}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px;font-weight:700;color:var(--gold)">${fmtARS(total)}</span>
+            <button class="btn btn-ghost btn-sm" onclick="generarReciboIndividual(${JSON.stringify(p).replace(/"/g,'&quot;')})">📄 Recibo</button>
+            <button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}')">✓ Pagar</button>
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          ${sueldoRow}${filaJornadas}
+        </table>
+      </div>`;
+    }).join('');
+
+  } catch(e) { content.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+async function marcarPagadoPersona(persId, desde, hasta) {
+  if (!confirm('¿Marcar todas las jornadas de esta semana como pagadas?')) return;
+  const hoy = new Date().toISOString().split('T')[0];
+  const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 });
+  for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
+  toast('✅ Marcado como pagado');
+  loadPagos();
+}
+
+function generarReciboIndividual(p) {
+  const { desde, hasta } = getSemana(pagosOffset);
+  const lunes = new Date(desde + 'T12:00:00');
+  const domingo = new Date(hasta + 'T12:00:00');
+  const periodo = `${lunes.toLocaleDateString('es-AR')} al ${domingo.toLocaleDateString('es-AR')}`;
+  // Reusar generarReciboPDF con datos de esta persona
+  sb('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 })
+    .then(jornadas => {
+      const data = { apellido: p.apellido, nombre: p.nombre, tipo: p.tipo, sueldo_fijo: p.sueldo_fijo, jornadas };
+      const blob = generarReciboPDF(data, periodo, lunes);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    });
 }
 
 // ── PERSONAL ──────────────────────────────────────────────
