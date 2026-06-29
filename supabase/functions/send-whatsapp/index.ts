@@ -23,7 +23,11 @@ serve(async (req) => {
     const phoneId = phone_number_id || Deno.env.get('WHATSAPP_PHONE_ID') || '482676874937376';
 
     // Limpiar el número: solo dígitos, sin + ni espacios
-    const toClean = to.replace(/\D/g, '');
+    let toClean = to.replace(/\D/g, '');
+    // Si el número tiene 10 dígitos (AR sin código de país), agregar 54
+    if (toClean.length === 10) toClean = '54' + toClean;
+    // Si empieza con 0 (ej: 011...), reemplazar por 54
+    if (toClean.startsWith('0')) toClean = '54' + toClean.slice(1);
 
     const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
       method: 'POST',
