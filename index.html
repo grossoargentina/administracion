@@ -2211,14 +2211,14 @@ async function generarPresupuesto() {
     const GRIS_F = [247, 247, 247];
     const GRIS_T = [85, 85, 85];
 
-    // Helper: setColor — jsPDF requiere valores separados, no arrays
-    const fill  = (...c) => doc.setFillColor(c[0], c[1], c[2]);
-    const stroke= (...c) => doc.setDrawColor(c[0], c[1], c[2]);
-    const text  = (...c) => doc.setTextColor(c[0], c[1], c[2]);
+    // Helper: setColor — acepta array [r,g,b] o valores sueltos
+    const fill  = (a,b,c) => Array.isArray(a) ? doc.setFillColor(a[0],a[1],a[2]) : doc.setFillColor(a,b,c);
+    const stroke= (a,b,c) => Array.isArray(a) ? doc.setDrawColor(a[0],a[1],a[2]) : doc.setDrawColor(a,b,c);
+    const text  = (a,b,c) => Array.isArray(a) ? doc.setTextColor(a[0],a[1],a[2]) : doc.setTextColor(a,b,c);
     const font  = (style, size) => { doc.setFont('helvetica', style); doc.setFontSize(size); };
 
     // ── HEADER ────────────────────────────────────────────
-    fill(...NEGRO); doc.rect(0, 0, PW, 30, 'F');
+    fill(NEGRO); doc.rect(0, 0, PW, 30, 'F');
 
     // Logo (cuadrado negro se mezcla con fondo)
     try {
@@ -2226,9 +2226,9 @@ async function generarPresupuesto() {
     } catch(e) { console.log('Logo error:', e); }
 
     // Nombre y subtítulo
-    font('bold', 16); text(...BLANCO);
+    font('bold', 16); text(BLANCO);
     doc.text('GROSSO ARGENTINA', M + 27, 11);
-    font('normal', 9); text(...ORO);
+    font('normal', 9); text(ORO);
     doc.text('Iluminacion Profesional para Eventos', M + 27, 18);
 
     // Datos contacto (derecha)
@@ -2239,13 +2239,13 @@ async function generarPresupuesto() {
     y = 33;
 
     // Línea dorada
-    stroke(...ORO); doc.setLineWidth(0.8);
+    stroke(ORO); doc.setLineWidth(0.8);
     doc.line(M, y, PW - M, y); y += 4;
 
     // ── TÍTULO ────────────────────────────────────────────
-    font('bold', 14); text(...NEGRO);
+    font('bold', 14); text(NEGRO);
     doc.text('PRESUPUESTO DE ILUMINACION', M, y + 5);
-    font('normal', 8); text(...GRIS_T);
+    font('normal', 8); text(GRIS_T);
     doc.text(`N\u00b0 ${numero}`, PW - M, y + 3, { align: 'right' });
     doc.text(`Fecha: ${hoy}`, PW - M, y + 8, { align: 'right' });
     font('normal', 7); text(150, 150, 150);
@@ -2253,8 +2253,8 @@ async function generarPresupuesto() {
     y += 18;
 
     // ── DATOS DEL EVENTO ──────────────────────────────────
-    fill(...NEGRO); doc.rect(M, y, CW, 6, 'F');
-    font('bold', 8); text(...BLANCO);
+    fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+    font('bold', 8); text(BLANCO);
     doc.text('DATOS DEL EVENTO', M + 2, y + 4); y += 7;
 
     const eventoRows = [
@@ -2265,14 +2265,14 @@ async function generarPresupuesto() {
     eventoRows.forEach((row, ri) => {
       fill(...(ri%2===0 ? GRIS_F : BLANCO));
       doc.rect(M, y, CW, 6, 'F');
-      font('bold', 8); text(...GRIS_T);
+      font('bold', 8); text(GRIS_T);
       doc.text(row[0], M+2, y+4);
-      font('normal', 8); text(...NEGRO);
+      font('normal', 8); text(NEGRO);
       doc.text(String(row[1]), M+28, y+4);
       if (row[2]) {
-        font('bold', 8); text(...GRIS_T);
+        font('bold', 8); text(GRIS_T);
         doc.text(row[2], M+CW/2+2, y+4);
-        font('normal', 8); text(...NEGRO);
+        font('normal', 8); text(NEGRO);
         doc.text(String(row[3]), M+CW/2+22, y+4);
       }
       y += 6;
@@ -2280,13 +2280,13 @@ async function generarPresupuesto() {
     y += 3;
 
     // ── DETALLE DE SERVICIOS ──────────────────────────────
-    fill(...NEGRO); doc.rect(M, y, CW, 6, 'F');
-    font('bold', 8); text(...BLANCO);
+    fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+    font('bold', 8); text(BLANCO);
     doc.text('DETALLE DE SERVICIOS', M+2, y+4); y += 7;
 
     // Cabecera tabla
     fill([44, 62, 80]); doc.rect(M, y, CW, 6, 'F');
-    font('bold', 7.5); text(...BLANCO);
+    font('bold', 7.5); text(BLANCO);
     doc.text('PRODUCTO', M+2, y+4);
     doc.text('CANT.', M+CW-50, y+4, { align:'center' });
     doc.text('TOTAL ARS', PW-M-2, y+4, { align:'right' });
@@ -2298,7 +2298,7 @@ async function generarPresupuesto() {
       // Verificar espacio en página
       if (y > PH - 40) { doc.addPage(); y = 15; }
       fill([44, 62, 80]); doc.rect(M, y, CW, 5, 'F');
-      font('bold', 7.5); text(...ORO);
+      font('bold', 7.5); text(ORO);
       doc.text(cat, M+2, y+3.5); y += 5;
 
       items.forEach(it => {
@@ -2317,7 +2317,7 @@ async function generarPresupuesto() {
           } catch(e) {}
         }
         const xText = foto ? M+17 : M+2;
-        font('bold', 8); text(...NEGRO);
+        font('bold', 8); text(NEGRO);
         const prod = it.producto.length > (foto?48:55) ? it.producto.substring(0,foto?45:52)+'...' : it.producto;
         doc.text(prod, xText, y + (foto ? 6 : 5));
         font('normal', 8);
@@ -2330,7 +2330,7 @@ async function generarPresupuesto() {
     // Descuento
     if (descPct > 0) {
       fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');
-      font('normal', 8); text(...GRIS_T);
+      font('normal', 8); text(GRIS_T);
       doc.text('Subtotal', PW-M-42, y+4);
       doc.text(fmtA(subtotal), PW-M-2, y+4, { align:'right' });
       y += 6;
@@ -2343,14 +2343,14 @@ async function generarPresupuesto() {
 
     // Total
     if (y > PH - 20) { doc.addPage(); y = 15; }
-    fill(...ORO); doc.rect(M, y, CW, 0.8, 'F');
+    fill(ORO); doc.rect(M, y, CW, 0.8, 'F');
     y += 1;
     fill([245, 230, 184]); doc.rect(M, y, CW, 8, 'F');
-    font('bold', 11); text(...NEGRO);
+    font('bold', 11); text(NEGRO);
     doc.text('TOTAL', M+2, y+6);
-    text(...ORO);
+    text(ORO);
     doc.text(fmtA(total), PW-M-2, y+6, { align:'right' });
-    fill(...ORO); doc.rect(M, y+8, CW, 0.8, 'F');
+    fill(ORO); doc.rect(M, y+8, CW, 0.8, 'F');
     y += 12;
 
     font('normal', 7); text(150,150,150);
@@ -2358,14 +2358,14 @@ async function generarPresupuesto() {
 
     // ── CONDICIONES DE PAGO ───────────────────────────────
     if (y > PH - 50) { doc.addPage(); y = 15; }
-    fill(...NEGRO); doc.rect(M, y, CW, 6, 'F');
-    font('bold', 8); text(...BLANCO);
+    fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+    font('bold', 8); text(BLANCO);
     doc.text('CONDICIONES DE PAGO', M+2, y+4); y += 7;
 
     if (modalidad === 'Señ a + saldo' || modalidad === 'Seña + saldo') {
       // Cabecera
       fill([44,62,80]); doc.rect(M, y, CW, 5.5, 'F');
-      font('bold', 7.5); text(...BLANCO);
+      font('bold', 7.5); text(BLANCO);
       doc.text('Concepto', M+2, y+4);
       doc.text('Importe', PW-M-42, y+4);
       doc.text('Cuando', PW-M-2, y+4, { align:'right' });
@@ -2385,18 +2385,18 @@ async function generarPresupuesto() {
         doc.text(row[0], M+2, y+4);
         text(...(isTot ? ORO : NEGRO));
         doc.text(row[1], PW-M-42, y+4);
-        if (row[2]) { text(...NEGRO); doc.text(row[2], PW-M-2, y+4, { align:'right' }); }
+        if (row[2]) { text(NEGRO); doc.text(row[2], PW-M-2, y+4, { align:'right' }); }
         y += 6;
       });
       y += 2;
-      font('normal', 7); text(...GRIS_T);
+      font('normal', 7); text(GRIS_T);
       doc.text('La reserva de fecha queda confirmada con el pago de la seña.', M, y);
       y += 5;
     } else {
       fill([245,230,184]); doc.rect(M, y, CW, 8, 'F');
-      font('bold', 10); text(...NEGRO);
+      font('bold', 10); text(NEGRO);
       doc.text('TOTAL - Pago al finalizar el evento', M+2, y+6);
-      text(...ORO);
+      text(ORO);
       doc.text(fmtA(total), PW-M-2, y+6, { align:'right' });
       y += 10;
       font('normal', 7.5); text([21, 101, 192]);
@@ -2407,8 +2407,8 @@ async function generarPresupuesto() {
     // ── NOTAS ─────────────────────────────────────────────
     if (y > PH - 50) { doc.addPage(); y = 15; }
     y += 2;
-    fill(...NEGRO); doc.rect(M, y, CW, 6, 'F');
-    font('bold', 8); text(...BLANCO);
+    fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+    font('bold', 8); text(BLANCO);
     doc.text('NOTAS Y CONDICIONES GENERALES', M+2, y+4); y += 8;
 
     const notas = [
@@ -2418,7 +2418,7 @@ async function generarPresupuesto() {
       'La reserva de fecha se confirma con el pago de la seña.',
       'Precios expresados en pesos argentinos (ARS).',
     ];
-    font('normal', 8); text(...NEGRO);
+    font('normal', 8); text(NEGRO);
     notas.forEach((n, i) => {
       if (y > PH - 20) { doc.addPage(); y = 15; }
       doc.text(`${i+1}. ${n}`, M, y); y += 5;
@@ -2426,8 +2426,8 @@ async function generarPresupuesto() {
 
     // ── FOOTER ────────────────────────────────────────────
     const footerY = PH - 10;
-    fill(...NEGRO); doc.rect(0, footerY - 3, PW, 13, 'F');
-    font('normal', 7.5); text(...ORO);
+    fill(NEGRO); doc.rect(0, footerY - 3, PW, 13, 'F');
+    font('normal', 7.5); text(ORO);
     doc.text('Grosso Argentina | Iluminacion Profesional | administracion@grossoarg.com', M, footerY + 3);
     doc.text(`N\u00b0 ${numero}`, PW - M, footerY + 3, { align: 'right' });
 
