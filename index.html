@@ -2127,7 +2127,7 @@ function generarReciboPDF(data, periodo, lunesDate) {
     const dow = new Date(j.fecha + 'T12:00:00').getDay(); // 0=dom, 6=sab
     const esFinDeSemana = dow === 0 || dow === 6;
     if (j.tipo === 'Depósito') return true;
-    if ((j.tipo === 'Armado' || j.tipo === 'Desarmado') && !esFinDeSemana) return true;
+    if (j.tipo === 'Armado/Desarmado' && !esFinDeSemana) return true;
     return false;
   };
 
