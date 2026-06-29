@@ -1720,7 +1720,7 @@ function renderImpuestos() {
           ${i.pagado
             ? `<span class="imp-pagado">✅ Pagado</span>`
             : vencido
-              ? `<span class="imp-vencido">🔴 Vencido</span>`
+              ? `<button class="btn btn-ghost btn-sm" style="border-color:var(--red);color:var(--red)" onclick="marcarPagadoImp(${i.id})">🔴 Marcar pagado</button>`
               : venceProximo
                 ? `<button class="btn btn-ghost btn-sm" style="border-color:var(--orange);color:var(--orange)" onclick="marcarPagadoImp(${i.id})">⚠️ Marcar pagado</button>`
                 : `<button class="btn btn-ghost btn-sm" onclick="marcarPagadoImp(${i.id})">Marcar pagado</button>`}
