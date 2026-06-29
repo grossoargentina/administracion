@@ -8,6 +8,9 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root {
@@ -336,6 +339,42 @@ textarea.inp { resize: vertical; min-height: 80px; }
 .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--text-3); gap: 10px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
+
+/* ── FLATPICKR DARK THEME ────────────────────────────── */
+.flatpickr-calendar {
+  background: #1A1A2E !important;
+  border: 1px solid #2a2a40 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5) !important;
+  font-family: 'DM Sans', sans-serif !important;
+}
+.flatpickr-month, .flatpickr-weekdays, .flatpickr-day.today:not(.selected) {
+  background: #1A1A2E !important;
+}
+.flatpickr-current-month input.cur-year,
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  color: #e2e2f0 !important;
+  background: transparent !important;
+}
+.flatpickr-monthDropdown-months option { background: #1A1A2E; }
+.flatpickr-prev-month svg, .flatpickr-next-month svg { fill: #c9a84c !important; }
+.flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg { fill: #fff !important; }
+span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background: transparent !important; }
+.flatpickr-day { color: #e2e2f0 !important; border-radius: 6px !important; }
+.flatpickr-day:hover { background: #2a2a40 !important; border-color: transparent !important; }
+.flatpickr-day.selected, .flatpickr-day.selected:hover {
+  background: #c9a84c !important;
+  border-color: #c9a84c !important;
+  color: #0D0D14 !important;
+  font-weight: 700;
+}
+.flatpickr-day.today { border-color: #c9a84c !important; }
+.flatpickr-day.flatpickr-disabled, .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay {
+  color: #444 !important;
+}
+.flatpickr-input { cursor: pointer !important; }
+.numInputWrapper span { border-color: #2a2a40 !important; }
+.numInputWrapper span svg path { fill: #c9a84c !important; }
 </style>
 </head>
 <body>
@@ -1278,6 +1317,21 @@ async function loadPage(page) {
 }
 
 // ── INIT ──────────────────────────────────────────────────
+function initDatePickers(root) {
+  const container = root || document;
+  container.querySelectorAll('input[type="date"]:not(._fp)').forEach(el => {
+    el.classList.add('_fp');
+    flatpickr(el, {
+      locale: 'es',
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd/m/Y',
+      allowInput: false,
+      disableMobile: true,
+    });
+  });
+}
+
 async function initApp() {
   const fecha = new Date();
   document.getElementById('dash-fecha').textContent =
@@ -1291,6 +1345,7 @@ async function initApp() {
     llenarSelectEventos();
   } catch(e) {}
 
+  initDatePickers();
   const lastPage = localStorage.getItem('lastPage') || 'dashboard';
   goTo(lastPage);
 }
@@ -2199,6 +2254,7 @@ function renderDiasLog() {
       <div style="display:flex;flex-wrap:wrap;gap:10px">${persHtml}</div>
     </div>`;
   }).join('');
+  initDatePickers(container);
 }
 
 async function guardarLogistica() {
