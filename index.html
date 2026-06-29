@@ -1816,7 +1816,9 @@ async function editEvento(id) {
   document.getElementById('modal-evento-title').textContent = 'Editar evento';
   document.getElementById('ev-cliente').value   = ev.cliente_nombre;
   document.getElementById('ev-tipo').value      = ev.tipo_evento || 'Casamiento';
-  document.getElementById('ev-fecha').value     = ev.fecha_evento || '';
+  const fpFecha = document.getElementById('ev-fecha')._flatpickr;
+  if (fpFecha) { ev.fecha_evento ? fpFecha.setDate(ev.fecha_evento, false, 'Y-m-d') : fpFecha.clear(); }
+  else { document.getElementById('ev-fecha').value = ev.fecha_evento || ''; }
   document.getElementById('ev-venue').value     = ev.venue || '';
   document.getElementById('ev-horario').value   = ev.horario || '';
   document.getElementById('ev-total').value     = ev.total_ars || 0;
