@@ -24,10 +24,14 @@ serve(async (req) => {
 
     // Limpiar el número: solo dígitos, sin + ni espacios
     let toClean = to.replace(/\D/g, '');
-    // Si el número tiene 10 dígitos (AR sin código de país), agregar 54
-    if (toClean.length === 10) toClean = '54' + toClean;
     // Si empieza con 0 (ej: 011...), reemplazar por 54
     if (toClean.startsWith('0')) toClean = '54' + toClean.slice(1);
+    // Si tiene 10 dígitos (AR sin código de país), agregar 54
+    if (toClean.length === 10) toClean = '54' + toClean;
+    // Argentina: números de 12 dígitos empezando con 54 necesitan el 9 (ej: 5411... → 54911...)
+    if (toClean.length === 12 && toClean.startsWith('54')) {
+      toClean = '549' + toClean.slice(2);
+    }
 
     const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
       method: 'POST',
