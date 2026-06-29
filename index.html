@@ -455,7 +455,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Estado</th><th>Cliente</th><th>Tipo</th><th>Fecha evento</th><th>Venue</th><th>Total ARS</th><th>Cobro</th><th></th></tr></thead>
-            <tbody id="ev-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+            <tbody id="ev-tbody"><tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -474,7 +474,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Total</th><th>Pendiente</th><th>Seña</th><th>Saldo</th><th></th></tr></thead>
-            <tbody id="cobros-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+            <tbody id="cobros-tbody"><tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -534,7 +534,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Saldo ARS</th><th>Saldo USD</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Saldo ARS</th><th>Saldo USD</th><th>Notas</th><th>💳</th><th>Estado</th><th></th></tr></thead>
             <tbody id="imp-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
@@ -1238,7 +1238,7 @@ function renderEventos() {
           </div>
         </td>
       </tr>`).join('')
-    : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">📋</div>Sin eventos en este estado</div></td></tr>`;
+    : `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📋</div>Sin eventos en este estado</div></td></tr>`;
 }
 
 function filterEventos(estado, btn) {
@@ -1370,7 +1370,7 @@ async function loadCobros() {
             </td>
           </tr>`;
         }).join('')
-      : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes. Todo al día.</div></td></tr>`;
+      : `<tr><td colspan="9"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes. Todo al día.</div></td></tr>`;
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -1656,7 +1656,7 @@ function renderImpuestos() {
 
   if (!lista.length) {
     document.getElementById('imp-tbody').innerHTML =
-      `<tr><td colspan="8"><div class="empty"><div class="empty-icon">🗓️</div>Sin conceptos para ${mesNombre} ${impAnio}</div></td></tr>`;
+      `<tr><td colspan="9"><div class="empty"><div class="empty-icon">🗓️</div>Sin conceptos para ${mesNombre} ${impAnio}</div></td></tr>`;
     return;
   }
 
@@ -1675,7 +1675,7 @@ function renderImpuestos() {
     const items = grupos[sec];
     const totalSec = items.reduce((s,i) => s + Number(i.monto_ars||0), 0);
     html += `<tr>
-      <td colspan="8" style="background:var(--surface2);color:var(--gold);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:6px 10px">
+      <td colspan="9" style="background:var(--surface2);color:var(--gold);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:6px 10px">
         ${sec}${totalSec ? `<span style="float:right;color:var(--text-2)">${fmtARS(totalSec)}</span>` : ''}
       </td>
     </tr>`;
@@ -1716,6 +1716,9 @@ function renderImpuestos() {
         <td>
           ${i.notas ? `<span style="font-size:11px;color:var(--text-2)">${i.notas}</span>` : '—'}
         </td>
+        <td style="text-align:center">
+          <input type="checkbox" ${i.paga_por_tarjeta ? 'checked' : ''} style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer" onchange="toggleTarjeta(${i.id}, this.checked)">
+        </td>
         <td>
           ${i.pagado
             ? `<span class="imp-pagado">✅ Pagado</span>`
@@ -1741,6 +1744,13 @@ function esVencido(imp, hoy) {
   const mesIdx = MESES_NAMES.indexOf(imp.mes);
   if (mesIdx < 0) return false;
   return new Date(imp.anio, mesIdx, imp.vence_dia) < hoy;
+}
+
+async function toggleTarjeta(id, valor) {
+  await sbPatch('costos_fijos', id, { paga_por_tarjeta: valor });
+  const item = todosImpuestos.find(x => x.id === id);
+  if (item) item.paga_por_tarjeta = valor;
+  renderImpuestos();
 }
 
 async function marcarPagadoImp(id) {
