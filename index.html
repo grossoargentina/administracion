@@ -2211,10 +2211,11 @@ async function generarPresupuesto() {
     const GRIS_F = [247, 247, 247];
     const GRIS_T = [85, 85, 85];
 
-    // Helper: setColor — acepta array [r,g,b] o valores sueltos
-    const fill  = (a,b,c) => Array.isArray(a) ? doc.setFillColor(a[0],a[1],a[2]) : doc.setFillColor(a,b,c);
-    const stroke= (a,b,c) => Array.isArray(a) ? doc.setDrawColor(a[0],a[1],a[2]) : doc.setDrawColor(a,b,c);
-    const text  = (a,b,c) => Array.isArray(a) ? doc.setTextColor(a[0],a[1],a[2]) : doc.setTextColor(a,b,c);
+    // Helper: setColor
+    const rgb   = (r,g,b) => ({r,g,b});
+    const fill  = (c) => doc.setFillColor(c[0]||c.r, c[1]||c.g, c[2]||c.b);
+    const stroke= (c) => doc.setDrawColor(c[0]||c.r, c[1]||c.g, c[2]||c.b);
+    const text  = (c) => doc.setTextColor(c[0]||c.r, c[1]||c.g, c[2]||c.b);
     const font  = (style, size) => { doc.setFont('helvetica', style); doc.setFontSize(size); };
 
     // ── HEADER ────────────────────────────────────────────
@@ -2232,7 +2233,7 @@ async function generarPresupuesto() {
     doc.text('Iluminacion Profesional para Eventos', M + 27, 18);
 
     // Datos contacto (derecha)
-    font('normal', 7.5); text(200, 200, 200);
+    font('normal', 7.5); text([200,200,200]);
     doc.text('administracion@grossoarg.com', PW - M, 10, { align: 'right' });
     doc.text('Lomas de Zamora, Buenos Aires', PW - M, 16, { align: 'right' });
     doc.text('CUIT: 20-23091637-4', PW - M, 22, { align: 'right' });
@@ -2248,7 +2249,7 @@ async function generarPresupuesto() {
     font('normal', 8); text(GRIS_T);
     doc.text(`N\u00b0 ${numero}`, PW - M, y + 3, { align: 'right' });
     doc.text(`Fecha: ${hoy}`, PW - M, y + 8, { align: 'right' });
-    font('normal', 7); text(150, 150, 150);
+    font('normal', 7); text([150,150,150]);
     doc.text(`Valido por ${validez} dias`, PW - M, y + 13, { align: 'right' });
     y += 18;
 
@@ -2335,7 +2336,7 @@ async function generarPresupuesto() {
       doc.text(fmtA(subtotal), PW-M-2, y+4, { align:'right' });
       y += 6;
       fill([255, 243, 224]); doc.rect(M, y, CW, 6, 'F');
-      text(230, 126, 34);
+      text([230,126,34]);
       doc.text(`Descuento ${descPct}%${notaDesc?' - '+notaDesc:''}`, M+2, y+4);
       doc.text(`(${fmtA(descuento)})`, PW-M-2, y+4, { align:'right' });
       y += 6;
@@ -2353,7 +2354,7 @@ async function generarPresupuesto() {
     fill(ORO); doc.rect(M, y+8, CW, 0.8, 'F');
     y += 12;
 
-    font('normal', 7); text(150,150,150);
+    font('normal', 7); text([150,150,150]);
     doc.text('* Precios en pesos argentinos (ARS).', M, y); y += 5;
 
     // ── CONDICIONES DE PAGO ───────────────────────────────
