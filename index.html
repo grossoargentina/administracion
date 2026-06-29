@@ -2101,11 +2101,9 @@ async function enviarTodosWhatsapp() {
   let ok = 0; let err = 0;
   for (const p of conTelefono) {
     try {
-      const session = (await supabaseClient.auth.getSession()).data.session;
-      const authHeader = session ? `Bearer ${session.access_token}` : `Bearer ${SB_KEY}`;
       const res = await fetch(WA_EDGE_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SB_KEY}`, 'apikey': SB_KEY },
         body: JSON.stringify({ to: p.telefono, message: p.texto }),
       });
       const data = await res.json();
