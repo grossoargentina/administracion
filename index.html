@@ -2196,6 +2196,13 @@ async function generarPresupuesto() {
     const fechaHoy = new Date().toISOString().split('T')[0];
     const nombreArchivo = `${fechaHoy}-${slugify(venue||'evento')}-${slugify(cliente)}.pdf`;
 
+    // ── Fotos del catálogo (embebidas en el HTML) ───────
+    const fotosMap = {};
+    presItems.filter(it => !it.esCustom).forEach(it => {
+      if (FOTOS_CATALOGO && FOTOS_CATALOGO[it.id]) fotosMap[it.id] = FOTOS_CATALOGO[it.id];
+    });
+    console.log(`Fotos disponibles: ${Object.keys(fotosMap).length}`);
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     const PW = 210; // ancho A4
@@ -2308,7 +2315,7 @@ async function generarPresupuesto() {
         const rowH  = foto ? 16 : 7; // fila más alta si tiene foto
 
         if (y + rowH > PH - 30) { doc.addPage(); y = 15; }
-        fill(...(idx2%2===0 ? BLANCO : GRIS_F));
+        fill(idx2%2===0 ? BLANCO : GRIS_F);
         doc.rect(M, y, CW, rowH, 'F');
 
         // Foto si existe
@@ -2434,13 +2441,6 @@ async function generarPresupuesto() {
 
     // ── Exportar como Blob ────────────────────────────────
     const pdfBlob = doc.output('blob');
-
-    // ── Fotos del catálogo (embebidas en el HTML) ───────
-    const fotosMap = {};
-    presItems.filter(it => !it.esCustom).forEach(it => {
-      if (FOTOS_CATALOGO[it.id]) fotosMap[it.id] = FOTOS_CATALOGO[it.id];
-    });
-    console.log(`Fotos disponibles: ${Object.keys(fotosMap).length}`);
 
     // ── Subir a Google Drive ──────────────────────────────
     const { data: { session } } = await supabaseClient.auth.getSession();
