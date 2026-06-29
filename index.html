@@ -487,7 +487,10 @@ textarea.inp { resize: vertical; min-height: 80px; }
           <div class="page-title">Jornadas de trabajo</div>
           <div class="page-sub">Registro de trabajo del personal</div>
         </div>
-        <button class="btn btn-primary" onclick="abrirModalJornada()">+ Nueva jornada</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="liquidarSemana()">💸 Liquidar semana</button>
+          <button class="btn btn-primary" onclick="abrirModalJornada()">+ Nueva jornada</button>
+        </div>
       </div>
       <div class="kpi-grid" id="jorn-kpis"></div>
       <div class="card">
@@ -1530,6 +1533,192 @@ async function eliminarJornada(id) {
   loadJornadas();
 }
 
+// ── LIQUIDACIÓN SEMANAL ────────────────────────────────────
+async function getDriveToken() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  let token = session?.provider_token || localStorage.getItem('drive_token');
+  if (!token) {
+    const refresh = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
+    if (refresh) {
+      const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (r.ok) { const { access_token } = await r.json(); token = access_token; localStorage.setItem('drive_token', access_token); }
+    }
+  }
+  return token;
+}
+
+async function subirPdfDrive(pdfBlob, nombreArchivo, folderId) {
+  const token = await getDriveToken();
+  if (!token) { toast('Sin acceso a Drive. Cerrá sesión y volvé a ingresar.', 'err'); return null; }
+  const metadata = { name: nombreArchivo, parents: [folderId], mimeType: 'application/pdf' };
+  const fd = new FormData();
+  fd.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  fd.append('file', pdfBlob, nombreArchivo);
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+    { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+  if (res.status === 401) { localStorage.removeItem('drive_token'); toast('Token Drive expirado. Cerrá sesión y volvé a ingresar.', 'err'); return null; }
+  if (!res.ok) { toast('Error subiendo a Drive', 'err'); return null; }
+  return (await res.json()).webViewLink;
+}
+
+async function liquidarSemana() {
+  // Calcular lunes y domingo de la semana pasada
+  const hoy = new Date();
+  const diaSemana = hoy.getDay() === 0 ? 7 : hoy.getDay(); // lunes=1 ... domingo=7
+  const lunesAnterior = new Date(hoy); lunesAnterior.setDate(hoy.getDate() - diaSemana - 6);
+  const domingoAnterior = new Date(lunesAnterior); domingoAnterior.setDate(lunesAnterior.getDate() + 6);
+
+  const fmt = d => d.toISOString().split('T')[0];
+  const desde = fmt(lunesAnterior);
+  const hasta = fmt(domingoAnterior);
+
+  // Traer jornadas no pagadas del período
+  const todas = await sb('v_jornadas', { limit: 500 });
+  const pendientes = todas.filter(j => !j.pagado && j.fecha >= desde && j.fecha <= hasta);
+
+  if (!pendientes.length) {
+    toast(`Sin jornadas pendientes entre ${desde} y ${hasta}`, 'err'); return;
+  }
+
+  const fmtPeriodo = `${lunesAnterior.toLocaleDateString('es-AR')} al ${domingoAnterior.toLocaleDateString('es-AR')}`;
+  if (!confirm(`Liquidar ${pendientes.length} jornada(s) del ${fmtPeriodo}?\nSe generará un PDF por persona y se subirá a Drive.`)) return;
+
+  // Agrupar por persona
+  const porPersona = {};
+  pendientes.forEach(j => {
+    const key = j.personal_id;
+    if (!porPersona[key]) porPersona[key] = { apellido: j.personal_apellido||'', nombre: j.personal_nombre||'', jornadas: [] };
+    porPersona[key].jornadas.push(j);
+  });
+
+  const FOLDER_ID = '101wBK_cRmy4rnVK-xalX1UKYOVhLNsV6';
+  const fechaHoy = fmt(hoy);
+  let ok = 0; let err = 0;
+
+  for (const [persId, data] of Object.entries(porPersona)) {
+    try {
+      const pdfBlob = generarReciboPDF(data, fmtPeriodo, lunesAnterior);
+      const nombreArchivo = `${fechaHoy}-${data.apellido},${data.nombre}.pdf`;
+      const url = await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_ID);
+      if (url) {
+        // Marcar jornadas como pagadas
+        for (const j of data.jornadas) {
+          await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: fechaHoy });
+        }
+        ok++;
+      } else { err++; }
+    } catch(e) { console.error(e); err++; }
+  }
+
+  toast(`✅ ${ok} recibo(s) generado(s)${err ? ` · ${err} error(es)` : ''}`);
+  loadJornadas();
+}
+
+function generarReciboPDF(data, periodo, lunesDate) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  const PW = 210; const PH = 297; const M = 14; const CW = PW - M * 2;
+  let y = 0;
+
+  const NEGRO  = [26, 26, 46];
+  const ORO    = [201, 168, 76];
+  const BLANCO = [255, 255, 255];
+  const GRIS_F = [247, 247, 247];
+  const GRIS_T = [85, 85, 85];
+
+  const fill   = c => doc.setFillColor(c[0], c[1], c[2]);
+  const stroke = c => doc.setDrawColor(c[0], c[1], c[2]);
+  const text   = c => doc.setTextColor(c[0], c[1], c[2]);
+  const font   = (style, size) => { doc.setFont('helvetica', style); doc.setFontSize(size); };
+
+  // ── Header ────────────────────────────────────────────────
+  fill(NEGRO); doc.rect(0, 0, PW, 30, 'F');
+  try { doc.addImage(LOGO_B64, 'PNG', M, 1, 24, 24); } catch(e) {}
+  font('bold', 16); text(BLANCO);
+  doc.text('GROSSO ARGENTINA', M + 27, 11);
+  font('normal', 9); text(ORO);
+  doc.text('Soluciones Tecnologicas para Eventos', M + 27, 18);
+  font('normal', 7.5); text([200,200,200]);
+  doc.text('administracion@grossoarg.com', PW - M, 10, { align: 'right' });
+  doc.text('Lomas de Zamora, Buenos Aires', PW - M, 16, { align: 'right' });
+  doc.text('CUIT: 20-23091637-4', PW - M, 22, { align: 'right' });
+  y = 33;
+
+  stroke(ORO); doc.setLineWidth(0.8);
+  doc.line(M, y, PW - M, y); y += 6;
+
+  // ── Título ────────────────────────────────────────────────
+  font('bold', 14); text(NEGRO);
+  doc.text('LIQUIDACIÓN DE JORNADAS', M, y + 5);
+  font('normal', 8); text(GRIS_T);
+  doc.text(`Período: ${periodo}`, PW - M, y + 5, { align: 'right' });
+  y += 14;
+
+  // ── Datos de la persona ───────────────────────────────────
+  fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+  font('bold', 8); text(BLANCO);
+  doc.text('PERSONAL', M + 2, y + 4); y += 7;
+
+  fill(GRIS_F); doc.rect(M, y, CW, 9, 'F');
+  font('bold', 11); text(NEGRO);
+  doc.text(`${data.apellido} ${data.nombre}`, M + 3, y + 6.5); y += 12;
+
+  // ── Tabla de jornadas ─────────────────────────────────────
+  y += 3;
+  fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+  font('bold', 8); text(BLANCO);
+  doc.text('DETALLE DE JORNADAS', M + 2, y + 4); y += 7;
+
+  // Cabecera de tabla
+  fill([44, 62, 80]); doc.rect(M, y, CW, 6, 'F');
+  font('bold', 7.5); text(BLANCO);
+  doc.text('FECHA',        M + 2,        y + 4);
+  doc.text('TIPO',         M + 32,       y + 4);
+  doc.text('EVENTO',       M + 72,       y + 4);
+  doc.text('TARIFA',       PW - M - 2,   y + 4, { align: 'right' });
+  y += 7;
+
+  let total = 0;
+  data.jornadas.sort((a, b) => a.fecha.localeCompare(b.fecha)).forEach((j, idx) => {
+    if (y > PH - 35) { doc.addPage(); y = 15; }
+    fill(idx % 2 === 0 ? BLANCO : GRIS_F); doc.rect(M, y, CW, 8, 'F');
+    font('normal', 8); text(NEGRO);
+    const fechaStr = new Date(j.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+    doc.text(fechaStr,               M + 2,      y + 5.5);
+    doc.text(j.tipo || '',           M + 32,     y + 5.5);
+    const eventoStr = j.evento_codigo ? `${j.evento_codigo} · ${j.evento_venue || ''}` : '—';
+    doc.text(eventoStr.substring(0, 30), M + 72, y + 5.5);
+    font('bold', 8); text(NEGRO);
+    doc.text(fmtARS(j.tarifa_ars),   PW - M - 2, y + 5.5, { align: 'right' });
+    total += Number(j.tarifa_ars || 0);
+    y += 8;
+  });
+
+  // ── Total ─────────────────────────────────────────────────
+  y += 3;
+  stroke(ORO); doc.setLineWidth(0.5);
+  doc.line(M, y, PW - M, y); y += 6;
+  fill(NEGRO); doc.rect(M, y, CW, 10, 'F');
+  font('bold', 10); text(ORO);
+  doc.text('TOTAL A LIQUIDAR', M + 3, y + 7);
+  font('bold', 12); text(ORO);
+  doc.text(fmtARS(total), PW - M - 3, y + 7, { align: 'right' });
+  y += 18;
+
+  // ── Footer ────────────────────────────────────────────────
+  const footerY = PH - 12;
+  fill(NEGRO); doc.rect(0, footerY, PW, 12, 'F');
+  font('normal', 7.5); text(ORO);
+  doc.text('Grosso Argentina | Soluciones Tecnologicas | administracion@grossoarg.com', M, footerY + 7);
+  doc.text(`Liquidación ${new Date().toLocaleDateString('es-AR')}`, PW - M, footerY + 7, { align: 'right' });
+
+  return doc.output('blob');
+}
+
 // ── PERSONAL ──────────────────────────────────────────────
 async function loadPersonal() {
   try {
@@ -1721,7 +1910,7 @@ function renderImpuestos() {
         </td>
         <td>
           ${i.pagado
-            ? `<span class="imp-pagado">✅ Pagado</span>`
+            ? `<button class="btn btn-ghost btn-sm" style="border-color:var(--green);color:var(--green)" onclick="desmarcarPagadoImp(${i.id})">✅ Pagado</button>`
             : vencido
               ? `<button class="btn btn-ghost btn-sm" style="border-color:var(--red);color:var(--red)" onclick="marcarPagadoImp(${i.id})">🔴 Marcar pagado</button>`
               : venceProximo
@@ -1747,15 +1936,24 @@ function esVencido(imp, hoy) {
 }
 
 async function toggleTarjeta(id, valor) {
-  await sbPatch('costos_fijos', id, { paga_por_tarjeta: valor });
+  const patch = { paga_por_tarjeta: valor };
+  if (valor) { patch.pagado = true; patch.fecha_pago = today(); }
+  await sbPatch('costos_fijos', id, patch);
   const item = todosImpuestos.find(x => x.id === id);
-  if (item) item.paga_por_tarjeta = valor;
+  if (item) Object.assign(item, patch);
   renderImpuestos();
 }
 
 async function marcarPagadoImp(id) {
   await sbPatch('costos_fijos', id, { pagado: true, fecha_pago: today() });
   toast('Marcado como pagado');
+  loadImpuestos();
+}
+
+async function desmarcarPagadoImp(id) {
+  if (!confirm('¿Marcar como no pagado?')) return;
+  await sbPatch('costos_fijos', id, { pagado: false, fecha_pago: null });
+  toast('Desmarcado');
   loadImpuestos();
 }
 
