@@ -1634,7 +1634,7 @@ function renderCatalogo(cat) {
 // MÓDULO PRESUPUESTOS
 // ══════════════════════════════════════════════════════════
 
-const DRIVE_FOLDER_ID = '1n8uitlzoxVGLLmPtNxRTGxBLMZvXaDNB';
+const DRIVE_FOLDER_ID = '1ZEOYg7oRAygkwjhOq7h4ZHKIiiiT5wzR';
 let presItems = [];       // items seleccionados
 let catalogoCache = [];   // catálogo completo
 
@@ -2015,7 +2015,13 @@ async function generarPresupuesto() {
 </body></html>`;
 
     // ── Generar PDF con html2pdf ──────────────────────────
-    const nombreArchivo = slugify(`${new Date().toISOString().split('T')[0]}-${venue||'evento'}-${cliente}`) + '.pdf';
+    // Nombre: YYYY-MM-DD-SALON-CLIENTE.pdf
+    function slugify(s) {
+      return s.normalize('NFD').replace(/[̀-ͯ]/g,'')
+        .toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    }
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const nombreArchivo = `${fechaHoy}-${slugify(venue||'evento')}-${slugify(cliente)}.pdf`;
 
     function slugify(s) {
       return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
