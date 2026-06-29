@@ -949,10 +949,12 @@ async function initAuth() {
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
       if (session?.user?.email === ALLOWED_EMAIL) {
         AUTH = true;
-        // Guardar provider_token en localStorage para que persista entre recargas
+        // Guardar tokens en localStorage para que persistan entre recargas
         if (session.provider_token) {
           localStorage.setItem('drive_token', session.provider_token);
-          localStorage.setItem('drive_token_ts', Date.now().toString());
+        }
+        if (session.provider_refresh_token) {
+          localStorage.setItem('drive_refresh_token', session.provider_refresh_token);
         }
         // Limpiar hash de la URL
         if (window.location.hash) {
