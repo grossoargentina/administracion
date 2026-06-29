@@ -779,7 +779,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="ev-fecha"></div>
-        <div class="field"><label class="lbl">Horario</label><input class="inp" id="ev-horario" placeholder="20:00 hs"></div>
+        <div class="field"><label class="lbl">Horario</label><select class="inp" id="ev-horario">${buildTimeOpts('')}</select></div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="ev-venue" placeholder="Nombre del salón"></div>
         <div class="field"><label class="lbl">Total ARS</label><input class="inp" type="number" id="ev-total" placeholder="0"></div>
         <div class="field"><label class="lbl">Modalidad de pago</label>
@@ -1211,7 +1211,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="pres-fecha"></div>
-        <div class="field"><label class="lbl">Horario</label><input class="inp" id="pres-horario" placeholder="20:00 hs"></div>
+        <div class="field"><label class="lbl">Horario</label><select class="inp" id="pres-horario">${buildTimeOpts('')}</select></div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón"></div>
       </div>
 
@@ -1802,6 +1802,7 @@ async function editEvento(id) {
   document.getElementById('ev-tipo').value      = ev.tipo_evento || 'Casamiento';
   document.getElementById('ev-fecha').value     = ev.fecha_evento || '';
   document.getElementById('ev-venue').value     = ev.venue || '';
+  document.getElementById('ev-horario').value   = ev.horario || '';
   document.getElementById('ev-total').value     = ev.total_ars || 0;
   document.getElementById('ev-estado').value    = ev.estado;
   document.getElementById('ev-notas').value     = ev.notas || '';
@@ -1960,9 +1961,21 @@ async function loadJornadas() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-function llenarSelectPersonal() {
-  // persCache ya está cargado — no hay select de personal en uso actualmente
-  // pero se mantiene para futuras extensiones
+function llenarSelectPersonal() {}
+
+function buildTimeOpts(selected) {
+  const opts = ['<option value="">— Hora —</option>'];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const val = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      opts.push(`<option value="${val}" ${selected === val ? 'selected' : ''}>${val}</option>`);
+    }
+  }
+  return opts.join('');
+}
+
+function timeSelect(id, value, extraStyle, onchangeFn) {
+  return `<select class="inp" id="${id||''}" style="${extraStyle||''}" ${onchangeFn ? `onchange="${onchangeFn}"` : ''}>${buildTimeOpts(value||'')}</select>`;
 }
 
 function llenarSelectEventos() {
@@ -2524,7 +2537,7 @@ function renderDiasLog() {
                 ${['Armado','Operador','Desarmado'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
                </select>`}
           <input type="date" class="inp" style="width:150px" value="${d.fecha}" onchange="updateDiaLog(${d.id},'fecha',this.value)">
-          <input type="time" class="inp" style="width:120px" value="${d.hora_inicio||''}" placeholder="Hora inicio" onchange="updateDiaLog(${d.id},'hora_inicio',this.value)">
+          <select class="inp" style="width:110px" onchange="updateDiaLog(${d.id},'hora_inicio',this.value)">${buildTimeOpts(d.hora_inicio||'')}</select>
           ${conTransporte ? `<select class="inp" style="width:160px" onchange="updateDiaLog(${d.id},'transporte',this.value)">
             ${['Camioneta propia','Flete','Sin transporte'].map(t=>`<option ${d.transporte===t?'selected':''}>${t}</option>`).join('')}
           </select>${fleteExtra}` : ''}
@@ -2758,7 +2771,7 @@ function renderEditorLogistica() {
           <span style="font-size:11px;color:var(--text-2)">${j.tipo}</span>
           ${transporteInfo ? `<div style="font-size:11px;color:var(--orange);margin-top:2px">${transporteInfo}</div>` : ''}
         </div>
-        <input class="inp" style="font-size:12px" placeholder="Hora (ej: 21:00)" id="${jid}-hora">
+        <select class="inp" style="font-size:12px;width:110px" id="${jid}-hora">${buildTimeOpts('')}</select>
         <input class="inp" style="font-size:12px" placeholder="Notas extra" id="${jid}-notas">
       </div>`;
     });
