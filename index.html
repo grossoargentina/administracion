@@ -2335,7 +2335,7 @@ async function guardarLogistica() {
           evento_id: eventoId ? parseInt(eventoId) : null,
           fecha: d.fecha,
           tipo: d.tipo,
-          tarifa: tarifa || null,
+          tarifa_ars: tarifa || null,
           transporte: ['Armado','Desarmado'].includes(d.tipo) ? d.transporte : null,
           flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
           flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
