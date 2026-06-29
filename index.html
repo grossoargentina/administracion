@@ -508,6 +508,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
           <div class="page-sub">Registro de trabajo del personal</div>
         </div>
         <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="abrirModalLogistica()">🗺️ Logística</button>
           <button class="btn btn-ghost" onclick="liquidarSemana()">💸 Liquidar semana</button>
           <button class="btn btn-primary" onclick="abrirModalJornada()">+ Nueva jornada</button>
         </div>
@@ -686,7 +687,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
         </div>
         <div class="field">
           <label class="lbl">Tipo de jornada *</label>
-          <select class="inp" id="jorn-tipo">
+          <select class="inp" id="jorn-tipo" onchange="toggleTransporte()">
             <option value="">— Seleccionar —</option>
             <option>Depósito</option>
             <option>Armado/Desarmado</option>
@@ -696,6 +697,24 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div class="field">
           <label class="lbl">Fecha *</label>
           <input class="inp" type="date" id="jorn-fecha">
+        </div>
+        <!-- Transporte — solo visible para Armado/Desarmado -->
+        <div class="field full" id="jorn-transporte-section" style="display:none;background:var(--surface2);border-radius:8px;padding:12px">
+          <label class="lbl" style="margin-bottom:8px;display:block">Transporte</label>
+          <div style="display:flex;gap:12px;margin-bottom:10px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="radio" name="jorn-transporte" value="Camioneta propia" id="jorn-tr-propia" onchange="toggleFlete()" style="accent-color:var(--gold)">
+              <span style="font-size:13px">Camioneta propia</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="radio" name="jorn-transporte" value="Flete" id="jorn-tr-flete" onchange="toggleFlete()" style="accent-color:var(--gold)">
+              <span style="font-size:13px">Flete contratado</span>
+            </label>
+          </div>
+          <div id="jorn-flete-fields" style="display:none;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="field" style="margin:0"><label class="lbl">Nombre del fletero</label><input class="inp" id="jorn-flete-personal" placeholder="Ej: Juan Pérez"></div>
+            <div class="field" style="margin:0"><label class="lbl">Monto ARS</label><input class="inp" type="number" id="jorn-flete-monto" placeholder="0"></div>
+          </div>
         </div>
         <div class="field full">
           <label class="lbl">Notas</label>
@@ -717,6 +736,52 @@ textarea.inp { resize: vertical; min-height: 80px; }
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-jornada')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarJornadas()">Guardar jornadas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LOGISTICA -->
+<div class="modal-overlay" id="modal-logistica">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-header">
+      <span class="modal-title">Generador de Logística</span>
+      <button class="modal-close" onclick="closeModal('modal-logistica')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label class="lbl">Título del evento *</label><input class="inp" id="log-titulo" placeholder="Ej: Unicenter Shopping"></div>
+        <div class="field"><label class="lbl">Subtítulo</label><input class="inp" id="log-subtitulo" placeholder="Ej: Fin de semana"></div>
+        <div class="field"><label class="lbl">Dirección</label><input class="inp" id="log-direccion" placeholder="Ej: Paraná 3745, Martínez, Buenos Aires"></div>
+        <div class="field"><label class="lbl">Link Google Maps</label><input class="inp" id="log-maps" placeholder="https://..."></div>
+        <div class="field"><label class="lbl">Fecha desde</label><input class="inp" type="date" id="log-desde"></div>
+        <div class="field"><label class="lbl">Fecha hasta</label><input class="inp" type="date" id="log-hasta"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="cargarJornadasLogistica()">Cargar jornadas del período</button>
+      <div id="log-editor"></div>
+      <div class="field" style="margin-top:16px">
+        <label class="lbl">Notas generales (uniforme, reglas, etc.)</label>
+        <textarea class="inp" id="log-notas" rows="3" style="resize:vertical;width:100%" placeholder="Ej: Remera Grosso + pantalón negro + herramientas + DNI"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-logistica')">Cancelar</button>
+      <button class="btn btn-ghost" onclick="generarWhatsappLogistica()">💬 WhatsApp por persona</button>
+      <button class="btn btn-primary" onclick="generarPDFLogistica()">📄 PDF y guardar en Drive</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL WHATSAPP LOGISTICA -->
+<div class="modal-overlay" id="modal-wa-log">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header">
+      <span class="modal-title">Mensajes WhatsApp</span>
+      <button class="modal-close" onclick="closeModal('modal-wa-log')">×</button>
+    </div>
+    <div class="modal-body" id="wa-log-body" style="display:flex;flex-direction:column;gap:16px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-wa-log')">Cerrar</button>
+      <button class="btn btn-primary" onclick="enviarTodosWhatsapp()" id="btn-enviar-todos">📲 Enviar a todos</button>
     </div>
   </div>
 </div>
@@ -1496,9 +1561,15 @@ async function loadJornadas() {
           return `<tr>
             <td>${fmtDate(j.fecha)}</td>
             <td><b>${j.personal_apellido ? j.personal_apellido + ' ' : ''}${j.personal_nombre || '—'}</b><br><span style="font-size:11px;color:var(--text-3)">${j.personal_tipo || ''}</span></td>
-            <td><span class="${tipoClass}" style="font-weight:500">${j.tipo}</span></td>
+            <td>
+              <span class="${tipoClass}" style="font-weight:500">${j.tipo}</span>
+              ${j.transporte ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">🚛 ${j.transporte}${j.flete_personal ? ` — ${j.flete_personal}` : ''}</div>` : ''}
+            </td>
             <td>${j.evento_codigo ? `<span style="font-size:11px;color:var(--text-2)">${j.evento_codigo}</span><br>${j.evento_venue || ''}` : '—'}</td>
-            <td>${fmtARS(j.tarifa_ars)}</td>
+            <td>
+              ${fmtARS(j.tarifa_ars)}
+              ${j.flete_monto ? `<div style="font-size:11px;color:var(--orange)">Flete: ${fmtARS(j.flete_monto)}</div>` : ''}
+            </td>
             <td>
               ${j.pagado
                 ? `<span style="color:var(--green);font-size:12px">✅ Pagado</span>`
@@ -1526,21 +1597,31 @@ function llenarSelectEventos() {
 }
 
 // Abrir modal de jornada y renderizar lista de personal
+function toggleTransporte() {
+  const tipo = document.getElementById('jorn-tipo').value;
+  document.getElementById('jorn-transporte-section').style.display =
+    tipo === 'Armado/Desarmado' ? 'block' : 'none';
+  renderListaPersonal();
+}
+
+function toggleFlete() {
+  const esFlete = document.getElementById('jorn-tr-flete').checked;
+  document.getElementById('jorn-flete-fields').style.display = esFlete ? 'grid' : 'none';
+}
+
 async function abrirModalJornada() {
-  // Resetear
-  document.getElementById('jorn-tipo').value = '';
+  document.getElementById('jorn-tipo').value  = '';
   document.getElementById('jorn-fecha').value = new Date().toISOString().split('T')[0];
   document.getElementById('jorn-notas').value = '';
+  document.getElementById('jorn-transporte-section').style.display = 'none';
+  document.getElementById('jorn-flete-fields').style.display       = 'none';
+  document.querySelectorAll('input[name="jorn-transporte"]').forEach(r => r.checked = false);
+  document.getElementById('jorn-flete-personal').value = '';
+  document.getElementById('jorn-flete-monto').value    = '';
 
-  // Llenar evento
   llenarSelectEventos();
-
-  // Renderizar lista de personal con checkboxes
   renderListaPersonal();
-
-  // Escuchar cambio de tipo para actualizar tarifas mostradas
-  document.getElementById('jorn-tipo').onchange = renderListaPersonal;
-
+  document.getElementById('jorn-tipo').onchange = toggleTransporte;
   openModal('modal-jornada');
 }
 
@@ -1600,16 +1681,23 @@ async function guardarJornadas() {
                    : tipo === 'Armado/Desarmado' ? parseFloat(cb.dataset.arm)
                    : parseFloat(cb.dataset.op);
 
-      await sbPost('jornadas', {
-        codigo:      'J' + String(base++).padStart(4, '0'),
-        personal_id: persId,
+      const transporteVal = document.querySelector('input[name="jorn-transporte"]:checked')?.value || null;
+      const row = {
+        codigo:       'J' + String(base++).padStart(4, '0'),
+        personal_id:  persId,
         tipo,
         fecha,
-        evento_id:   evId,
-        tarifa_ars:  tarifa || 0,
-        pagado:      false,
+        evento_id:    evId,
+        tarifa_ars:   tarifa || 0,
+        pagado:       false,
         notas,
-      });
+        transporte:   tipo === 'Armado/Desarmado' ? transporteVal : null,
+        flete_personal: (tipo === 'Armado/Desarmado' && transporteVal === 'Flete')
+          ? document.getElementById('jorn-flete-personal').value.trim() || null : null,
+        flete_monto:  (tipo === 'Armado/Desarmado' && transporteVal === 'Flete')
+          ? parseFloat(document.getElementById('jorn-flete-monto').value) || null : null,
+      };
+      await sbPost('jornadas', row);
     }
 
     toast(`✅ ${checks.length} jornada${checks.length > 1 ? 's' : ''} registrada${checks.length > 1 ? 's' : ''}`);
@@ -1815,6 +1903,336 @@ function generarReciboPDF(data, periodo, lunesDate) {
   doc.text(`Liquidación ${new Date().toLocaleDateString('es-AR')}`, PW - M, footerY + 7, { align: 'right' });
 
   return doc.output('blob');
+}
+
+// ── LOGÍSTICA ─────────────────────────────────────────────
+const FOLDER_LOGISTICAS = '1djtd-hvSoQLgv0r4b4b-NiFM3f4So0-A';
+const WA_EDGE_URL = 'https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/send-whatsapp';
+let logJornadas = [];
+let waMensajesPendientes = []; // { personal_id, apellido, nombre, telefono, texto }
+
+const DIAS_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const MESES_ES_GEN = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+function abrirModalLogistica() {
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('log-titulo').value    = '';
+  document.getElementById('log-subtitulo').value = '';
+  document.getElementById('log-direccion').value = '';
+  document.getElementById('log-maps').value      = '';
+  document.getElementById('log-desde').value     = hoy;
+  document.getElementById('log-hasta').value     = hoy;
+  document.getElementById('log-notas').value     = '';
+  document.getElementById('log-editor').innerHTML = '';
+  logJornadas = [];
+  openModal('modal-logistica');
+}
+
+async function cargarJornadasLogistica() {
+  const desde = document.getElementById('log-desde').value;
+  const hasta = document.getElementById('log-hasta').value;
+  if (!desde || !hasta) { toast('Seleccioná el rango de fechas', 'err'); return; }
+  const todas = await sb('v_jornadas', { limit: 500 });
+  logJornadas = todas
+    .filter(j => j.fecha >= desde && j.fecha <= hasta)
+    .sort((a,b) => a.fecha.localeCompare(b.fecha) || (a.personal_apellido||'').localeCompare(b.personal_apellido||''));
+  if (!logJornadas.length) { toast('Sin jornadas en ese período', 'err'); return; }
+  renderEditorLogistica();
+}
+
+function renderEditorLogistica() {
+  // Agrupar por fecha
+  const porFecha = {};
+  logJornadas.forEach(j => {
+    if (!porFecha[j.fecha]) porFecha[j.fecha] = [];
+    porFecha[j.fecha].push(j);
+  });
+
+  let html = '';
+  Object.keys(porFecha).sort().forEach(fecha => {
+    const d     = new Date(fecha + 'T12:00:00');
+    const label = `${DIAS_ES[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;
+    html += `<div style="margin-bottom:20px">
+      <div style="font-weight:600;color:var(--gold);font-size:13px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">${label}</div>`;
+
+    porFecha[fecha].forEach(j => {
+      const jid = `log-j-${j.id}`;
+      const transporteInfo = j.transporte === 'Camioneta propia' ? '🚛 Camioneta propia'
+        : j.transporte === 'Flete' ? `🚛 Flete${j.flete_personal ? ` — ${j.flete_personal}` : ''}${j.flete_monto ? ` (${fmtARS(j.flete_monto)})` : ''}`
+        : '';
+      html += `<div style="display:grid;grid-template-columns:180px 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px">
+        <div style="font-size:13px"><b>${j.personal_apellido||''} ${j.personal_nombre||''}</b><br>
+          <span style="font-size:11px;color:var(--text-2)">${j.tipo}</span>
+          ${transporteInfo ? `<div style="font-size:11px;color:var(--orange);margin-top:2px">${transporteInfo}</div>` : ''}
+        </div>
+        <input class="inp" style="font-size:12px" placeholder="Hora (ej: 21:00)" id="${jid}-hora">
+        <input class="inp" style="font-size:12px" placeholder="Notas extra" id="${jid}-notas">
+      </div>`;
+    });
+
+    // Hora de llegada al venue (campo extra por día)
+    html += `<div style="display:grid;grid-template-columns:160px 1fr;gap:8px;margin-top:4px">
+      <div style="font-size:11px;color:var(--text-2);padding-top:8px">Hora llegada al venue:</div>
+      <input class="inp" style="font-size:12px" placeholder="Ej: 23:30" id="log-llegada-${fecha}">
+    </div>
+    <div style="margin-top:4px">
+      <input class="inp" style="font-size:12px" placeholder="Notas del día (ej: descargan, arrancan armado)" id="log-dia-notas-${fecha}">
+    </div></div>`;
+  });
+
+  document.getElementById('log-editor').innerHTML = html;
+}
+
+function recolectarDatosLogistica() {
+  const porFecha = {};
+  logJornadas.forEach(j => {
+    if (!porFecha[j.fecha]) porFecha[j.fecha] = [];
+    const jid   = `log-j-${j.id}`;
+    const hora  = document.getElementById(`${jid}-hora`)?.value.trim()  || '';
+    const notas = document.getElementById(`${jid}-notas`)?.value.trim() || '';
+    porFecha[j.fecha].push({ ...j, hora, notas });
+  });
+  return porFecha;
+}
+
+function generarWhatsappLogistica() {
+  const titulo   = document.getElementById('log-titulo').value.trim();
+  const dir      = document.getElementById('log-direccion').value.trim();
+  const maps     = document.getElementById('log-maps').value.trim();
+  if (!titulo) { toast('Ingresá el título del evento', 'err'); return; }
+
+  const porFecha = recolectarDatosLogistica();
+
+  // Agrupar por persona
+  const porPersona = {};
+  Object.keys(porFecha).sort().forEach(fecha => {
+    const grupo = porFecha[fecha].map(j => (j.personal_apellido||j.personal_nombre||'').toUpperCase()).join('-');
+    const llegada  = document.getElementById(`log-llegada-${fecha}`)?.value.trim() || '';
+    const diaNota  = document.getElementById(`log-dia-notas-${fecha}`)?.value.trim() || '';
+
+    porFecha[fecha].forEach(j => {
+      const key = j.personal_id;
+      if (!porPersona[key]) porPersona[key] = { nombre: j.personal_nombre||'', apellido: j.personal_apellido||'', dias: [] };
+      const d     = new Date(fecha + 'T12:00:00');
+      const label = `${DIAS_ES[d.getDay()].toUpperCase()} ${d.getDate()}`;
+      porPersona[key].dias.push({ fecha, label, tipo: j.tipo, hora: j.hora, notas: j.notas, llegada, diaNota, grupo, transporte: j.transporte, flete_personal: j.flete_personal, flete_monto: j.flete_monto });
+    });
+  });
+
+  waMensajesPendientes = [];
+  let html = '';
+  Object.values(porPersona).forEach(p => {
+    const persData = persCache.find(x => x.nombre === p.nombre && x.apellido === p.apellido);
+    const telefono = persData?.telefono || null;
+    let texto = `${p.apellido.toUpperCase()}\n\n`;
+    p.dias.forEach(dia => {
+      texto += `*${dia.label} - ${titulo.toUpperCase()}*\n`;
+      if (dia.hora)   texto += `${dia.hora} ${dia.tipo.toUpperCase()}`;
+      if (dia.notas)  texto += ` - ${dia.notas}`;
+      if (dia.hora || dia.notas) texto += '\n';
+      if (dia.transporte === 'Camioneta propia') texto += `🚛 CAMIONETA EMPRESA\n`;
+      if (dia.transporte === 'Flete') {
+        texto += `🚛 FLETE${dia.flete_personal ? ` — ${dia.flete_personal.toUpperCase()}` : ''}${dia.flete_monto ? ` — ${fmtARS(dia.flete_monto)}` : ''}\n`;
+      }
+      if (dia.llegada) texto += `${dia.llegada} LLEGÁS ${titulo.toUpperCase()}\n`;
+      if (dir)         texto += `DIRECCIÓN: ${dir}\n`;
+      if (maps)        texto += `${maps}\n`;
+      if (dia.diaNota) texto += `${dia.diaNota.toUpperCase()}\n`;
+      texto += `GRUPO: ${dia.grupo}\n\n`;
+    });
+
+    waMensajesPendientes.push({ apellido: p.apellido, nombre: p.nombre, telefono, texto: texto.trim() });
+
+    html += `<div style="background:var(--surface2);border-radius:8px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:600;color:var(--gold)">${p.apellido} ${p.nombre}</span>
+        <span style="font-size:11px;color:${telefono ? 'var(--green)' : 'var(--red)'}">${telefono ? '📱 ' + telefono : '⚠️ Sin teléfono'}</span>
+      </div>
+      <pre style="font-family:monospace;font-size:12px;white-space:pre-wrap;color:var(--text);margin:0 0 8px 0">${texto.trim()}</pre>
+      <button class="btn btn-ghost btn-sm" onclick="copiarTexto(this, ${JSON.stringify(texto.trim())})">Copiar</button>
+    </div>`;
+  });
+
+  document.getElementById('wa-log-body').innerHTML = html;
+  openModal('modal-wa-log');
+}
+
+async function enviarTodosWhatsapp() {
+  const sinTelefono = waMensajesPendientes.filter(p => !p.telefono);
+  if (sinTelefono.length) {
+    const nombres = sinTelefono.map(p => `${p.apellido} ${p.nombre}`).join(', ');
+    if (!confirm(`${sinTelefono.length} persona(s) sin teléfono registrado: ${nombres}.\n¿Enviás a los que sí tienen?`)) return;
+  }
+
+  const conTelefono = waMensajesPendientes.filter(p => p.telefono);
+  if (!conTelefono.length) { toast('Ninguna persona tiene teléfono registrado', 'err'); return; }
+
+  const btn = document.getElementById('btn-enviar-todos');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+
+  let ok = 0; let err = 0;
+  for (const p of conTelefono) {
+    try {
+      const res = await fetch(WA_EDGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: p.telefono, message: p.texto }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) { ok++; }
+      else { console.error(`Error enviando a ${p.apellido}:`, data); err++; }
+    } catch(e) { console.error(e); err++; }
+  }
+
+  btn.disabled = false; btn.textContent = '📲 Enviar a todos';
+  toast(`✅ ${ok} mensaje(s) enviado(s)${err ? ` · ${err} error(es) — revisá la consola` : ''}`);
+}
+
+function copiarTexto(btn, texto) {
+  navigator.clipboard.writeText(texto).then(() => {
+    btn.textContent = '✅ Copiado';
+    setTimeout(() => btn.textContent = 'Copiar', 2000);
+  });
+}
+
+async function generarPDFLogistica() {
+  const titulo    = document.getElementById('log-titulo').value.trim();
+  const subtitulo = document.getElementById('log-subtitulo').value.trim();
+  const dir       = document.getElementById('log-direccion').value.trim();
+  const maps      = document.getElementById('log-maps').value.trim();
+  const notasGen  = document.getElementById('log-notas').value.trim();
+  if (!titulo) { toast('Ingresá el título del evento', 'err'); return; }
+
+  const porFecha = recolectarDatosLogistica();
+  const fechas   = Object.keys(porFecha).sort();
+  if (!fechas.length) { toast('Cargá las jornadas primero', 'err'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const PW = 210; const PH = 297; const M = 14; const CW = PW - M * 2;
+  let y = 0;
+
+  const NEGRO  = [26, 26, 46]; const ORO = [201, 168, 76];
+  const BLANCO = [255, 255, 255]; const GRIS_F = [247, 247, 247]; const GRIS_T = [85, 85, 85];
+  const fill   = c => doc.setFillColor(c[0], c[1], c[2]);
+  const stroke = c => doc.setDrawColor(c[0], c[1], c[2]);
+  const text   = c => doc.setTextColor(c[0], c[1], c[2]);
+  const font   = (style, size) => { doc.setFont('helvetica', style); doc.setFontSize(size); };
+
+  const addPage = () => { doc.addPage(); y = 15; };
+  const checkY  = (needed) => { if (y + needed > PH - 20) addPage(); };
+
+  // ── Header ────────────────────────────────────────────────
+  fill(NEGRO); doc.rect(0, 0, PW, 30, 'F');
+  try { doc.addImage(LOGO_B64, 'PNG', M, 1, 24, 24); } catch(e) {}
+  font('bold', 16); text(BLANCO);
+  doc.text('GROSSO ARGENTINA', M + 27, 11);
+  font('normal', 9); text(ORO);
+  doc.text('Soluciones Tecnologicas para Eventos', M + 27, 18);
+  font('normal', 7.5); text([200,200,200]);
+  doc.text('administracion@grossoarg.com', PW - M, 10, { align: 'right' });
+  doc.text('Lomas de Zamora, Buenos Aires', PW - M, 16, { align: 'right' });
+  y = 33;
+
+  stroke(ORO); doc.setLineWidth(0.8); doc.line(M, y, PW - M, y); y += 6;
+
+  // ── Título ────────────────────────────────────────────────
+  font('bold', 16); text(NEGRO);
+  const tituloLine = subtitulo ? `Logística — ${subtitulo}` : 'Logística';
+  doc.text(tituloLine, M, y + 6);
+
+  // Rango de fechas
+  const d0 = new Date(fechas[0] + 'T12:00:00');
+  const d1 = new Date(fechas[fechas.length-1] + 'T12:00:00');
+  const rangoStr = fechas.length === 1
+    ? `${d0.getDate()} de ${MESES_ES_GEN[d0.getMonth()]} ${d0.getFullYear()}`
+    : `${d0.getDate()} al ${d1.getDate()} de ${MESES_ES_GEN[d1.getMonth()]} ${d1.getFullYear()}`;
+  font('normal', 10); text(GRIS_T);
+  doc.text(`${rangoStr} — ${titulo}`, M, y + 14);
+  y += 22;
+
+  // ── Por día ───────────────────────────────────────────────
+  fechas.forEach(fecha => {
+    checkY(30);
+    const d       = new Date(fecha + 'T12:00:00');
+    const dLabel  = `${DIAS_ES[d.getDay()]} ${d.getDate()} — ${titulo}`;
+    const llegada = document.getElementById(`log-llegada-${fecha}`)?.value.trim() || '';
+    const diaNota = document.getElementById(`log-dia-notas-${fecha}`)?.value.trim() || '';
+    const items   = porFecha[fecha];
+
+    // Cabecera del día
+    fill(NEGRO); doc.rect(M, y, CW, 7, 'F');
+    font('bold', 9); text(ORO);
+    doc.text(dLabel.toUpperCase(), M + 2, y + 5); y += 9;
+
+    // Dirección + maps
+    if (dir || maps) {
+      font('normal', 7.5); text(GRIS_T);
+      const linea = [dir, maps].filter(Boolean).join(' — ');
+      const wrapped = doc.splitTextToSize(linea, CW);
+      doc.text(wrapped, M, y + 4);
+      y += wrapped.length * 4 + 3;
+    }
+
+    // Personas con hora y notas
+    items.forEach((j, idx) => {
+      checkY(8);
+      fill(idx % 2 === 0 ? GRIS_F : BLANCO); doc.rect(M, y, CW, 8, 'F');
+      font('bold', 8); text(NEGRO);
+      const nombre = `${j.personal_apellido||''} ${j.personal_nombre||''}`.trim();
+      doc.text(nombre, M + 2, y + 5.5);
+      font('normal', 8); text(GRIS_T);
+      const transporteStr = j.transporte === 'Camioneta propia' ? 'Camioneta empresa'
+        : j.transporte === 'Flete' ? `Flete${j.flete_personal ? ` — ${j.flete_personal}` : ''}${j.flete_monto ? ` (${fmtARS(j.flete_monto)})` : ''}`
+        : '';
+      const detalle = [j.hora, j.tipo, transporteStr, j.notas].filter(Boolean).join(' — ');
+      if (detalle) doc.text(detalle, M + 55, y + 5.5);
+      y += 8;
+    });
+
+    // Hora llegada venue
+    if (llegada) {
+      checkY(8);
+      fill([44,62,80]); doc.rect(M, y, CW, 7, 'F');
+      font('bold', 8); text(BLANCO);
+      doc.text(`${llegada} — Llegan a ${titulo}`, M + 2, y + 5); y += 8;
+    }
+
+    // Nota del día
+    if (diaNota) {
+      checkY(8);
+      font('italic', 8); text(GRIS_T);
+      const wrapped = doc.splitTextToSize(diaNota, CW);
+      doc.text(wrapped, M, y + 5);
+      y += wrapped.length * 5 + 2;
+    }
+
+    y += 6;
+  });
+
+  // ── Notas generales ───────────────────────────────────────
+  if (notasGen) {
+    checkY(20);
+    fill(NEGRO); doc.rect(M, y, CW, 7, 'F');
+    font('bold', 8); text(BLANCO); doc.text('NOTAS GENERALES', M + 2, y + 5); y += 9;
+    font('normal', 8); text(GRIS_T);
+    const wrapped = doc.splitTextToSize(notasGen, CW);
+    doc.text(wrapped, M, y + 4); y += wrapped.length * 5 + 4;
+  }
+
+  // ── Footer ────────────────────────────────────────────────
+  const footerY = PH - 12;
+  fill(NEGRO); doc.rect(0, footerY, PW, 12, 'F');
+  font('normal', 7.5); text(ORO);
+  doc.text('Grosso Argentina | Soluciones Tecnologicas | administracion@grossoarg.com', M, footerY + 7);
+  doc.text(`Logística ${new Date().toLocaleDateString('es-AR')}`, PW - M, footerY + 7, { align: 'right' });
+
+  const pdfBlob = doc.output('blob');
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  const nombreArchivo = `${fechaHoy}-${titulo.replace(/\s+/g,'-')}.pdf`;
+  toast('Subiendo a Drive...');
+  const url = await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_LOGISTICAS);
+  if (url) toast('✅ Logística guardada en Drive');
 }
 
 // ── PERSONAL ──────────────────────────────────────────────
