@@ -972,7 +972,7 @@ async function loginConGoogle() {
     provider: 'google',
     options: {
       redirectTo: window.location.href,
-      scopes: 'https://www.googleapis.com/auth/drive.file',
+      scopes: 'https://www.googleapis.com/auth/drive',
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
@@ -2028,21 +2028,24 @@ async function generarPresupuesto() {
         .toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
     }
 
-    // Convertir HTML a blob PDF via html2pdf
-    const element = document.createElement('div');
-    element.innerHTML = htmlPDF;
-    element.style.position = 'absolute';
-    element.style.left = '-9999px';
-    document.body.appendChild(element);
-
+    // Generar PDF via iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:210mm;height:297mm;border:none;opacity:0;pointer-events:none;z-index:-999';
+    document.body.appendChild(iframe);
+    const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iDoc.open(); iDoc.write(htmlPDF); iDoc.close();
+    await new Promise(resolve => {
+      if (iDoc.readyState === 'complete') { setTimeout(resolve, 800); }
+      else { iframe.onload = () => setTimeout(resolve, 800); }
+      setTimeout(resolve, 2500);
+    });
     const pdfBlob = await html2pdf().set({
       margin: 0,
       filename: nombreArchivo,
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, allowTaint: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(element).outputPdf('blob');
-
-    document.body.removeChild(element);
+    }).from(iDoc.body).outputPdf('blob');
+    document.body.removeChild(iframe);
 
     // ── Subir a Google Drive ──────────────────────────────
     const { data: { session } } = await supabaseClient.auth.getSession();
