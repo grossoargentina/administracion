@@ -895,6 +895,8 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field"><label class="lbl">Apellido *</label><input class="inp" id="pers-apellido" placeholder="Grosso"></div>
         <div class="field"><label class="lbl">Nombre *</label><input class="inp" id="pers-nombre" placeholder="Sergio"></div>
         <div class="field"><label class="lbl">DNI</label><input class="inp" id="pers-dni" placeholder="12345678" type="number"></div>
+        <div class="field"><label class="lbl">CUIT</label><input class="inp" id="pers-cuit" placeholder="20-12345678-9"></div>
+        <div class="field"><label class="lbl">Fecha de nacimiento</label><input class="inp" type="date" id="pers-nacimiento"></div>
         <div class="field"><label class="lbl">Tipo</label>
           <select class="inp" id="pers-tipo" onchange="onPersTipoChange()"><option>Fijo</option><option>Freelance</option><option>Chofer</option></select>
         </div>
@@ -2057,7 +2059,9 @@ function generarReciboPDF(data, periodo, lunesDate) {
 
 // ── LOGÍSTICA ─────────────────────────────────────────────
 const FOLDER_LOGISTICAS = '1djtd-hvSoQLgv0r4b4b-NiFM3f4So0-A';
-const WA_EDGE_URL = 'https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/send-whatsapp';
+const WA_EDGE_URL    = 'https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/send-whatsapp';
+const EMAIL_EDGE_URL = 'https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/send-email';
+const EMAIL_SEGURO   = 'ignacioarnesen@hotmail.com';
 let logJornadas = [];
 let waMensajesPendientes = []; // { personal_id, apellido, nombre, telefono, texto }
 
@@ -2118,6 +2122,7 @@ async function loadLogisticas() {
         <td style="font-size:12px;color:var(--text-2)">${r.notas || '—'}</td>
         <td style="display:flex;gap:4px">
           <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${r.id})">📋 Ver</button>
+          <button class="btn btn-ghost btn-sm" onclick="enviarMailSeguro(${r.id})" title="Enviar lista a seguro">📧</button>
           <button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${r.id})">✕</button>
         </td>
       </tr>`;
@@ -2309,6 +2314,88 @@ async function guardarLogistica() {
     closeModal('modal-nueva-logistica');
     toast(`✅ Logística creada con ${jornadasToInsert.length} jornadas`);
     loadLogisticas();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function enviarMailSeguro(logId) {
+  try {
+    // Traer jornadas de esta logística con personal_id único
+    const jornadas = await sb('jornadas', {
+      filters: [`logistica_id=eq.${logId}`],
+      select: 'personal_id',
+      limit: 500,
+    });
+    const persIds = [...new Set(jornadas.map(j => j.personal_id))];
+    if (!persIds.length) { toast('Sin personal en esta logística', 'err'); return; }
+
+    // Traer datos de personal
+    const personal = await sb('personal', {
+      filters: [`id=in.(${persIds.join(',')})`],
+      select: 'apellido,nombre,dni,cuit,fecha_nacimiento',
+      order: 'apellido',
+      limit: 200,
+    });
+
+    // Traer info del evento para el asunto
+    const logRow = await sb('logisticas', { filters: [`id=eq.${logId}`], limit: 1 });
+    const ev = logRow[0]?.evento_id ? (evCache||[]).find(e => e.id === logRow[0].evento_id) : null;
+    const evLabel = ev ? (ev.venue || ev.codigo || `Evento #${ev.id}`) : `Logística #${logId}`;
+
+    const filas = personal.map(p => {
+      const nacStr = p.fecha_nacimiento
+        ? new Date(p.fecha_nacimiento + 'T12:00:00').toLocaleDateString('es-AR')
+        : '—';
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.apellido || '—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.nombre || '—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.dni || '—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.cuit || '—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${nacStr}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+        <div style="background:#1A1A2E;padding:20px 24px;border-radius:8px 8px 0 0">
+          <h2 style="color:#c9a84c;margin:0;font-size:18px">GROSSO ARGENTINA</h2>
+          <p style="color:#aaa;margin:4px 0 0;font-size:13px">Soluciones Tecnológicas para Eventos</p>
+        </div>
+        <div style="background:#f9f9f9;padding:24px;border-radius:0 0 8px 8px">
+          <p style="margin:0 0 16px;font-size:14px;color:#333">
+            Se adjunta el listado de personal para cobertura de seguro correspondiente a:<br>
+            <strong>${evLabel}</strong>
+          </p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <thead>
+              <tr style="background:#1A1A2E;color:#c9a84c">
+                <th style="padding:10px 12px;text-align:left">Apellido</th>
+                <th style="padding:10px 12px;text-align:left">Nombre</th>
+                <th style="padding:10px 12px;text-align:left">DNI</th>
+                <th style="padding:10px 12px;text-align:left">CUIT</th>
+                <th style="padding:10px 12px;text-align:left">Fecha Nac.</th>
+              </tr>
+            </thead>
+            <tbody>${filas}</tbody>
+          </table>
+          <p style="margin:20px 0 0;font-size:12px;color:#999">
+            Grosso Argentina · administracion@grossoarg.com · Lomas de Zamora, Buenos Aires
+          </p>
+        </div>
+      </div>`;
+
+    toast('Enviando mail de seguro...');
+    const res = await fetch(EMAIL_EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SB_KEY}`, 'apikey': SB_KEY },
+      body: JSON.stringify({
+        to: EMAIL_SEGURO,
+        subject: `Seguro personal — ${evLabel}`,
+        html,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
+    else toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -2689,12 +2776,14 @@ function abrirModalPersonal() {
   document.getElementById('pers-nombre').value   = '';
   document.getElementById('pers-dni').value      = '';
   document.getElementById('pers-tipo').value     = 'Fijo';
-  document.getElementById('pers-sueldo').value   = '';
-  document.getElementById('pers-dep').value      = '';
-  document.getElementById('pers-arm').value      = '';
-  document.getElementById('pers-op').value       = '';
-  document.getElementById('pers-tel').value      = '';
-  document.getElementById('pers-notas').value    = '';
+  document.getElementById('pers-sueldo').value    = '';
+  document.getElementById('pers-dep').value       = '';
+  document.getElementById('pers-arm').value       = '';
+  document.getElementById('pers-op').value        = '';
+  document.getElementById('pers-tel').value       = '';
+  document.getElementById('pers-cuit').value      = '';
+  document.getElementById('pers-nacimiento')._flatpickr?.clear();
+  document.getElementById('pers-notas').value     = '';
   onPersTipoChange();
   openModal('modal-personal');
 }
@@ -2708,12 +2797,15 @@ function editarPersonal(id) {
     document.getElementById('pers-nombre').value   = p.nombre || '';
     document.getElementById('pers-dni').value      = p.dni || '';
     document.getElementById('pers-tipo').value     = p.tipo || 'Fijo';
-    document.getElementById('pers-sueldo').value   = p.sueldo_fijo || '';
-    document.getElementById('pers-dep').value      = p.tarifa_deposito || '';
-    document.getElementById('pers-arm').value      = p.tarifa_armado || '';
-    document.getElementById('pers-op').value       = p.tarifa_operador || '';
-    document.getElementById('pers-tel').value      = p.telefono || '';
-    document.getElementById('pers-notas').value    = p.notas || '';
+    document.getElementById('pers-sueldo').value    = p.sueldo_fijo || '';
+    document.getElementById('pers-dep').value       = p.tarifa_deposito || '';
+    document.getElementById('pers-arm').value       = p.tarifa_armado || '';
+    document.getElementById('pers-op').value        = p.tarifa_operador || '';
+    document.getElementById('pers-tel').value       = p.telefono || '';
+    document.getElementById('pers-cuit').value      = p.cuit || '';
+    if (p.fecha_nacimiento) document.getElementById('pers-nacimiento')._flatpickr?.setDate(p.fecha_nacimiento);
+    else document.getElementById('pers-nacimiento')._flatpickr?.clear();
+    document.getElementById('pers-notas').value     = p.notas || '';
     onPersTipoChange();
     openModal('modal-personal');
   });
@@ -2734,8 +2826,10 @@ async function guardarPersonal() {
     tarifa_deposito: tipo !== 'Fijo' ? (parseFloat(document.getElementById('pers-dep').value) || 0) : null,
     tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
     tarifa_operador: parseFloat(document.getElementById('pers-op').value) || 0,
-    telefono:        document.getElementById('pers-tel').value || null,
-    notas:           document.getElementById('pers-notas').value || null,
+    telefono:         document.getElementById('pers-tel').value || null,
+    cuit:             document.getElementById('pers-cuit').value || null,
+    fecha_nacimiento: document.getElementById('pers-nacimiento').value || null,
+    notas:            document.getElementById('pers-notas').value || null,
   };
   try {
     if (id) {
