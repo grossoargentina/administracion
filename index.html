@@ -2612,26 +2612,23 @@ async function generarPresupuesto() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     let accessToken = session?.provider_token;
 
-    // Si el access token expiró, refrescarlo con el refresh token
-    if (!accessToken && session?.provider_refresh_token) {
-      try {
-        const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: '664461187683-b145984eib5l1k1h2e0up30dvs86k50i.apps.googleusercontent.com',
-            grant_type: 'refresh_token',
-            refresh_token: session.provider_refresh_token,
-          }),
-        });
-        if (refreshRes.ok) {
-          const tokens = await refreshRes.json();
-          accessToken = tokens.access_token;
+    // Si no hay token, forzar re-login con Google para obtener uno nuevo
+    if (!accessToken) {
+      toast('Sesión de Google expirada. Reconectando...', 'warn');
+      // Guardar estado del modal para que no se pierda
+      sessionStorage.setItem('pdf_pending', '1');
+      await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.href,
+          scopes: 'https://www.googleapis.com/auth/drive',
+          queryParams: { access_type: 'offline', prompt: 'consent' },
         }
-      } catch(e) { console.warn('No se pudo refrescar token Drive:', e); }
+      });
+      return;
     }
 
-    console.log('Token Drive:', accessToken ? 'OK (' + accessToken.substring(0,20) + '...)' : 'NO DISPONIBLE');
+    console.log('Token Drive: OK (' + accessToken.substring(0,20) + '...');
 
     let pdfUrl = null;
 
