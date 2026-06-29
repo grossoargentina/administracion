@@ -1653,7 +1653,7 @@ async function loadDashboard() {
 
       // Logísticas de este evento
       const logIds = logEvs.filter(le => le.evento_id === ev.id).map(le => le.logistica_id);
-      const logsEvento = logisticas.filter(l => logIds.includes(l.id));
+      const logsEvento = logisticas.filter(l => logIds.includes(l.id) || l.evento_id === ev.id);
 
       // Jornadas de este evento
       const jornadasEv = jornadas.filter(j => j.evento_id === ev.id);
