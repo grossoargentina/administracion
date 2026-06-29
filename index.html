@@ -534,7 +534,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Monto</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>Concepto</th><th>Categoría</th><th>Vence</th><th>Saldo ARS</th><th>Saldo USD</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
             <tbody id="imp-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
@@ -761,6 +761,10 @@ textarea.inp { resize: vertical; min-height: 80px; }
         <div class="field"><label class="lbl">Monto ARS</label><input class="inp" type="number" id="imp-monto" placeholder="0"></div>
         <div class="field"><label class="lbl">Monto USD</label><input class="inp" type="number" id="imp-monto-usd" placeholder="0"></div>
         <div class="field full"><label class="lbl">Notas</label><input class="inp" id="imp-notas" placeholder="Opcional"></div>
+        <div class="field full" style="display:flex;align-items:center;gap:10px;padding:6px 0">
+          <input type="checkbox" id="imp-por-tarjeta" style="width:16px;height:16px;accent-color:var(--gold)">
+          <label for="imp-por-tarjeta" class="lbl" style="margin:0;cursor:pointer">Se paga por tarjeta (no suma al total)</label>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1630,13 +1634,21 @@ function renderImpuestos() {
   const hoy  = new Date();
   const lista = todosImpuestos.filter(i => i.mes === mesNombre && i.anio === impAnio);
 
-  const pagados  = lista.filter(i => i.pagado).length;
-  const totalARS = lista.reduce((s,i) => s + Number(i.monto_ars||0), 0);
-  const totalUSD = lista.reduce((s,i) => s + Number(i.monto_usd||0), 0);
-  const vencidos = lista.filter(i => !i.pagado && esVencido(i, hoy)).length;
+  const pagados    = lista.filter(i => i.pagado).length;
+  const totalARS   = lista.filter(i => !i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_ars||0), 0);
+  const totalUSD   = lista.filter(i => !i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_usd||0), 0);
+  const tarjetaARS = lista.filter(i => i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_ars||0), 0);
+  const tarjetaUSD = lista.filter(i => i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_usd||0), 0);
+  const vencidos   = lista.filter(i => !i.pagado && esVencido(i, hoy)).length;
+
+  const tarjetaLabel = [
+    tarjetaARS ? fmtARS(tarjetaARS) : '',
+    tarjetaUSD ? `U$D ${tarjetaUSD.toLocaleString('es-AR',{minimumFractionDigits:2})}` : '',
+  ].filter(Boolean).join(' + ');
 
   document.getElementById('imp-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total ARS del mes</div><div class="kpi-value gold">${fmtARS(totalARS)}</div></div>
+    ${tarjetaLabel ? `<div class="kpi"><div class="kpi-label">Por tarjeta (excluido)</div><div class="kpi-value" style="color:var(--text-2)">${tarjetaLabel}</div></div>` : ''}
     ${totalUSD ? `<div class="kpi"><div class="kpi-label">Total USD del mes</div><div class="kpi-value gold">U$D ${totalUSD.toLocaleString('es-AR',{minimumFractionDigits:2})}</div></div>` : ''}
     <div class="kpi"><div class="kpi-label">Pagados</div><div class="kpi-value green">${pagados} / ${lista.length}</div></div>
     <div class="kpi"><div class="kpi-label">Vencidos sin pagar</div><div class="kpi-value red">${vencidos}</div></div>
@@ -1644,7 +1656,7 @@ function renderImpuestos() {
 
   if (!lista.length) {
     document.getElementById('imp-tbody').innerHTML =
-      `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🗓️</div>Sin conceptos para ${mesNombre} ${impAnio}</div></td></tr>`;
+      `<tr><td colspan="8"><div class="empty"><div class="empty-icon">🗓️</div>Sin conceptos para ${mesNombre} ${impAnio}</div></td></tr>`;
     return;
   }
 
@@ -1663,7 +1675,7 @@ function renderImpuestos() {
     const items = grupos[sec];
     const totalSec = items.reduce((s,i) => s + Number(i.monto_ars||0), 0);
     html += `<tr>
-      <td colspan="7" style="background:var(--surface2);color:var(--gold);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:6px 10px">
+      <td colspan="8" style="background:var(--surface2);color:var(--gold);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:6px 10px">
         ${sec}${totalSec ? `<span style="float:right;color:var(--text-2)">${fmtARS(totalSec)}</span>` : ''}
       </td>
     </tr>`;
@@ -1697,11 +1709,10 @@ function renderImpuestos() {
         </td>
         <td><span style="font-size:11px;color:var(--text-2)">${i.categoria||''}</span></td>
         <td style="${diaColor}">${i.vence_dia ? `día ${i.vence_dia}` : '—'}</td>
-        <td>
-          ${i.monto_ars ? fmtARS(i.monto_ars) : ''}
-          ${i.monto_usd ? `<div style="font-size:11px;color:var(--text-2)">U$D ${Number(i.monto_usd).toFixed(2)}</div>` : ''}
-          ${!i.monto_ars && !i.monto_usd ? '<span style="color:var(--orange);font-size:11px">⚠️ Sin monto</span>' : ''}
+        <td>${i.monto_ars ? fmtARS(i.monto_ars) : '<span style="color:var(--text-3)">—</span>'}
+          ${i.paga_por_tarjeta ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px">💳 tarjeta</div>` : ''}
         </td>
+        <td>${i.monto_usd ? `U$D ${Number(i.monto_usd).toLocaleString('es-AR',{minimumFractionDigits:2})}` : '<span style="color:var(--text-3)">—</span>'}</td>
         <td>
           ${i.notas ? `<span style="font-size:11px;color:var(--text-2)">${i.notas}</span>` : '—'}
         </td>
@@ -1754,6 +1765,7 @@ function nuevoConceptoImp() {
   document.getElementById('imp-monto').value     = '';
   document.getElementById('imp-monto-usd').value = '';
   document.getElementById('imp-notas').value     = '';
+  document.getElementById('imp-por-tarjeta').checked = false;
   document.getElementById('imp-mes').value       = MESES_NAMES[impMesIdx];
   document.getElementById('imp-anio').value      = impAnio;
   actualizarCatImp();
@@ -1776,6 +1788,7 @@ function editarImpuesto(id) {
   document.getElementById('imp-monto').value         = i.monto_ars || '';
   document.getElementById('imp-monto-usd').value     = i.monto_usd || '';
   document.getElementById('imp-notas').value         = i.notas || '';
+  document.getElementById('imp-por-tarjeta').checked = !!i.paga_por_tarjeta;
   openModal('modal-impuesto');
 }
 
@@ -1793,7 +1806,8 @@ async function guardarImpuesto() {
     vence_dia: parseInt(document.getElementById('imp-vence').value) || null,
     monto_ars: parseFloat(document.getElementById('imp-monto').value) || null,
     monto_usd: parseFloat(document.getElementById('imp-monto-usd').value) || null,
-    notas:     document.getElementById('imp-notas').value.trim() || null,
+    notas:            document.getElementById('imp-notas').value.trim() || null,
+    paga_por_tarjeta: document.getElementById('imp-por-tarjeta').checked,
   };
   try {
     if (id) {
