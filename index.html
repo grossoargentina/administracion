@@ -555,7 +555,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>N°</th><th>Cliente</th><th>Evento</th><th>Total ARS</th><th>Modalidad</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>N°</th><th>Cliente</th><th>Evento</th><th>Total ARS</th><th>Modalidad</th><th>Estado</th><th></th></tr></thead>
             <tbody id="presup-tbody"><tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos generados aún</div></td></tr></tbody>
           </table>
         </div>
@@ -1812,22 +1812,128 @@ const FOTOS_CATALOGO = {
 let presItems = [];       // items seleccionados
 let catalogoCache = [];   // catálogo completo
 
+// ── CONFIRMAR PRESUPUESTO → crea evento en pipeline ─────
+async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaPct) {
+  const ui_confirm = confirm(`¿Confirmar el presupuesto de ${cliente}?\n\nEsto creará el evento en el pipeline como "Confirmado".`);
+  if (!ui_confirm) return;
+
+  try {
+    // Generar código de evento
+    const evCount = await sb('eventos', { select: 'id' });
+    const codigo  = 'EV' + String(evCount.length + 1).padStart(3,'0');
+
+    // Crear evento en pipeline
+    await sbPost('eventos', {
+      codigo,
+      estado:         'Confirmado',
+      cliente_nombre: cliente,
+      tipo_evento:    tipo || '',
+      fecha_evento:   fecha || null,
+      venue:          venue || '',
+      total_ars:      total || 0,
+      sena_pct:       senaPct || 30,
+      modalidad_pago: modalidad || 'Pago total al finalizar',
+      sena_cobrada:   false,
+      saldo_cobrado:  false,
+      created_at:     new Date().toISOString(),
+      updated_at:     new Date().toISOString(),
+    });
+
+    // Crear registro en PAGOS
+    const wsCount = await sb('pagos', { select: 'id' });
+    // (se crea automáticamente al confirmar)
+
+    // Actualizar estado del presupuesto
+    await sbPatch('presupuestos', id, {
+      estado_evento: 'Confirmado',
+      evento_codigo: codigo,
+    });
+
+    toast(`✅ Evento ${codigo} creado como Confirmado`);
+    loadPresupuestos();
+    // Actualizar caché de eventos
+    evCache = await sb('eventos', { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
+    llenarSelectEventos();
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+  }
+}
+
+// ── PERDER PRESUPUESTO ────────────────────────────────────
+async function perderPresupuesto(id, cliente) {
+  const motivos = [
+    'Precio', 'Ya tenía proveedor', 'No respondió',
+    'Fecha no disponible', 'Canceló el evento', 'Otro'
+  ];
+  const motivo = prompt(
+    `¿Por qué se perdió el presupuesto de ${cliente}?\n\n` +
+    motivos.map((m,i) => `${i+1}. ${m}`).join('\n') +
+    '\n\nIngresá el número o escribí el motivo:'
+  );
+  if (!motivo) return;
+
+  const motivoTexto = motivos[parseInt(motivo) - 1] || motivo;
+
+  try {
+    // Crear evento perdido en pipeline
+    const evCount = await sb('eventos', { select: 'id' });
+    const codigo  = 'EV' + String(evCount.length + 1).padStart(3,'0');
+
+    await sbPost('eventos', {
+      codigo,
+      estado:         'Perdido',
+      cliente_nombre: cliente,
+      motivo_perdida: motivoTexto,
+      created_at:     new Date().toISOString(),
+      updated_at:     new Date().toISOString(),
+    });
+
+    // Actualizar estado del presupuesto
+    await sbPatch('presupuestos', id, {
+      estado_evento: 'Perdido',
+      evento_codigo: codigo,
+    });
+
+    toast(`Presupuesto marcado como perdido — ${motivoTexto}`);
+    loadPresupuestos();
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+  }
+}
+
 // ── CARGAR LISTA DE PRESUPUESTOS ─────────────────────────
 async function loadPresupuestos() {
   try {
     const lista = await sb('presupuestos', { order: 'created_at.desc', limit: 50 });
     document.getElementById('presup-tbody').innerHTML = lista.length
-      ? lista.map(p => `<tr>
-          <td style="color:var(--text-2);font-size:12px">${fmtDate(p.created_at?.split('T')[0])}</td>
-          <td style="font-weight:600;color:var(--gold)">${p.numero}</td>
-          <td><b>${p.cliente}</b></td>
-          <td>${p.tipo_evento || '—'}</td>
-          <td style="font-weight:600">${fmtARS(p.total_ars)}</td>
-          <td style="font-size:12px;color:var(--text-2)">${p.modalidad || '—'}</td>
-          <td>
-            ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">Ver PDF</a>` : '—'}
-          </td>
-        </tr>`).join('')
+      ? lista.map(p => {
+          const estado = p.estado_evento || 'Pendiente';
+          const estadoColor = estado === 'Confirmado' ? 'var(--green)'
+            : estado === 'Perdido' ? 'var(--red)' : 'var(--text-3)';
+          return `<tr>
+            <td style="color:var(--text-2);font-size:12px">${fmtDate(p.created_at?.split('T')[0])}</td>
+            <td style="font-weight:600;color:var(--gold)">${p.numero}</td>
+            <td><b>${p.cliente}</b></td>
+            <td>${p.tipo_evento || '—'}</td>
+            <td style="font-weight:600">${fmtARS(p.total_ars)}</td>
+            <td style="font-size:12px;color:var(--text-2)">${p.modalidad || '—'}</td>
+            <td style="font-size:12px;font-weight:600;color:${estadoColor}">${estado}</td>
+            <td>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>` : ''}
+                ${estado === 'Pendiente' ? `
+                  <button class="btn btn-sm" style="background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)"
+                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30})">
+                    ✅ Confirmar
+                  </button>
+                  <button class="btn btn-sm btn-danger"
+                    onclick="perderPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\'")}')">
+                    ❌ Perder
+                  </button>` : ''}
+              </div>
+            </td>
+          </tr>`;
+        }).join('')
       : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún. Creá el primero.</div></td></tr>`;
   } catch(e) {
     document.getElementById('presup-tbody').innerHTML =
@@ -2489,6 +2595,7 @@ async function generarPresupuesto() {
         subtotal_ars: subtotal, total_ars: total,
         pdf_url: pdfUrl,
         nombre_archivo: nombreArchivo,
+        estado_evento: 'Pendiente',
       });
     } catch(e) { /* tabla puede no existir aún */ }
 
