@@ -1348,8 +1348,42 @@ async function initApp() {
   } catch(e) {}
 
   initDatePickers();
+  initRealtime();
   const lastPage = localStorage.getItem('lastPage') || 'dashboard';
   goTo(lastPage);
+}
+
+function initRealtime() {
+  // Mapa tabla → página que la usa
+  const tablaAPagina = {
+    eventos:    ['dashboard', 'eventos', 'cobros'],
+    jornadas:   ['jornadas', 'dashboard'],
+    logisticas: ['logistica'],
+    personal:   ['personal'],
+    cobros:     ['cobros', 'dashboard'],
+    costos_fijos: ['impuestos', 'dashboard'],
+    presupuestos: ['presupuestos', 'dashboard'],
+  };
+
+  let reloadTimer = null;
+  const reloadSiCorresponde = (tabla) => {
+    const paginas = tablaAPagina[tabla] || [];
+    if (!paginas.includes(currentPage)) return;
+    // Debounce: evitar múltiples reloads en ráfaga
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => loadPage(currentPage), 600);
+  };
+
+  supabaseClient
+    .channel('realtime-cambios')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'eventos' },    () => reloadSiCorresponde('eventos'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' },   () => reloadSiCorresponde('jornadas'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'logisticas' }, () => reloadSiCorresponde('logisticas'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'personal' },   () => reloadSiCorresponde('personal'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cobros' },     () => reloadSiCorresponde('cobros'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'costos_fijos'},() => reloadSiCorresponde('costos_fijos'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'presupuestos'},() => reloadSiCorresponde('presupuestos'))
+    .subscribe();
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────
