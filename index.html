@@ -1615,12 +1615,11 @@ async function loadDashboard() {
   cont.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const [eventos, logisticas, logEvs, jornadas, personal] = await Promise.all([
+    const [eventos, logisticas, logEvs, jornadas] = await Promise.all([
       sb('eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
       sb('logisticas', { limit: 200 }),
       sb('logistica_eventos', { limit: 500 }),
-      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], limit: 500 }),
-      sb('personal', { limit: 100 }),
+      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], select: 'id,evento_id,logistica_id,tipo,fecha,hora,personal_id,personal_nombre,personal_apellido', limit: 500 }),
     ]);
 
     if (!eventos.length) {
@@ -1655,32 +1654,54 @@ async function loadDashboard() {
       const logIds = logEvs.filter(le => le.evento_id === ev.id).map(le => le.logistica_id);
       const logsEvento = logisticas.filter(l => logIds.includes(l.id) || l.evento_id === ev.id);
 
-      // Jornadas de este evento
-      const jornadasEv = jornadas.filter(j => j.evento_id === ev.id);
+      // Jornadas de este evento (via logísticas asignadas)
+      const logIdsEv = logsEvento.map(l => l.id);
+      const jornadasEv = jornadas.filter(j => logIdsEv.includes(j.logistica_id) || j.evento_id === ev.id);
 
-      // Personal único
-      const persIds = [...new Set(jornadasEv.map(j => j.personal_id))];
-      const persNombres = persIds.map(id => {
-        const p = personal.find(x => x.id === id);
-        return p ? `${p.nombre} ${p.apellido}` : '';
-      }).filter(Boolean);
+      // Agrupar jornadas por tipo y fecha
+      const armados   = jornadasEv.filter(j => j.tipo === 'Armado/Desarmado');
+      const operadors = jornadasEv.filter(j => j.tipo === 'Operador');
+      const depositos = jornadasEv.filter(j => j.tipo === 'Depósito');
 
-      const logHtml = logsEvento.length
-        ? logsEvento.map(l => {
-            const jornsLog = jornadas.filter(j => j.logistica_id === l.id);
-            const tipos = [...new Set(jornsLog.map(j => j.tipo))].join(', ');
-            return `<div style="font-size:12px;color:var(--text-2);margin-top:4px">
-              <span style="color:var(--gold)">🗺 ${l.tipo || 'Logística'}</span>
-              ${tipos ? `<span style="color:var(--text-3);margin-left:8px">${tipos}</span>` : ''}
-            </div>`;
-          }).join('')
-        : '<div style="font-size:12px;color:var(--text-3);margin-top:4px">Sin logística asignada</div>';
+      // Subdividir armados por fecha (Armado 1, Armado 2… y Desarme = última fecha)
+      const fechasArmado = [...new Set(armados.map(j => j.fecha))].sort();
+      const fechaDesarme = fechasArmado.length > 1 ? fechasArmado[fechasArmado.length - 1] : null;
+      const fechasArmadoSolo = fechaDesarme ? fechasArmado.slice(0, -1) : fechasArmado;
 
-      const persHtml = persNombres.length
-        ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
-            ${persNombres.map(n => `<span style="font-size:11px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--text-2)">${n}</span>`).join('')}
-           </div>`
-        : '';
+      function renderColumna(titulo, jorns) {
+        if (!jorns.length) return `<div style="flex:1;min-width:120px;opacity:.35">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${titulo}</div>
+          <div style="font-size:11px;color:var(--text-3)">—</div>
+        </div>`;
+        const fecha = new Date(jorns[0].fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
+        const hora  = jorns[0].hora || '';
+        const pers  = [...new Map(jorns.map(j => [j.personal_id, `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim()])).values()].filter(Boolean);
+        return `<div style="flex:1;min-width:120px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:6px">${titulo}</div>
+          <div style="font-size:12px;color:var(--text-1);margin-bottom:2px">${fecha}</div>
+          ${hora ? `<div style="font-size:11px;color:var(--text-2);margin-bottom:4px">🕐 ${hora}</div>` : ''}
+          <div style="display:flex;flex-wrap:wrap;gap:3px">
+            ${pers.map(n => `<span style="font-size:10px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--text-2)">${n}</span>`).join('')}
+          </div>
+        </div>`;
+      }
+
+      // Construir columnas
+      const colsArmado = fechasArmadoSolo.map((f, i) => {
+        const titulo = fechasArmadoSolo.length > 1 ? `Armado ${i+1}` : 'Armado';
+        return renderColumna(titulo, armados.filter(j => j.fecha === f));
+      });
+      const colDesarme = renderColumna('Desarme', fechaDesarme ? armados.filter(j => j.fecha === fechaDesarme) : []);
+      const colOperador = renderColumna('Operador', operadors);
+      const colDeposito = depositos.length ? renderColumna('Depósito', depositos) : '';
+
+      const columnsHtml = `
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          ${colsArmado.join('')}
+          ${colDesarme}
+          ${colOperador}
+          ${colDeposito}
+        </div>`;
 
       const items = presByEvento[ev.id] || [];
       const productosHtml = items.length
@@ -1693,7 +1714,7 @@ async function loadDashboard() {
         : '';
 
       return `<div class="card" style="margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
           <div>
             <div style="font-weight:700;font-size:16px">${ev.venue || '—'}</div>
             <div style="color:var(--text-2);font-size:13px">${ev.cliente_nombre || ev.cliente || ''}</div>
@@ -1703,8 +1724,7 @@ async function loadDashboard() {
             <div style="font-size:12px;color:var(--text-2);margin-top:2px">${fecha}</div>
           </div>
         </div>
-        ${logHtml}
-        ${persHtml}
+        ${columnsHtml}
         ${productosHtml}
       </div>`;
     }).join('');
