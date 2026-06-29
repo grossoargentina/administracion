@@ -2491,7 +2491,7 @@ function renderDiasLog() {
         <input type="checkbox" ${d.personal.includes(p.id)?'checked':''} onchange="togglePersonalDia(${d.id},${p.id})">
         ${p.apellido} ${p.nombre}
       </label>`).join('');
-    const choferes = (persCache || []).filter(p => p.tipo === 'Chofer' && p.activo !== false);
+    const choferes = (persCache || []).filter(p => p.activo !== false);
     const choferOpts = `<option value="">— Chofer —</option>` + choferes.map(p => `<option value="${p.apellido} ${p.nombre}" ${d.flete_personal === p.apellido+' '+p.nombre ? 'selected' : ''}>${p.apellido} ${p.nombre}</option>`).join('') + `<option value="__otro__" ${d.flete_personal && !choferes.some(p=>p.apellido+' '+p.nombre===d.flete_personal)?'selected':''}>Otro...</option>`;
     const fleteExtra = d.transporte === 'Flete' ? `
       <select class="inp" style="width:160px" onchange="onFleteChofer(${d.id},this.value)">${choferOpts}</select>
