@@ -1310,6 +1310,7 @@ async function sb(table, opts = {}) {
 }
 
 async function sbPost(table, body) { return sb(table, { method: 'POST', body }); }
+async function sbInsert(table, body) { return sbPost(table, body); }
 async function sbPatch(table, id, body) {
   const res = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
     method: 'PATCH',
