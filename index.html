@@ -425,6 +425,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('pagos')">
         <span class="nav-icon">💸</span> Pagos
       </div>
+      <div class="nav-item" onclick="goTo('caja')">
+        <span class="nav-icon">🏦</span> Caja
+      </div>
       <div class="nav-item" onclick="goTo('impuestos')">
         <span class="nav-icon">🗓️</span> Impuestos
       </div>
@@ -582,6 +585,35 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <table>
             <thead><tr><th>Evento</th><th>Fecha</th><th>Días</th><th>Personal</th><th>Notas</th><th></th></tr></thead>
             <tbody id="log-lista-tbody"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAJA -->
+    <div class="page" id="p-caja">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Caja de oficina</div>
+          <div class="page-sub">Efectivo e ingresos / egresos</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="abrirModalCaja('egreso')">− Egreso</button>
+          <button class="btn btn-primary" onclick="abrirModalCaja('ingreso')">+ Ingreso</button>
+        </div>
+      </div>
+      <!-- KPIs -->
+      <div class="kpi-grid" style="margin-bottom:20px">
+        <div class="kpi"><div class="kpi-label">Saldo actual</div><div class="kpi-value" id="caja-saldo">—</div></div>
+        <div class="kpi"><div class="kpi-label">Total ingresos</div><div class="kpi-value" style="color:var(--green)" id="caja-total-ing">—</div></div>
+        <div class="kpi"><div class="kpi-label">Total egresos</div><div class="kpi-value" style="color:var(--red)" id="caja-total-eg">—</div></div>
+      </div>
+      <!-- Movimientos -->
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th>Monto</th><th>Saldo</th><th></th></tr></thead>
+            <tbody id="caja-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -815,6 +847,28 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-jornada')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarJornadas()">Guardar jornadas</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CAJA -->
+<div class="modal-overlay" id="modal-caja">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="caja-modal-title">Registrar movimiento</span>
+      <button class="modal-close" onclick="closeModal('modal-caja')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="caja-tipo">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="caja-desc" placeholder="Ej: Compra materiales, Pago servicio..."></div>
+        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="caja-monto" placeholder="0"></div>
+        <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="caja-fecha"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-caja')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarMovimientoCaja()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1331,6 +1385,7 @@ async function loadPage(page) {
     case 'jornadas':   loadJornadas(); break;
     case 'logistica':  loadLogisticas(); break;
     case 'pagos':      loadPagos(); break;
+    case 'caja':       loadCaja(); break;
     case 'personal':   loadPersonal(); break;
     case 'impuestos':  loadImpuestos(); break;
     case 'presupuestos': loadPresupuestos(); break;
@@ -2945,6 +3000,75 @@ function generarReciboIndividual(p) {
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
     });
+}
+
+// ── CAJA ──────────────────────────────────────────────────
+async function loadCaja() {
+  try {
+    const movs = await sb('caja', { order: 'fecha.asc,created_at.asc', limit: 500 });
+    let saldo = 0, totalIng = 0, totalEg = 0;
+    const rows = movs.map(m => {
+      const delta = m.tipo === 'ingreso' ? m.monto : -m.monto;
+      if (m.tipo === 'ingreso') totalIng += m.monto; else totalEg += m.monto;
+      saldo += delta;
+      const color = m.tipo === 'ingreso' ? 'var(--green)' : 'var(--red)';
+      const signo = m.tipo === 'ingreso' ? '+' : '-';
+      const fechaFmt = new Date(m.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+      const saldoColor = saldo >= 0 ? 'var(--green)' : 'var(--red)';
+      return `<tr>
+        <td>${fechaFmt}</td>
+        <td>${m.descripcion}</td>
+        <td><span style="color:${color};font-weight:600;text-transform:capitalize">${m.tipo}</span></td>
+        <td style="color:${color};font-weight:600">${signo} ${fmtARS(m.monto)}</td>
+        <td style="color:${saldoColor};font-weight:600">${fmtARS(saldo)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="eliminarMovimientoCaja('${m.id}')">✕</button></td>
+      </tr>`;
+    });
+    document.getElementById('caja-tbody').innerHTML = rows.length
+      ? rows.reverse().join('')  // mostrar más reciente arriba
+      : '<tr><td colspan="6" style="text-align:center;color:var(--text-3)">Sin movimientos</td></tr>';
+    document.getElementById('caja-saldo').textContent = fmtARS(saldo);
+    document.getElementById('caja-saldo').style.color = saldo >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('caja-total-ing').textContent = fmtARS(totalIng);
+    document.getElementById('caja-total-eg').textContent = fmtARS(totalEg);
+  } catch(e) { toast('Error cargando caja: ' + e.message, true); }
+}
+
+function abrirModalCaja(tipo) {
+  document.getElementById('caja-tipo').value = tipo;
+  document.getElementById('caja-modal-title').textContent = tipo === 'ingreso' ? '+ Registrar ingreso' : '− Registrar egreso';
+  document.getElementById('caja-desc').value = '';
+  document.getElementById('caja-monto').value = '';
+  const fpFecha = document.getElementById('caja-fecha')._flatpickr;
+  if (fpFecha) fpFecha.setDate(new Date());
+  else document.getElementById('caja-fecha').value = new Date().toISOString().split('T')[0];
+  openModal('modal-caja');
+  setTimeout(() => initDatePickers(document.getElementById('modal-caja')), 50);
+}
+
+async function guardarMovimientoCaja() {
+  const tipo = document.getElementById('caja-tipo').value;
+  const desc = document.getElementById('caja-desc').value.trim();
+  const monto = parseFloat(document.getElementById('caja-monto').value);
+  const fecha = document.getElementById('caja-fecha').value;
+  if (!desc) { toast('Ingresá una descripción', true); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', true); return; }
+  if (!fecha) { toast('Seleccioná una fecha', true); return; }
+  try {
+    await sbInsert('caja', { tipo, descripcion: desc, monto, fecha });
+    closeModal('modal-caja');
+    toast('✅ Movimiento registrado');
+    loadCaja();
+  } catch(e) { toast('Error: ' + e.message, true); }
+}
+
+async function eliminarMovimientoCaja(id) {
+  if (!confirm('¿Eliminar este movimiento?')) return;
+  try {
+    await sbDelete('caja', id);
+    toast('Movimiento eliminado');
+    loadCaja();
+  } catch(e) { toast('Error: ' + e.message, true); }
 }
 
 // ── PERSONAL ──────────────────────────────────────────────
