@@ -406,8 +406,28 @@ textarea.inp { resize: vertical; min-height: 80px; }
           <div class="page-title">Dashboard</div>
           <div class="page-sub" id="dash-fecha"></div>
         </div>
-
       </div>
+
+      <!-- Navegación mes -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <button class="btn btn-ghost btn-sm" onclick="dashMesAnterior()">‹</button>
+        <span id="dash-mes-label" style="font-weight:600;font-size:15px;min-width:130px;text-align:center"></span>
+        <button class="btn btn-ghost btn-sm" onclick="dashMesSiguiente()">›</button>
+      </div>
+
+      <!-- KPIs mensuales -->
+      <div style="margin-bottom:6px;font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px">Resultado mensual</div>
+      <div class="kpi-grid" id="dash-kpis-mes" style="margin-bottom:24px">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+
+      <!-- KPIs anuales -->
+      <div style="margin-bottom:6px;font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px" id="dash-anio-label"></div>
+      <div class="kpi-grid" id="dash-kpis-anio" style="margin-bottom:28px">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+
+      <!-- Pipeline -->
       <div class="kpi-grid" id="dash-kpis">
         <div class="loading"><div class="spinner"></div> Cargando...</div>
       </div>
@@ -424,7 +444,7 @@ textarea.inp { resize: vertical; min-height: 80px; }
         </div>
       </div>
       <div class="card">
-        <div class="card-header"><span class="card-title">Cobros pendientes urgentes</span></div>
+        <div class="card-header"><span class="card-title">Cobros pendientes</span></div>
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Pendiente</th><th>Estado cobro</th></tr></thead>
@@ -1150,18 +1170,84 @@ async function initApp() {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────
+let dashMesIdx = new Date().getMonth();
+let dashAnio   = new Date().getFullYear();
+
+function dashMesAnterior()  { if (dashMesIdx === 0) { dashMesIdx = 11; dashAnio--; } else dashMesIdx--; loadDashboard(); }
+function dashMesSiguiente() { if (dashMesIdx === 11) { dashMesIdx = 0; dashAnio++; } else dashMesIdx++; loadDashboard(); }
+
 async function loadDashboard() {
   try {
-    const [eventos, cobros] = await Promise.all([
-      sb('v_pipeline', { limit: 50 }),
+    const mesNombre = MESES_NAMES[dashMesIdx];
+    document.getElementById('dash-mes-label').textContent = `${mesNombre} ${dashAnio}`;
+    document.getElementById('dash-anio-label').textContent = `Resultado anual ${dashAnio}`;
+
+    const [eventos, cobros, costosFijos, jornadas] = await Promise.all([
+      sb('v_pipeline', { limit: 500 }),
       sb('v_cobros_pendientes', { limit: 5 }),
+      sb('costos_fijos', { limit: 2000 }),
+      sb('jornadas', { limit: 2000 }),
     ]);
 
-    // KPIs
-    const cotizados   = eventos.filter(e => e.estado === 'Cotizado').length;
-    const confirmados = eventos.filter(e => e.estado === 'Confirmado').length;
-    const logistica   = eventos.filter(e => e.estado === 'En logística').length;
-    const realizados  = eventos.filter(e => e.estado === 'Realizado').length;
+    // ── Financiero mensual ────────────────────────────────
+    const eventosMes = eventos.filter(e => {
+      if (!e.fecha_evento || !['Confirmado','En logística','Realizado'].includes(e.estado)) return false;
+      const d = new Date(e.fecha_evento + 'T12:00:00');
+      return d.getMonth() === dashMesIdx && d.getFullYear() === dashAnio;
+    });
+    const ingresosMes = eventosMes.reduce((s,e) => s + Number(e.total_ars||0), 0);
+
+    const costosFijosMes = costosFijos
+      .filter(c => c.mes === mesNombre && c.anio === dashAnio)
+      .reduce((s,c) => s + Number(c.monto_ars||0), 0);
+
+    const jornadasMes = jornadas.filter(j => {
+      if (!j.fecha) return false;
+      const d = new Date(j.fecha + 'T12:00:00');
+      return d.getMonth() === dashMesIdx && d.getFullYear() === dashAnio;
+    }).reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+
+    const costosMes  = costosFijosMes + jornadasMes;
+    const resultadoMes = ingresosMes - costosMes;
+
+    document.getElementById('dash-kpis-mes').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Ingresos</div><div class="kpi-value green">${fmtARS(ingresosMes)}</div></div>
+      <div class="kpi"><div class="kpi-label">Costos fijos</div><div class="kpi-value" style="color:var(--red)">${fmtARS(costosFijosMes)}</div></div>
+      <div class="kpi"><div class="kpi-label">Jornadas</div><div class="kpi-value" style="color:var(--red)">${fmtARS(jornadasMes)}</div></div>
+      <div class="kpi"><div class="kpi-label">Resultado</div><div class="kpi-value ${resultadoMes >= 0 ? 'green' : 'red'}">${fmtARS(resultadoMes)}</div></div>
+    `;
+
+    // ── Financiero anual ──────────────────────────────────
+    const eventosAnio = eventos.filter(e => {
+      if (!e.fecha_evento || !['Confirmado','En logística','Realizado'].includes(e.estado)) return false;
+      return new Date(e.fecha_evento + 'T12:00:00').getFullYear() === dashAnio;
+    });
+    const ingresosAnio = eventosAnio.reduce((s,e) => s + Number(e.total_ars||0), 0);
+
+    const costosFijosAnio = costosFijos
+      .filter(c => c.anio === dashAnio)
+      .reduce((s,c) => s + Number(c.monto_ars||0), 0);
+
+    const jornadasAnio = jornadas.filter(j => {
+      if (!j.fecha) return false;
+      return new Date(j.fecha + 'T12:00:00').getFullYear() === dashAnio;
+    }).reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+
+    const costosAnio    = costosFijosAnio + jornadasAnio;
+    const resultadoAnio = ingresosAnio - costosAnio;
+
+    document.getElementById('dash-kpis-anio').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Ingresos ${dashAnio}</div><div class="kpi-value green">${fmtARS(ingresosAnio)}</div></div>
+      <div class="kpi"><div class="kpi-label">Costos fijos ${dashAnio}</div><div class="kpi-value" style="color:var(--red)">${fmtARS(costosFijosAnio)}</div></div>
+      <div class="kpi"><div class="kpi-label">Jornadas ${dashAnio}</div><div class="kpi-value" style="color:var(--red)">${fmtARS(jornadasAnio)}</div></div>
+      <div class="kpi"><div class="kpi-label">Resultado ${dashAnio}</div><div class="kpi-value ${resultadoAnio >= 0 ? 'green' : 'red'}">${fmtARS(resultadoAnio)}</div></div>
+    `;
+
+    // ── Pipeline ──────────────────────────────────────────
+    const cotizados      = eventos.filter(e => e.estado === 'Cotizado').length;
+    const confirmados    = eventos.filter(e => e.estado === 'Confirmado').length;
+    const logistica      = eventos.filter(e => e.estado === 'En logística').length;
+    const realizados     = eventos.filter(e => e.estado === 'Realizado').length;
     const pendienteTotal = cobros.reduce((s,c) => s + Number(c.pendiente_ars||0), 0);
 
     document.getElementById('dash-kpis').innerHTML = `
@@ -1172,10 +1258,16 @@ async function loadDashboard() {
       <div class="kpi"><div class="kpi-label">Por cobrar</div><div class="kpi-value gold">${fmtARS(pendienteTotal)}</div></div>
     `;
 
-    // Próximos eventos (solo confirmados/logística)
+    // ── Próximos eventos ──────────────────────────────────
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const en2semanas = new Date(hoy); en2semanas.setDate(hoy.getDate() + 14);
     const proximos = eventos
-      .filter(e => ['Confirmado','En logística'].includes(e.estado))
-      .slice(0, 6);
+      .filter(e => {
+        if (!['Confirmado','En logística'].includes(e.estado) || !e.fecha_evento) return false;
+        const d = new Date(e.fecha_evento + 'T12:00:00');
+        return d >= hoy && d <= en2semanas;
+      })
+      .sort((a,b) => a.fecha_evento.localeCompare(b.fecha_evento));
 
     document.getElementById('dash-tbody').innerHTML = proximos.length
       ? proximos.map(e => `<tr>
@@ -1188,7 +1280,7 @@ async function loadDashboard() {
         </tr>`).join('')
       : `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📅</div>Sin eventos próximos confirmados</div></td></tr>`;
 
-    // Cobros urgentes
+    // ── Cobros urgentes ───────────────────────────────────
     document.getElementById('dash-cobros').innerHTML = cobros.length
       ? cobros.map(c => `<tr>
           <td><b>${c.cliente_nombre}</b></td>
