@@ -1616,7 +1616,7 @@ async function loadDashboard() {
 
   try {
     const [eventos, logisticas, logEvs, jornadas, personal] = await Promise.all([
-      sb('eventos', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], order: 'fecha.asc', limit: 100 }),
+      sb('eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
       sb('logisticas', { limit: 200 }),
       sb('logistica_eventos', { limit: 500 }),
       sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], limit: 500 }),
@@ -1648,7 +1648,7 @@ async function loadDashboard() {
     const estadoColor = { 'Cotizado':'var(--text-3)', 'Confirmado':'var(--blue)', 'En logística':'var(--orange)', 'Realizado':'var(--green)', 'Cancelado':'var(--red)' };
 
     cont.innerHTML = eventos.map(ev => {
-      const fecha = new Date(ev.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
+      const fecha = new Date((ev.fecha_evento || ev.fecha) + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
       const color = estadoColor[ev.estado] || 'var(--text-2)';
 
       // Logísticas de este evento
