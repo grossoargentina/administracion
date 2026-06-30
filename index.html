@@ -1566,7 +1566,6 @@ async function initApp() {
   try {
     persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
     evCache   = await sb('eventos',  { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
-    llenarSelectPersonal();
     llenarSelectEventos();
     ['ev-horario','ev-hora-armado','ev-hora-desarme'].forEach(id => {
       const el = document.getElementById(id);
@@ -2038,7 +2037,6 @@ async function loadJornadas() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-function llenarSelectPersonal() {}
 
 function buildTimeOpts(selected) {
   const opts = ['<option value="">— Hora —</option>'];
@@ -2941,7 +2939,7 @@ async function enviarMailSeguroEvento(eventoId, evLabel) {
       const ev = (evCache || []).find(e => e.id === eventoId);
       if (ev) ev.seguro_enviado = true;
       toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
-      loadFechas();
+      loadDashboard();
     } else {
       toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
     }
@@ -3546,7 +3544,7 @@ async function confirmarPagoPersona(metodo) {
     }
     toast(`✅ Pago registrado${metodo === 'efectivo' ? ' — egreso descontado de caja' : ''}`);
     loadPagos();
-  } catch(e) { toast('Error: ' + e.message, true); }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 function generarReciboIndividual(p) {
@@ -3697,7 +3695,7 @@ async function loadFinanzas() {
         }).join('')
       : '<div style="color:var(--text-3);font-size:13px">Sin movimientos de capital en este período</div>';
 
-  } catch(e) { toast('Error cargando finanzas: ' + e.message, true); }
+  } catch(e) { toast('Error cargando finanzas: ' + e.message, 'err'); }
 }
 
 function abrirModalCapital(tipo) {
@@ -3717,15 +3715,15 @@ async function guardarCapital() {
   const desc = document.getElementById('capital-desc').value.trim();
   const monto = parseFloat(document.getElementById('capital-monto').value);
   const fecha = document.getElementById('capital-fecha').value;
-  if (!desc) { toast('Ingresá una descripción', true); return; }
-  if (!monto || monto <= 0) { toast('Ingresá un monto válido', true); return; }
-  if (!fecha) { toast('Seleccioná una fecha', true); return; }
+  if (!desc) { toast('Ingresá una descripción', 'err'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
+  if (!fecha) { toast('Seleccioná una fecha', 'err'); return; }
   try {
     await sbInsert('capital', { tipo, descripcion: desc, monto, fecha });
     closeModal('modal-capital');
     toast('✅ Movimiento de capital registrado');
     loadFinanzas();
-  } catch(e) { toast('Error: ' + e.message, true); }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 async function eliminarCapital(id) {
@@ -3734,7 +3732,7 @@ async function eliminarCapital(id) {
     await sbDelete('capital', id);
     toast('Eliminado');
     loadFinanzas();
-  } catch(e) { toast('Error: ' + e.message, true); }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 // ── MENSAJES WHATSAPP ─────────────────────────────────────
@@ -3761,7 +3759,7 @@ async function loadMensajes() {
           </tr>`;
         }).join('')
       : '<tr><td colspan="4" style="text-align:center;color:var(--text-3)">Sin mensajes recibidos</td></tr>';
-  } catch(e) { toast('Error cargando mensajes: ' + e.message, true); }
+  } catch(e) { toast('Error cargando mensajes: ' + e.message, 'err'); }
 }
 
 async function marcarLeido(id) {
@@ -3820,7 +3818,7 @@ async function loadCaja() {
     document.getElementById('caja-saldo').style.color = saldo >= 0 ? 'var(--green)' : 'var(--red)';
     document.getElementById('caja-total-ing').textContent = fmtARS(totalIng);
     document.getElementById('caja-total-eg').textContent = fmtARS(totalEg);
-  } catch(e) { toast('Error cargando caja: ' + e.message, true); }
+  } catch(e) { toast('Error cargando caja: ' + e.message, 'err'); }
 }
 
 function abrirModalCaja(tipo) {
@@ -3840,15 +3838,15 @@ async function guardarMovimientoCaja() {
   const desc = document.getElementById('caja-desc').value.trim();
   const monto = parseFloat(document.getElementById('caja-monto').value);
   const fecha = document.getElementById('caja-fecha').value;
-  if (!desc) { toast('Ingresá una descripción', true); return; }
-  if (!monto || monto <= 0) { toast('Ingresá un monto válido', true); return; }
-  if (!fecha) { toast('Seleccioná una fecha', true); return; }
+  if (!desc) { toast('Ingresá una descripción', 'err'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
+  if (!fecha) { toast('Seleccioná una fecha', 'err'); return; }
   try {
     await sbInsert('caja', { tipo, descripcion: desc, monto, fecha });
     closeModal('modal-caja');
     toast('✅ Movimiento registrado');
     loadCaja();
-  } catch(e) { toast('Error: ' + e.message, true); }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 async function eliminarMovimientoCaja(id) {
@@ -3857,7 +3855,7 @@ async function eliminarMovimientoCaja(id) {
     await sbDelete('caja', id);
     toast('Movimiento eliminado');
     loadCaja();
-  } catch(e) { toast('Error: ' + e.message, true); }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 // ── PERSONAL ──────────────────────────────────────────────
@@ -3966,7 +3964,6 @@ async function guardarPersonal() {
     }
     closeModal('modal-personal');
     persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
-    llenarSelectPersonal();
     loadPersonal();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -4384,7 +4381,7 @@ function blobToBase64(blob) {
 async function subirFotoProducto(codigo) {
   if (!window._fotoBlob) return;
   const token = await getDriveToken();
-  if (!token) { toast('Sin acceso a Drive para subir foto', true); return; }
+  if (!token) { toast('Sin acceso a Drive para subir foto', 'err'); return; }
   const nombre = `${codigo}.jpg`;
   // Buscar si ya existe para sobreescribir
   try {
@@ -4408,7 +4405,7 @@ async function subirFotoProducto(codigo) {
         { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
     }
     catalogoCache = [];
-  } catch(e) { toast('Error subiendo foto: ' + e.message, true); }
+  } catch(e) { toast('Error subiendo foto: ' + e.message, 'err'); }
 }
 
 async function guardarProducto() {
@@ -4417,7 +4414,7 @@ async function guardarProducto() {
   const producto = document.getElementById('producto-nombre').value.trim();
   const descripcion = document.getElementById('producto-descripcion').value.trim();
   const precio_ars = parseFloat(document.getElementById('producto-precio').value);
-  if (!categoria || !producto || !precio_ars) { toast('Completá los campos obligatorios', true); return; }
+  if (!categoria || !producto || !precio_ars) { toast('Completá los campos obligatorios', 'err'); return; }
   try {
     let targetId = id;
     if (id) {
@@ -4437,7 +4434,7 @@ async function guardarProducto() {
     catalogoCache = [];
     toast(id ? '✅ Producto actualizado' : '✅ Producto agregado');
     loadCatalogo();
-  } catch(e) { toast('Error: ' + e.message, true); }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 async function eliminarProducto(id) {
@@ -4447,7 +4444,7 @@ async function eliminarProducto(id) {
     catalogoCache = [];
     toast('Producto eliminado');
     loadCatalogo();
-  } catch(e) { toast('Error: ' + e.message, true); }
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 function filterCat(cat, btn) {
