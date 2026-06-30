@@ -196,21 +196,17 @@ tr:hover td { background: rgba(255,255,255,.02); }
   font-size: 11px; font-weight: 600; white-space: nowrap;
 }
 .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
-.badge.cotizado   { background: rgba(52,152,219,.15); color: var(--blue); }
 .badge.confirmado { background: rgba(46,204,113,.15); color: var(--green); }
-.badge.logistica  { background: rgba(230,126,34,.15); color: var(--orange); }
 .badge.realizado  { background: rgba(155,89,182,.15); color: var(--purple); }
+.badge.cobrado    { background: rgba(52,152,219,.15); color: var(--blue); }
 .badge.perdido    { background: rgba(231,76,60,.12);  color: var(--red); }
 .badge.cancelado  { background: rgba(255,255,255,.06); color: var(--text-3); }
 
 /* Pulso en confirmado */
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-.badge.confirmado .badge-dot,
-.badge.logistica  .badge-dot { animation: pulse 2s ease-in-out infinite; }
-.badge.cotizado   .badge-dot { background: var(--blue); }
-.badge.confirmado .badge-dot { background: var(--green); }
-.badge.logistica  .badge-dot { background: var(--orange); }
+.badge.confirmado .badge-dot { animation: pulse 2s ease-in-out infinite; background: var(--green); }
 .badge.realizado  .badge-dot { background: var(--purple); }
+.badge.cobrado    .badge-dot { background: var(--blue); }
 .badge.perdido    .badge-dot { background: var(--red); }
 .badge.cancelado  .badge-dot { background: var(--text-3); }
 
@@ -479,17 +475,15 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="page-header">
         <div>
           <div class="page-title">Pipeline de eventos</div>
-          <div class="page-sub">Cotizados, confirmados, en logística y realizados</div>
+          <div class="page-sub">Confirmados, realizados y cobrados</div>
         </div>
 
       </div>
       <div class="filters" id="ev-filters">
         <button class="filter-btn active" onclick="filterEventos('todos',this)">Todos</button>
-        <button class="filter-btn" onclick="filterEventos('Cotizado',this)">Cotizados</button>
         <button class="filter-btn" onclick="filterEventos('Confirmado',this)">Confirmados</button>
-        <button class="filter-btn" onclick="filterEventos('En logística',this)">En logística</button>
         <button class="filter-btn" onclick="filterEventos('Realizado',this)">Realizados</button>
-        <button class="filter-btn" onclick="filterEventos('Perdido',this)">Perdidos</button>
+        <button class="filter-btn" onclick="filterEventos('Cobrado',this)">Cobrados</button>
       </div>
       <div style="margin-bottom:12px">
         <input class="inp" style="max-width:320px" id="ev-busqueda" placeholder="🔍 Buscar por cliente..." oninput="buscarEventos(this.value)">
@@ -815,9 +809,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field" id="ev-sena-wrap"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="ev-sena" value="30" min="0" max="100"></div>
         <div class="field"><label class="lbl">Estado</label>
           <select class="inp" id="ev-estado">
-            <option>Cotizado</option><option>Confirmado</option>
-            <option>En logística</option><option>Realizado</option>
-            <option>Perdido</option><option>Cancelado</option>
+            <option>Confirmado</option><option>Realizado</option><option>Cobrado</option>
           </select>
         </div>
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
@@ -825,15 +817,6 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <label class="lbl">Beneficiarios de cláusula de no repetición</label>
           <div id="ev-clausulas-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
           <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBeneficiario()">+ Agregar beneficiario</button>
-        </div>
-        <div class="field full" id="ev-motivo-wrap" style="display:none">
-          <label class="lbl">Motivo de pérdida</label>
-          <select class="inp" id="ev-motivo">
-            <option value="">— Seleccionar —</option>
-            <option>Precio</option><option>Ya tenía proveedor</option>
-            <option>No respondió</option><option>Fecha no disponible</option>
-            <option>Canceló el evento</option><option>Otro</option>
-          </select>
         </div>
       </div>
     </div>
@@ -1372,11 +1355,9 @@ const today = () => new Date().toISOString().split('T')[0];
 
 function badge(estado) {
   const map = {
-    'Cotizado':    'cotizado',
     'Confirmado':  'confirmado',
-    'En logística':'logistica',
     'Realizado':   'realizado',
-    'Perdido':     'perdido',
+    'Cobrado':     'cobrado',
     'Cancelado':   'cancelado',
   };
   const cls = map[estado] || 'cancelado';
@@ -1599,7 +1580,7 @@ async function initApp() {
   // Precargar personal y eventos para modales
   try {
     persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
-    evCache   = await sb('eventos',  { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
+    evCache   = await sb('eventos',  { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
     llenarSelectEventos();
     ['ev-horario','ev-hora-armado','ev-hora-desarme'].forEach(id => {
       const el = document.getElementById(id);
@@ -1716,7 +1697,7 @@ async function loadDashboard() {
       presByEvento[p.evento_id].push(...items);
     }
 
-    const estadoColor = { 'Cotizado':'var(--text-3)', 'Confirmado':'var(--blue)', 'En logística':'var(--orange)', 'Realizado':'var(--green)', 'Cancelado':'var(--red)' };
+    const estadoColor = { 'Confirmado':'var(--green)', 'Realizado':'var(--purple)', 'Cobrado':'var(--blue)' };
 
     cont.innerHTML = eventos.map(ev => {
       const fecha = new Date((ev.fecha_evento || ev.fecha) + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
@@ -1894,11 +1875,6 @@ function buscarEventos(valor) {
   renderEventos();
 }
 
-// Modal evento — mostrar/ocultar motivo pérdida
-document.getElementById('ev-estado').addEventListener('change', function() {
-  document.getElementById('ev-motivo-wrap').style.display =
-    this.value === 'Perdido' ? 'block' : 'none';
-});
 
 let editingEventoId = null;
 let evBeneficiarios = []; // [{nombre, cuit}]
@@ -1945,7 +1921,6 @@ async function editEvento(id) {
   document.getElementById('ev-hora-desarme').innerHTML = buildTimeOpts(ev.hora_desarme || '');
   evBeneficiarios = ev.clausulas ? JSON.parse(ev.clausulas) : [];
   renderBeneficiarios();
-  document.getElementById('ev-motivo-wrap').style.display = ev.estado === 'Perdido' ? 'block' : 'none';
   openModal('modal-evento');
 }
 
@@ -1969,7 +1944,6 @@ async function guardarEvento() {
     fecha_desarme:  document.getElementById('ev-fecha-desarme').value || null,
     hora_desarme:   document.getElementById('ev-hora-desarme').value || null,
     clausulas:      evBeneficiarios.filter(b => b.nombre || b.cuit).length ? JSON.stringify(evBeneficiarios.filter(b => b.nombre || b.cuit)) : null,
-    motivo_perdida: document.getElementById('ev-motivo').value || null,
     updated_at:     new Date().toISOString(),
   };
 
@@ -1993,7 +1967,7 @@ async function guardarEvento() {
     renderBeneficiarios();
     document.getElementById('modal-evento-title').textContent = 'Nuevo evento';
     loadEventos();
-    evCache = await sb('eventos', { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
+    evCache = await sb('eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
     llenarSelectEventos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -2611,7 +2585,7 @@ async function editarLogistica(id, tipo, esExtra = false) {
   const sel = document.getElementById('nlg-evento');
   sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
   const evRelevantes = (evCache || [])
-    .filter(e => ['Confirmado','En logística'].includes(e.estado))
+    .filter(e => ['Confirmado','Realizado','Cobrado'].includes(e.estado))
     .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
   evRelevantes.forEach(e => {
     const opt = document.createElement('option');
@@ -2667,7 +2641,7 @@ function abrirNuevaLogistica() {
   const sel = document.getElementById('nlg-evento');
   sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
   const evRelevantes = (evCache || [])
-    .filter(e => ['Confirmado','En logística'].includes(e.estado))
+    .filter(e => ['Confirmado','Realizado','Cobrado'].includes(e.estado))
     .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
   evRelevantes.forEach(e => {
     const opt = document.createElement('option');
@@ -4731,7 +4705,7 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
     toast(`✅ Evento ${codigo} creado como Confirmado`);
     loadPresupuestos();
     // Actualizar caché de eventos
-    evCache = await sb('eventos', { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
+    evCache = await sb('eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
     llenarSelectEventos();
   } catch(e) {
     toast('Error: ' + e.message, 'err');
