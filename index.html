@@ -1846,11 +1846,17 @@ function renderEventos() {
         <td>${fmtDate(e.fecha_evento)}</td>
         <td>${e.venue || '—'}</td>
         <td>${fmtARS(e.total_ars)}</td>
-        <td>
-          <div style="font-size:11px;color:${e.estado_cobro==='Cobrado completo'?'var(--green)':e.estado_cobro==='Seña cobrada'?'var(--orange)':'var(--red)'}">
-            ${e.estado_cobro}
-          </div>
-        </td>
+        <td>${(() => {
+          let label = e.estado_cobro;
+          let color;
+          if (e.modalidad_pago === 'Pago total al finalizar') {
+            label = e.saldo_cobrado ? 'Cobrado' : 'Pendiente';
+            color = e.saldo_cobrado ? 'var(--green)' : 'var(--red)';
+          } else {
+            color = e.estado_cobro==='Cobrado completo'?'var(--green)':e.estado_cobro==='Seña cobrada'?'var(--orange)':'var(--red)';
+          }
+          return `<div style="font-size:11px;color:${color}">${label}</div>`;
+        })()}</td>
         <td>
           <div style="display:flex;gap:6px">
             <button class="btn btn-ghost btn-sm" onclick="editEvento(${e.id})">Editar</button>
@@ -2028,7 +2034,7 @@ async function loadCobros() {
             <td>${fmtDate(c.fecha_evento)} ${vencido ? '<span style="color:var(--red);font-size:10px;font-weight:600">⚠ VENCIDO</span>' : ''}</td>
             <td>${fmtARS(c.total_ars)}</td>
             <td style="color:var(--red);font-weight:600">${fmtARS(c.pendiente_ars)}</td>
-            <td>${c.sena_cobrada ? '✅' : '❌'}</td>
+            <td>${c.modalidad_pago === 'Pago total al finalizar' ? '<span style="color:var(--text-3)">—</span>' : (c.sena_cobrada ? '✅' : '❌')}</td>
             <td>${c.saldo_cobrado ? '✅' : '❌'}</td>
             <td>
               <div class="cobro-bar" style="width:80px">
