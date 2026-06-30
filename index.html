@@ -981,7 +981,15 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <input type="hidden" id="capital-tipo">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="capital-desc" placeholder="Ej: Venta camión, Compra equipo..."></div>
-        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="capital-monto" placeholder="0"></div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Moneda</label>
+          <div style="display:flex;gap:8px">
+            <button type="button" id="capital-moneda-ars" class="btn btn-primary btn-sm" onclick="setCapitalMoneda('ARS')">ARS</button>
+            <button type="button" id="capital-moneda-usd" class="btn btn-ghost btn-sm" onclick="setCapitalMoneda('USD')">USD</button>
+          </div>
+        </div>
+        <div class="field" id="capital-monto-ars-wrap"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="capital-monto" placeholder="0"></div>
+        <div class="field" id="capital-monto-usd-wrap" style="display:none"><label class="lbl">Monto (USD) *</label><input class="inp" type="number" id="capital-monto-usd" placeholder="0"></div>
         <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="capital-fecha"></div>
       </div>
     </div>
@@ -3591,6 +3599,16 @@ function generarReciboIndividual(p) {
 
 // ── FINANZAS ──────────────────────────────────────────────
 let finanzasOffset = 0; // 0 = período actual, -1 = anterior, etc.
+let _tipoCambioCache = null;
+async function fetchTipoCambioOficial() {
+  if (_tipoCambioCache) return _tipoCambioCache;
+  try {
+    const r = await fetch('https://api.dolarapi.com/v1/dolares/oficial');
+    const d = await r.json();
+    _tipoCambioCache = Number(d.venta) || 1;
+  } catch { _tipoCambioCache = 1; }
+  return _tipoCambioCache;
+}
 
 function getPeriodoFinanzas() {
   const modo = document.getElementById('finanzas-modo')?.value || 'mensual';
@@ -3628,11 +3646,15 @@ async function loadFinanzas() {
       ? [{ mes: MESES_NAMES[Number(desde.slice(5, 7)) - 1], anio: anioDesde }]
       : MESES_NAMES.map(m => ({ mes: m, anio: anioDesde }));
     const aniosFiltro = [...new Set(mesesPeriodo.map(m => m.anio))];
-    const impuestosAnio = await sb('costos_fijos', { filters: [`anio=in.(${aniosFiltro.join(',')})`], limit: 1000 });
+    const [impuestosAnio, tcOficial] = await Promise.all([
+      sb('costos_fijos', { filters: [`anio=in.(${aniosFiltro.join(',')})`], limit: 1000 }),
+      fetchTipoCambioOficial(),
+    ]);
     const impuestos = impuestosAnio.filter(i =>
       !i.paga_por_tarjeta && mesesPeriodo.some(m => m.mes === i.mes && m.anio === i.anio)
     );
-    const totalImpuestos = impuestos.reduce((s, i) => s + Number(i.monto_ars || 0), 0);
+    const totalImpuestos = impuestos.reduce((s, i) =>
+      s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tcOficial, 0);
 
     // 3. Pagos personal: jornadas pagadas en el período
     const jornadas = await sb('jornadas', { select: 'tarifa_ars,fecha_pago', filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 1000 });
@@ -3736,11 +3758,21 @@ async function loadFinanzas() {
   } catch(e) { toast('Error cargando finanzas: ' + e.message, 'err'); }
 }
 
+function setCapitalMoneda(moneda) {
+  const esUSD = moneda === 'USD';
+  document.getElementById('capital-monto-ars-wrap').style.display = esUSD ? 'none' : '';
+  document.getElementById('capital-monto-usd-wrap').style.display = esUSD ? '' : 'none';
+  document.getElementById('capital-moneda-ars').className = esUSD ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm';
+  document.getElementById('capital-moneda-usd').className = esUSD ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('capital-monto').value = '';
+  document.getElementById('capital-monto-usd').value = '';
+}
+
 function abrirModalCapital(tipo) {
   document.getElementById('capital-tipo').value = tipo;
   document.getElementById('capital-modal-title').textContent = tipo === 'ingreso' ? '+ Ingreso capital' : '− Egreso capital';
   document.getElementById('capital-desc').value = '';
-  document.getElementById('capital-monto').value = '';
+  setCapitalMoneda('ARS');
   const fp = document.getElementById('capital-fecha')._flatpickr;
   if (fp) fp.setDate(new Date());
   else document.getElementById('capital-fecha').value = new Date().toISOString().split('T')[0];
@@ -3751,13 +3783,21 @@ function abrirModalCapital(tipo) {
 async function guardarCapital() {
   const tipo = document.getElementById('capital-tipo').value;
   const desc = document.getElementById('capital-desc').value.trim();
-  const monto = parseFloat(document.getElementById('capital-monto').value);
   const fecha = document.getElementById('capital-fecha').value;
+  const esUSD = document.getElementById('capital-monto-usd-wrap').style.display !== 'none';
+  const montoUSD = esUSD ? parseFloat(document.getElementById('capital-monto-usd').value) : null;
+  const montoARS = esUSD ? null : parseFloat(document.getElementById('capital-monto').value);
   if (!desc) { toast('Ingresá una descripción', 'err'); return; }
-  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
+  if (esUSD && (!montoUSD || montoUSD <= 0)) { toast('Ingresá un monto válido', 'err'); return; }
+  if (!esUSD && (!montoARS || montoARS <= 0)) { toast('Ingresá un monto válido', 'err'); return; }
   if (!fecha) { toast('Seleccioná una fecha', 'err'); return; }
   try {
-    await sbInsert('capital', { tipo, descripcion: desc, monto, fecha });
+    let monto = montoARS;
+    if (esUSD) {
+      const tc = await fetchTipoCambioOficial();
+      monto = Math.round(montoUSD * tc);
+    }
+    await sbInsert('capital', { tipo, descripcion: desc, monto, monto_usd: montoUSD, fecha });
     closeModal('modal-capital');
     toast('✅ Movimiento de capital registrado');
     loadFinanzas();
