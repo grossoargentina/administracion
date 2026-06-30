@@ -614,23 +614,29 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <!-- Detalle -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="card">
-          <div style="font-weight:600;margin-bottom:12px;color:var(--green)">Ingresos por evento</div>
-          <div id="fin-detalle-ingresos"></div>
+          <div style="padding:18px 20px">
+            <div style="font-weight:600;margin-bottom:12px;color:var(--green)">Ingresos por evento</div>
+            <div id="fin-detalle-ingresos"></div>
+          </div>
         </div>
         <div class="card">
-          <div style="font-weight:600;margin-bottom:12px;color:var(--red)">Egresos operativos</div>
-          <div id="fin-detalle-egresos"></div>
+          <div style="padding:18px 20px">
+            <div style="font-weight:600;margin-bottom:12px;color:var(--red)">Egresos operativos</div>
+            <div id="fin-detalle-egresos"></div>
+          </div>
         </div>
       </div>
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-weight:600;color:var(--gold)">Capital</div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost btn-sm" onclick="abrirModalCapital('egreso')">− Egreso capital</button>
-            <button class="btn btn-primary btn-sm" onclick="abrirModalCapital('ingreso')">+ Ingreso capital</button>
+        <div style="padding:18px 20px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-weight:600;color:var(--gold)">Capital</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm" onclick="abrirModalCapital('egreso')">− Egreso capital</button>
+              <button class="btn btn-primary btn-sm" onclick="abrirModalCapital('ingreso')">+ Ingreso capital</button>
+            </div>
           </div>
+          <div id="fin-detalle-capital"></div>
         </div>
-        <div id="fin-detalle-capital"></div>
       </div>
     </div>
 
@@ -928,7 +934,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-body">
       <input type="hidden" id="producto-id">
       <div class="form-grid">
-        <div class="field"><label class="lbl">Código *</label><input class="inp" id="producto-codigo" placeholder="Ej: MOB-001"></div>
+        <div class="field" id="producto-codigo-wrap"><label class="lbl">Código</label><input class="inp" id="producto-codigo" placeholder="Automático" readonly style="opacity:.6"></div>
         <div class="field"><label class="lbl">Categoría *</label><input class="inp" id="producto-categoria" placeholder="Ej: Mobiliario" list="cat-datalist">
           <datalist id="cat-datalist"></datalist>
         </div>
@@ -4407,25 +4413,25 @@ async function subirFotoProducto(codigo) {
 
 async function guardarProducto() {
   const id       = document.getElementById('producto-id').value;
-  const codigo   = document.getElementById('producto-codigo').value.trim().toUpperCase();
   const categoria= document.getElementById('producto-categoria').value.trim();
   const producto = document.getElementById('producto-nombre').value.trim();
   const descripcion = document.getElementById('producto-descripcion').value.trim();
   const precio_ars = parseFloat(document.getElementById('producto-precio').value);
-  if (!codigo || !categoria || !producto || !precio_ars) { toast('Completá los campos obligatorios', true); return; }
+  if (!categoria || !producto || !precio_ars) { toast('Completá los campos obligatorios', true); return; }
   try {
+    let targetId = id;
     if (id) {
+      const codigo = document.getElementById('producto-codigo').value.trim();
       await sbPatch('catalogo', id, { codigo, categoria, producto, descripcion, precio_ars });
     } else {
-      await sbInsert('catalogo', { codigo, categoria, producto, descripcion, precio_ars, activo: true });
+      const todos = await sb('catalogo', { select: 'id', limit: 1000 });
+      const codigo = String(todos.length + 1);
+      const inserted = await sbInsert('catalogo', { codigo, categoria, producto, descripcion, precio_ars, activo: true });
+      targetId = Array.isArray(inserted) ? inserted[0]?.id : inserted?.id;
     }
-    if (window._fotoBlob) {
+    if (window._fotoBlob && targetId) {
       const b64 = await blobToBase64(window._fotoBlob);
-      if (id) await sbPatch('catalogo', id, { foto_base64: b64, tiene_foto: true });
-      else {
-        const rows = await sb('catalogo', { filters: [`codigo=eq.${codigo}`], limit: 1 });
-        if (rows[0]) await sbPatch('catalogo', rows[0].id, { foto_base64: b64, tiene_foto: true });
-      }
+      await sbPatch('catalogo', targetId, { foto_base64: b64, tiene_foto: true });
     }
     closeModal('modal-producto');
     catalogoCache = [];
