@@ -2361,6 +2361,7 @@ const MESES_ES_GEN = ['enero','febrero','marzo','abril','mayo','junio','julio','
 let logDias = [];
 let logTipo = 'Evento';
 let logEventosDepIds = []; // para tipo Depósito
+let logEditId = null; // null = nueva, number = edición
 
 async function loadLogisticas() {
   const tbody = document.getElementById('log-lista-tbody');
@@ -2411,6 +2412,7 @@ async function loadLogisticas() {
         <td style="font-size:12px;color:var(--text-2)">${r.notas || '—'}</td>
         <td style="display:flex;gap:4px">
           <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${r.id})">📋 Ver</button>
+          <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${r.id})">✏️ Editar</button>
           <button class="btn btn-ghost btn-sm" onclick="enviarMailSeguro(${r.id})" title="Enviar lista a seguro">📧</button>
           <button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${r.id})">✕</button>
         </td>
@@ -2419,8 +2421,84 @@ async function loadLogisticas() {
   } catch(e) { toast('Error cargando logísticas: ' + e.message, 'err'); }
 }
 
-function abrirNuevaLogistica() {
+async function editarLogistica(id) {
+  logEditId = id;
   logEventosDepIds = [];
+  document.getElementById('nlg-modal-title').textContent = 'Editar logística';
+  document.getElementById('nlg-notas').value = '';
+
+  // Poblar selects de evento
+  const sel = document.getElementById('nlg-evento');
+  sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
+  const evRelevantes = (evCache || [])
+    .filter(e => ['Confirmado','En logística'].includes(e.estado))
+    .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
+  evRelevantes.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id;
+    const fecha = e.fecha_evento ? new Date(e.fecha_evento+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '';
+    opt.textContent = `${fecha} — ${e.venue || e.codigo || e.id}`;
+    sel.appendChild(opt);
+  });
+
+  openModal('modal-nueva-logistica');
+
+  try {
+    const [logRows, jornadas] = await Promise.all([
+      sb('logisticas', { filters: [`id=eq.${id}`], limit: 1 }),
+      sb('v_jornadas', { filters: [`logistica_id=eq.${id}`], order: 'fecha,tipo', limit: 500 }),
+    ]);
+    const log = logRows[0];
+    if (!log) { toast('Logística no encontrada', 'err'); return; }
+
+    if (log.notas) document.getElementById('nlg-notas').value = log.notas;
+
+    setTipoLog(log.tipo === 'Deposito' ? 'Deposito' : 'Evento');
+
+    if (log.tipo !== 'Deposito' && log.evento_id) {
+      document.getElementById('nlg-evento').value = log.evento_id;
+    }
+
+    // Reconstruir logDias agrupando jornadas por tipo+fecha
+    const grupos = {};
+    jornadas.forEach(j => {
+      const key = `${j.tipo}__${j.fecha}`;
+      if (!grupos[key]) grupos[key] = { id: Date.now() + Math.random(), tipo: j.tipo === 'Armado/Desarmado' ? (j.fecha === jornadas.find(x=>x.tipo==='Armado/Desarmado')?.fecha ? 'Armado' : 'Desarmado') : j.tipo, fecha: j.fecha, hora_inicio: j.hora_inicio || '', personal: [], transporte: j.transporte || 'Sin transporte', flete_personal: j.flete_personal || '', flete_monto: j.flete_monto || '' };
+      if (j.personal_id && !grupos[key].personal.includes(j.personal_id)) grupos[key].personal.push(j.personal_id);
+    });
+
+    // Distinguir Armado vs Desarmado (mismo tipo 'Armado/Desarmado' en DB)
+    const armDesarme = jornadas.filter(j => j.tipo === 'Armado/Desarmado');
+    const fechasArmDes = [...new Set(armDesarme.map(j => j.fecha))].sort();
+    logDias = [];
+    fechasArmDes.forEach((fecha, idx) => {
+      const isLast = idx === fechasArmDes.length - 1;
+      const jornsDay = armDesarme.filter(j => j.fecha === fecha);
+      const pers = [...new Set(jornsDay.map(j => j.personal_id).filter(Boolean))];
+      logDias.push({ id: Date.now() + Math.random(), tipo: (idx === 0 && fechasArmDes.length > 1) ? 'Armado' : isLast && fechasArmDes.length > 1 ? 'Desarmado' : idx === 0 ? 'Armado' : 'Desarmado', fecha, hora_inicio: jornsDay[0]?.hora_inicio || '', personal: pers, transporte: jornsDay[0]?.transporte || 'Camioneta propia', flete_personal: jornsDay[0]?.flete_personal || '', flete_monto: jornsDay[0]?.flete_monto || '' });
+    });
+
+    // Agregar Operador
+    const operadores = jornadas.filter(j => j.tipo === 'Operador');
+    const fechasOp = [...new Set(operadores.map(j => j.fecha))].sort();
+    fechasOp.forEach(fecha => {
+      const jornsDay = operadores.filter(j => j.fecha === fecha);
+      const pers = [...new Set(jornsDay.map(j => j.personal_id).filter(Boolean))];
+      logDias.push({ id: Date.now() + Math.random(), tipo: 'Operador', fecha, hora_inicio: jornsDay[0]?.hora_inicio || '', personal: pers, transporte: 'Sin transporte', flete_personal: '', flete_monto: '' });
+    });
+
+    // Ordenar: Armado → Operador → Desarmado
+    const orden = { 'Armado': 0, 'Operador': 1, 'Desarmado': 2 };
+    logDias.sort((a,b) => (orden[a.tipo]??3) - (orden[b.tipo]??3) || a.fecha.localeCompare(b.fecha));
+
+    renderDiasLog();
+  } catch(e) { toast('Error cargando logística: ' + e.message, 'err'); }
+}
+
+function abrirNuevaLogistica() {
+  logEditId = null;
+  logEventosDepIds = [];
+  document.getElementById('nlg-modal-title').textContent = 'Nueva logística';
   document.getElementById('nlg-notas').value = '';
   // Poblar evento single select
   const sel = document.getElementById('nlg-evento');
@@ -2594,19 +2672,30 @@ async function guardarLogistica() {
   }
 
   try {
-    const logRow = await sbPost('logisticas', {
-      tipo: logTipo,
-      evento_id: eventoId ? parseInt(eventoId) : null,
-      notas: notas || null,
-    });
-    const logId = Array.isArray(logRow) ? logRow[0].id : logRow.id;
+    let logId;
 
-    // Para depósito: insertar relaciones en logistica_eventos
-    if (logTipo === 'Deposito' && logEventosDepIds.length) {
-      await sbPost('logistica_eventos', logEventosDepIds.map(eid => ({ logistica_id: logId, evento_id: eid })));
+    if (logEditId) {
+      // Modo edición: actualizar logística y reemplazar jornadas NO pagadas
+      await sbPatch('logisticas', logEditId, { notas: notas || null });
+      logId = logEditId;
+      // Borrar solo jornadas no pagadas
+      await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=eq.${logId}&pagado=eq.false`, {
+        method: 'DELETE',
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+      });
+    } else {
+      // Modo creación
+      const logRow = await sbPost('logisticas', {
+        tipo: logTipo,
+        evento_id: eventoId ? parseInt(eventoId) : null,
+        notas: notas || null,
+      });
+      logId = Array.isArray(logRow) ? logRow[0].id : logRow.id;
+      if (logTipo === 'Deposito' && logEventosDepIds.length) {
+        await sbPost('logistica_eventos', logEventosDepIds.map(eid => ({ logistica_id: logId, evento_id: eid })));
+      }
     }
 
-    // Obtener base para codigos
     const totalJornadas = await sb('jornadas', { select: 'id', limit: 1000 });
     let base = (totalJornadas.length || 0) + 1;
 
@@ -2637,7 +2726,9 @@ async function guardarLogistica() {
     });
     if (jornadasToInsert.length) await sbPost('jornadas', jornadasToInsert);
     closeModal('modal-nueva-logistica');
-    toast(`✅ Logística creada con ${jornadasToInsert.length} jornadas`);
+    const wasEdit = !!logEditId;
+    logEditId = null;
+    toast(wasEdit ? `✅ Logística actualizada` : `✅ Logística creada con ${jornadasToInsert.length} jornadas`);
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
