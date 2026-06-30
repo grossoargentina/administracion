@@ -3639,6 +3639,7 @@ function cambiarPeriodoFinanzas(dir) {
 }
 
 async function loadFinanzas() {
+  _tipoCambioCache = null;
   const { desde, hasta, label, modo } = getPeriodoFinanzas();
   document.getElementById('finanzas-sub').textContent = label;
 
@@ -4127,11 +4128,14 @@ async function renderImpuestos() {
   const vencidos = lista.filter(i => !i.pagado && esVencido(i, hoy)).length;
 
   const tc = await fetchTipoCambioOficial();
-  const totalMes = lista.reduce((s, i) =>
-    s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tc, 0);
+  const totalARS = lista.reduce((s, i) => s + Number(i.monto_ars || 0), 0);
+  const totalUSD = lista.reduce((s, i) => s + Number(i.monto_usd || 0), 0);
+  const totalMes = totalARS + totalUSD * tc;
 
   document.getElementById('imp-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total del mes</div><div class="kpi-value gold">${fmtARS(totalMes)}</div><div style="font-size:10px;color:var(--text-3);margin-top:4px">USD @ $${tc.toLocaleString('es-AR')}</div></div>
+    <div class="kpi"><div class="kpi-label">Total ARS</div><div class="kpi-value" style="color:var(--text-1)">${fmtARS(totalARS)}</div></div>
+    ${totalUSD ? `<div class="kpi"><div class="kpi-label">Total USD</div><div class="kpi-value" style="color:var(--text-1)">U$D ${totalUSD.toLocaleString('es-AR',{minimumFractionDigits:2})}</div></div>` : ''}
     <div class="kpi"><div class="kpi-label">Pagados</div><div class="kpi-value green">${pagados} / ${lista.length}</div></div>
     <div class="kpi"><div class="kpi-label">Vencidos sin pagar</div><div class="kpi-value red">${vencidos}</div></div>
   `;
