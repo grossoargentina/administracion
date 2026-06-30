@@ -1744,6 +1744,9 @@ async function loadDashboard() {
         </div>
         ${columnsHtml}
         ${productosHtml}
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="enviarMailSeguroEvento(${ev.id},'${(ev.venue||ev.codigo||'').replace(/'/g,"\\'")}')">📧 Enviar seguro</button>
+        </div>
       </div>`;
     }).join('');
 
@@ -2728,6 +2731,68 @@ async function guardarLogistica() {
     logEditTipo = null;
     toast(wasEdit ? `✅ Logística actualizada` : `✅ Logística creada con ${jornadasToInsert.length} jornadas`);
     loadLogisticas();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function enviarMailSeguroEvento(eventoId, evLabel) {
+  try {
+    const jornadas = await sb('jornadas', { filters: [`evento_id=eq.${eventoId}`], select: 'personal_id', limit: 500 });
+    const persIds = [...new Set(jornadas.map(j => j.personal_id).filter(Boolean))];
+    if (!persIds.length) { toast('Sin personal asignado a este evento', 'err'); return; }
+
+    const personal = await sb('personal', {
+      filters: [`id=in.(${persIds.join(',')})`],
+      select: 'apellido,nombre,dni,cuit,fecha_nacimiento',
+      order: 'apellido',
+      limit: 200,
+    });
+
+    const filas = personal.map(p => {
+      const nacStr = p.fecha_nacimiento ? new Date(p.fecha_nacimiento+'T12:00:00').toLocaleDateString('es-AR') : '—';
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.apellido||'—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.nombre||'—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.dni||'—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${p.cuit||'—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee">${nacStr}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+        <div style="background:#1A1A2E;padding:20px 24px;border-radius:8px 8px 0 0">
+          <h2 style="color:#c9a84c;margin:0;font-size:18px">GROSSO ARGENTINA</h2>
+          <p style="color:#aaa;margin:4px 0 0;font-size:13px">Soluciones Tecnológicas para Eventos</p>
+        </div>
+        <div style="background:#f9f9f9;padding:24px;border-radius:0 0 8px 8px">
+          <p style="margin:0 0 16px;font-size:14px;color:#333">
+            Listado de personal para cobertura de seguro:<br><strong>${evLabel}</strong>
+          </p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <thead>
+              <tr style="background:#1A1A2E;color:#c9a84c">
+                <th style="padding:10px 12px;text-align:left">Apellido</th>
+                <th style="padding:10px 12px;text-align:left">Nombre</th>
+                <th style="padding:10px 12px;text-align:left">DNI</th>
+                <th style="padding:10px 12px;text-align:left">CUIT</th>
+                <th style="padding:10px 12px;text-align:left">Fecha Nac.</th>
+              </tr>
+            </thead>
+            <tbody>${filas}</tbody>
+          </table>
+          <p style="margin:20px 0 0;font-size:12px;color:#999">Grosso Argentina · administracion@grossoarg.com</p>
+        </div>
+      </div>`;
+
+    toast('Enviando mail de seguro...');
+    const res = await fetch(EMAIL_EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SB_KEY}`, 'apikey': SB_KEY },
+      body: JSON.stringify({ to: EMAIL_SEGURO, subject: `Seguro personal — ${evLabel}`, html }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
+    else toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
