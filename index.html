@@ -339,6 +339,11 @@ textarea.inp { resize: vertical; min-height: 80px; }
 .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--text-3); gap: 10px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; }
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--gold); }
+th.sortable::after { content: ' ↕'; opacity: .3; font-size: 10px; }
+th.sort-asc::after { content: ' ↑'; opacity: 1; color: var(--gold); }
+th.sort-desc::after { content: ' ↓'; opacity: 1; color: var(--gold); }
 
 /* ── FLATPICKR DARK THEME ────────────────────────────── */
 .flatpickr-calendar {
@@ -492,7 +497,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Estado</th><th>Cliente</th><th>Tipo</th><th>Fecha evento</th><th>Venue</th><th>Total ARS</th><th>Cobro</th><th></th></tr></thead>
+            <thead id="ev-thead"><tr><th class="sortable" onclick="toggleSort('ev','estado',renderEventos)">Estado</th><th class="sortable" onclick="toggleSort('ev','cliente_nombre',renderEventos)">Cliente</th><th class="sortable" onclick="toggleSort('ev','tipo_evento',renderEventos)">Tipo</th><th class="sortable" onclick="toggleSort('ev','fecha_evento',renderEventos)">Fecha evento</th><th>Venue</th><th class="sortable" onclick="toggleSort('ev','total_ars',renderEventos)">Total ARS</th><th>Cobro</th><th></th></tr></thead>
             <tbody id="ev-tbody"><tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
@@ -690,8 +695,8 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Apellido</th><th>Nombre</th><th>DNI</th><th>Tipo</th><th>Depósito</th><th>Armado</th><th>Operador</th><th>Tel</th><th></th></tr></thead>
-            <tbody id="pers-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+            <thead><tr><th class="sortable" onclick="toggleSort('pers','apellido',renderPersonal)">Apellido</th><th class="sortable" onclick="toggleSort('pers','nombre',renderPersonal)">Nombre</th><th>DNI</th><th class="sortable" onclick="toggleSort('pers','tipo',renderPersonal)">Tipo</th><th>Depósito</th><th>Armado</th><th>Operador</th><th>Sueldo fijo</th><th>Tel</th><th></th></tr></thead>
+            <tbody id="pers-tbody"><tr><td colspan="10" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -734,7 +739,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>N°</th><th>Versión</th><th>Cliente</th><th>Evento</th><th>Total ARS</th><th>Modalidad</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th class="sortable" onclick="toggleSort('pres','created_at',loadPresupuestos)">Fecha</th><th>N°</th><th>Versión</th><th class="sortable" onclick="toggleSort('pres','cliente',loadPresupuestos)">Cliente</th><th class="sortable" onclick="toggleSort('pres','tipo_evento',loadPresupuestos)">Evento</th><th class="sortable" onclick="toggleSort('pres','total_ars',loadPresupuestos)">Total ARS</th><th>Modalidad</th><th class="sortable" onclick="toggleSort('pres','estado_evento',loadPresupuestos)">Estado</th><th></th></tr></thead>
             <tbody id="presup-tbody"><tr><td colspan="8"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos generados aún</div></td></tr></tbody>
           </table>
         </div>
@@ -754,7 +759,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Código</th><th>Categoría</th><th>Producto</th><th>Precio ARS</th><th></th></tr></thead>
+            <thead><tr><th class="sortable" onclick="toggleSort('cat','codigo',()=>renderCatalogo(catFiltroActual))">Código</th><th class="sortable" onclick="toggleSort('cat','categoria',()=>renderCatalogo(catFiltroActual))">Categoría</th><th class="sortable" onclick="toggleSort('cat','producto',()=>renderCatalogo(catFiltroActual))">Producto</th><th class="sortable" onclick="toggleSort('cat','precio_ars',()=>renderCatalogo(catFiltroActual))">Precio ARS</th><th></th></tr></thead>
             <tbody id="cat-tbody"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
@@ -1808,7 +1813,34 @@ let todosEventos = [];
 let filtroEvento = 'todos';
 let busquedaEvento = '';
 
+// ── SORT SYSTEM ───────────────────────────────────────────
+const _sortState = {};
+function toggleSort(tabla, campo, renderFn) {
+  if (_sortState[tabla]?.campo === campo) {
+    _sortState[tabla].dir = _sortState[tabla].dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _sortState[tabla] = { campo, dir: 'asc' };
+  }
+  renderFn();
+}
+function applySort(tabla, lista) {
+  const s = _sortState[tabla];
+  if (!s) return lista;
+  return [...lista].sort((a, b) => {
+    let va = a[s.campo] ?? '';
+    let vb = b[s.campo] ?? '';
+    const cmp = String(va).localeCompare(String(vb), 'es-AR', { numeric: true, sensitivity: 'base' });
+    return s.dir === 'asc' ? cmp : -cmp;
+  });
+}
+function sortClasses(tabla, campo) {
+  const s = _sortState[tabla];
+  if (s?.campo !== campo) return 'sortable';
+  return s.dir === 'asc' ? 'sortable sort-asc' : 'sortable sort-desc';
+}
+
 async function loadEventos() {
+  document.getElementById('ev-tbody').innerHTML = '<tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr>';
   try {
     todosEventos = await sb('v_pipeline', { limit: 200 });
     renderEventos();
@@ -1823,6 +1855,7 @@ function renderEventos() {
     const q = busquedaEvento.trim().toLowerCase();
     lista = lista.filter(e => (e.cliente_nombre || '').toLowerCase().includes(q));
   }
+  lista = applySort('ev', lista);
 
   document.getElementById('ev-tbody').innerHTML = lista.length
     ? lista.map(e => `<tr>
@@ -3656,8 +3689,12 @@ async function loadFinanzas() {
   document.getElementById('finanzas-sub').textContent = label;
 
   try {
-    // 1. Ingresos: cobros (pagos) registrados en el período
-    const cobros = await sb('pagos', { filters: [`fecha_cobro=gte.${desde}`, `fecha_cobro=lte.${hasta}`], limit: 500 });
+    // 1. Ingresos: pagos de eventos cuya fecha_evento cae en el período
+    const eventosDelPeriodo = await sb('eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], limit: 200 });
+    const eventoIds = eventosDelPeriodo.map(e => e.id);
+    const cobros = eventoIds.length
+      ? await sb('pagos', { filters: [`evento_id=in.(${eventoIds.join(',')})`], limit: 500 })
+      : [];
     const totalIngresos = cobros.reduce((s, c) => s + Number(c.monto_ars || 0), 0);
 
     // 2. Impuestos: costos_fijos del mes/año del período (igual criterio que la pantalla Impuestos), excluye tarjeta
@@ -3715,13 +3752,9 @@ async function loadFinanzas() {
       if (!porEvento[key]) porEvento[key] = { nombre: c.tipo || c.evento_id || 'Sin evento', monto: 0 };
       porEvento[key].monto += Number(c.monto_ars || 0);
     });
-    // Traer nombres de eventos
-    const eventoIds = [...new Set(cobros.map(c => c.evento_id).filter(Boolean))];
-    let eventosMap = {};
-    if (eventoIds.length) {
-      const evs = await sb('eventos', { select: 'id,venue,cliente_nombre', filters: [`id=in.(${eventoIds.join(',')})`], limit: 200 });
-      evs.forEach(e => eventosMap[e.id] = `${e.venue || ''} — ${e.cliente_nombre || ''}`);
-    }
+    // Usar los eventos ya cargados para armar el mapa de nombres
+    const eventosMap = {};
+    eventosDelPeriodo.forEach(e => eventosMap[e.id] = `${e.venue || ''} — ${e.cliente_nombre || ''}`);
     document.getElementById('fin-detalle-ingresos').innerHTML = cobros.length
       ? Object.entries(porEvento).map(([id, v]) => `
         <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
@@ -3961,6 +3994,7 @@ async function eliminarMovimientoCaja(id) {
 let personalBusqueda = '';
 
 async function loadPersonal() {
+  document.getElementById('pers-tbody').innerHTML = '<tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr>';
   try {
     window._personalLista = await sb('personal', { order: 'nombre' });
     renderPersonal();
@@ -3978,6 +4012,7 @@ function renderPersonal() {
     const q = personalBusqueda.trim().toLowerCase();
     lista = lista.filter(p => (p.apellido || '').toLowerCase().includes(q) || (p.nombre || '').toLowerCase().includes(q));
   }
+  lista = applySort('pers', lista);
   document.getElementById('pers-tbody').innerHTML = lista.length
     ? lista.map(p => `<tr>
         <td><b>${p.apellido || '—'}</b></td>
@@ -3987,6 +4022,7 @@ function renderPersonal() {
         <td>${fmtARS(p.tarifa_deposito)}</td>
         <td>${fmtARS(p.tarifa_armado)}</td>
         <td>${fmtARS(p.tarifa_operador)}</td>
+        <td>${p.tipo === 'Fijo' ? fmtARS(p.sueldo_fijo) : '<span style="color:var(--text-3)">—</span>'}</td>
         <td style="color:var(--text-2)">${p.telefono || '—'}</td>
         <td style="display:flex;gap:4px">
           <button class="btn btn-ghost btn-sm" onclick="editarPersonal(${p.id})">✏️</button>
@@ -3995,14 +4031,13 @@ function renderPersonal() {
           </button>
         </td>
       </tr>`).join('')
-    : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">👥</div>Sin personal cargado</div></td></tr>`;
+    : `<tr><td colspan="10"><div class="empty"><div class="empty-icon">👥</div>Sin personal cargado</div></td></tr>`;
 }
 
 function onPersTipoChange() {
   const tipo = document.getElementById('pers-tipo').value;
   const esFijo = tipo === 'Fijo';
   document.getElementById('pers-field-sueldo').style.display = esFijo ? '' : 'none';
-  document.getElementById('pers-field-dep').style.display    = esFijo ? 'none' : '';
 }
 
 function abrirModalPersonal() {
@@ -4059,7 +4094,7 @@ async function guardarPersonal() {
     dni:             document.getElementById('pers-dni').value || null,
     tipo,
     sueldo_fijo:     tipo === 'Fijo' ? (parseFloat(document.getElementById('pers-sueldo').value) || null) : null,
-    tarifa_deposito: tipo !== 'Fijo' ? (parseFloat(document.getElementById('pers-dep').value) || 0) : null,
+    tarifa_deposito: parseFloat(document.getElementById('pers-dep').value) || 0,
     tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
     tarifa_operador: parseFloat(document.getElementById('pers-op').value) || 0,
     telefono:         document.getElementById('pers-tel').value || null,
@@ -4394,6 +4429,7 @@ async function confirmarMesNuevo() {
 
 // ── CATÁLOGO ──────────────────────────────────────────────
 async function loadCatalogo() {
+  document.getElementById('cat-tbody').innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
   try {
     const lista = await sb('catalogo', { select: 'id,codigo,categoria,producto,descripcion,precio_ars,activo,tiene_foto', filters:['activo=eq.true'], order:'categoria,codigo' });
     const cats = [...new Set(lista.map(i => i.categoria))];
@@ -4607,6 +4643,7 @@ function renderCatalogo(cat) {
     const q = catBusqueda.trim().toLowerCase();
     lista = lista.filter(i => (i.producto || '').toLowerCase().includes(q) || String(i.codigo || '').toLowerCase().includes(q));
   }
+  lista = applySort('cat', lista);
   const catActual = cat;
   document.getElementById('cat-tbody').innerHTML = lista.map(i => `<tr>
     <td style="color:var(--text-3);font-size:12px">${i.codigo || i.id}</td>
@@ -4747,18 +4784,25 @@ async function perderPresupuesto(id, cliente) {
 function grupoRootId(p) { return p.grupo_id || p.id; }
 
 async function loadPresupuestos() {
+  document.getElementById('presup-tbody').innerHTML = '<tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr>';
   try {
     const lista = await sb('presupuestos', { order: 'created_at.desc', limit: 100 });
     window._presupLista = lista;
 
-    // Ordenar: por grupo (más reciente primero), y dentro del grupo por versión ascendente
+    // Ordenar grupos: por sort state si aplica, sino más reciente primero
     const grupos = {};
     lista.forEach(p => {
       const root = grupoRootId(p);
       if (!grupos[root]) grupos[root] = [];
       grupos[root].push(p);
     });
+    const s = _sortState['pres'];
     const rootsOrdenados = Object.keys(grupos).sort((a, b) => {
+      const pa = grupos[a][0], pb = grupos[b][0];
+      if (s) {
+        const cmp = String(pa[s.campo] ?? '').localeCompare(String(pb[s.campo] ?? ''), 'es-AR', { numeric: true, sensitivity: 'base' });
+        return s.dir === 'asc' ? cmp : -cmp;
+      }
       const maxA = Math.max(...grupos[a].map(p => new Date(p.created_at).getTime()));
       const maxB = Math.max(...grupos[b].map(p => new Date(p.created_at).getTime()));
       return maxB - maxA;
