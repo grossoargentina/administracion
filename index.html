@@ -787,12 +787,12 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field"><label class="lbl">Hora desarme</label><select class="inp" id="ev-hora-desarme"></select></div>
         <div class="field"><label class="lbl">Total ARS</label><input class="inp" type="number" id="ev-total" placeholder="0"></div>
         <div class="field"><label class="lbl">Modalidad de pago</label>
-          <select class="inp" id="ev-modalidad">
+          <select class="inp" id="ev-modalidad" onchange="toggleSenaEv(this.value)">
             <option>Pago total al finalizar</option>
             <option>Seña + saldo</option>
           </select>
         </div>
-        <div class="field"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="ev-sena" value="30" min="0" max="100"></div>
+        <div class="field" id="ev-sena-wrap"><label class="lbl">Seña (%)</label><input class="inp" type="number" id="ev-sena" value="30" min="0" max="100"></div>
         <div class="field"><label class="lbl">Estado</label>
           <select class="inp" id="ev-estado">
             <option>Cotizado</option><option>Confirmado</option>
@@ -1853,6 +1853,9 @@ async function editEvento(id) {
   document.getElementById('ev-venue').value     = ev.venue || '';
   document.getElementById('ev-horario').value   = ev.horario || '';
   document.getElementById('ev-total').value     = ev.total_ars || 0;
+  document.getElementById('ev-modalidad').value = ev.modalidad_pago || 'Pago total al finalizar';
+  toggleSenaEv(ev.modalidad_pago || 'Pago total al finalizar');
+  document.getElementById('ev-sena').value      = ev.sena_pct || 30;
   document.getElementById('ev-estado').value    = ev.estado;
   document.getElementById('ev-notas').value = ev.notas || '';
   const fpArmado = document.getElementById('ev-fecha-armado')._flatpickr;
@@ -4728,8 +4731,11 @@ document.addEventListener('input', e => {
 // Mostrar/ocultar seña según modalidad
 function toggleSena(modalidad) {
   const wrap = document.getElementById('pres-sena-wrap');
-  if (!wrap) return;
-  wrap.style.display = modalidad === 'Pago total al finalizar' ? 'none' : '';
+  if (wrap) wrap.style.display = modalidad === 'Pago total al finalizar' ? 'none' : '';
+}
+function toggleSenaEv(modalidad) {
+  const wrap = document.getElementById('ev-sena-wrap');
+  if (wrap) wrap.style.display = modalidad === 'Pago total al finalizar' ? 'none' : '';
 }
 
 // ── GENERAR PDF Y SUBIR A DRIVE ───────────────────────────
