@@ -836,7 +836,8 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <select class="inp" id="jorn-tipo" onchange="toggleTransporte()">
             <option value="">— Seleccionar —</option>
             <option>Depósito</option>
-            <option>Armado/Desarmado</option>
+            <option>Armado</option>
+            <option>Desarme</option>
             <option>Operador</option>
           </select>
         </div>
@@ -844,7 +845,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <label class="lbl">Fecha *</label>
           <input class="inp" type="date" id="jorn-fecha">
         </div>
-        <!-- Transporte — solo visible para Armado/Desarmado -->
+        <!-- Transporte — solo visible para Armado/Desarme -->
         <div class="field full" id="jorn-transporte-section" style="display:none;background:var(--surface2);border-radius:8px;padding:12px">
           <label class="lbl" style="margin-bottom:8px;display:block">Transporte</label>
           <div style="display:flex;gap:12px;margin-bottom:10px">
@@ -1680,15 +1681,11 @@ async function loadDashboard() {
       const logIdsEv = logsEvento.map(l => l.id);
       const jornadasEv = jornadas.filter(j => logIdsEv.includes(j.logistica_id) || j.evento_id === ev.id);
 
-      // Agrupar jornadas por tipo y fecha
-      const armados   = jornadasEv.filter(j => j.tipo === 'Armado/Desarmado');
-      const operadors = jornadasEv.filter(j => j.tipo === 'Operador');
-      const depositos = jornadasEv.filter(j => j.tipo === 'Depósito');
-
-      // Subdividir armados por fecha (Armado 1, Armado 2… y Desarme = última fecha)
-      const fechasArmado = [...new Set(armados.map(j => j.fecha))].sort();
-      const fechaDesarme = fechasArmado.length > 1 ? fechasArmado[fechasArmado.length - 1] : null;
-      const fechasArmadoSolo = fechaDesarme ? fechasArmado.slice(0, -1) : fechasArmado;
+      // Agrupar jornadas por tipo
+      const soloArmados  = jornadasEv.filter(j => j.tipo === 'Armado');
+      const soloDesarmes = jornadasEv.filter(j => j.tipo === 'Desarme');
+      const operadors    = jornadasEv.filter(j => j.tipo === 'Operador');
+      const depositos    = jornadasEv.filter(j => j.tipo === 'Depósito');
 
       function renderColumna(titulo, jorns) {
         const fecha = new Date(jorns[0].fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
@@ -1706,15 +1703,17 @@ async function loadDashboard() {
 
       // Construir columnas — solo las que tienen datos
       const cols = [];
-      fechasArmadoSolo.forEach((f, i) => {
-        const jorns = armados.filter(j => j.fecha === f);
-        if (jorns.length) cols.push(renderColumna(fechasArmadoSolo.length > 1 ? `Armado ${i+1}` : 'Armado', jorns));
+      const fechasArmado = [...new Set(soloArmados.map(j => j.fecha))].sort();
+      fechasArmado.forEach((f, i) => {
+        const jorns = soloArmados.filter(j => j.fecha === f);
+        if (jorns.length) cols.push(renderColumna(fechasArmado.length > 1 ? `Armado ${i+1}` : 'Armado', jorns));
       });
-      if (fechaDesarme) {
-        const jorns = armados.filter(j => j.fecha === fechaDesarme);
-        if (jorns.length) cols.push(renderColumna('Desarme', jorns));
-      }
       if (operadors.length) cols.push(renderColumna('Operador', operadors));
+      const fechasDesarme = [...new Set(soloDesarmes.map(j => j.fecha))].sort();
+      fechasDesarme.forEach((f, i) => {
+        const jorns = soloDesarmes.filter(j => j.fecha === f);
+        if (jorns.length) cols.push(renderColumna(fechasDesarme.length > 1 ? `Desarme ${i+1}` : 'Desarme', jorns));
+      });
       if (depositos.length) cols.push(renderColumna('Depósito', depositos));
 
       const columnsHtml = cols.length
@@ -1952,7 +1951,7 @@ async function loadJornadas() {
     document.getElementById('jorn-tbody').innerHTML = jornadas.length
       ? jornadas.map(j => {
           const tipoClass = j.tipo === 'Depósito' ? 'tipo-deposito'
-            : j.tipo === 'Armado/Desarmado' ? 'tipo-armado' : 'tipo-operador';
+            : ['Armado','Desarme'].includes(j.tipo) ? 'tipo-armado' : 'tipo-operador';
           return `<tr>
             <td>${fmtDate(j.fecha)}</td>
             <td><b>${j.personal_apellido ? j.personal_apellido + ' ' : ''}${j.personal_nombre || '—'}</b><br><span style="font-size:11px;color:var(--text-3)">${j.personal_tipo || ''}</span></td>
@@ -2007,7 +2006,7 @@ function llenarSelectEventos() {
 function toggleTransporte() {
   const tipo = document.getElementById('jorn-tipo').value;
   document.getElementById('jorn-transporte-section').style.display =
-    tipo === 'Armado/Desarmado' ? 'block' : 'none';
+    ['Armado','Desarme'].includes(tipo) ? 'block' : 'none';
   renderListaPersonal();
 }
 
@@ -2041,7 +2040,7 @@ function renderListaPersonal() {
   }
   lista.innerHTML = persCache.map((p, i) => {
     const tarifa = tipo === 'Depósito'         ? p.tarifa_deposito
-                 : tipo === 'Armado/Desarmado' ? p.tarifa_armado
+                 : ['Armado','Desarme'].includes(tipo) ? p.tarifa_armado
                  : tipo === 'Operador'          ? p.tarifa_operador
                  : null;
     const bg = i % 2 === 0 ? 'var(--bg)' : 'var(--surface2)';
@@ -2085,7 +2084,7 @@ async function guardarJornadas() {
     for (const cb of checks) {
       const persId = parseInt(cb.value);
       const tarifa = tipo === 'Depósito'         ? parseFloat(cb.dataset.dep)
-                   : tipo === 'Armado/Desarmado' ? parseFloat(cb.dataset.arm)
+                   : ['Armado','Desarme'].includes(tipo) ? parseFloat(cb.dataset.arm)
                    : parseFloat(cb.dataset.op);
 
       const transporteVal = document.querySelector('input[name="jorn-transporte"]:checked')?.value || null;
@@ -2098,10 +2097,10 @@ async function guardarJornadas() {
         tarifa_ars:   tarifa || 0,
         pagado:       false,
         notas,
-        transporte:   tipo === 'Armado/Desarmado' ? transporteVal : null,
-        flete_personal: (tipo === 'Armado/Desarmado' && transporteVal === 'Flete')
+        transporte:   ['Armado','Desarme'].includes(tipo) ? transporteVal : null,
+        flete_personal: (['Armado','Desarme'].includes(tipo) && transporteVal === 'Flete')
           ? document.getElementById('jorn-flete-personal').value.trim() || null : null,
-        flete_monto:  (tipo === 'Armado/Desarmado' && transporteVal === 'Flete')
+        flete_monto:  (['Armado','Desarme'].includes(tipo) && transporteVal === 'Flete')
           ? parseFloat(document.getElementById('jorn-flete-monto').value) || null : null,
       };
       await sbPost('jornadas', row);
@@ -2286,7 +2285,7 @@ function generarReciboPDF(data, periodo, lunesDate) {
     const dow = new Date(j.fecha + 'T12:00:00').getDay(); // 0=dom, 6=sab
     const esFinDeSemana = dow === 0 || dow === 6;
     if (j.tipo === 'Depósito') return true;
-    if (j.tipo === 'Armado/Desarmado' && !esFinDeSemana) return true;
+    if (['Armado','Desarme'].includes(j.tipo) && !esFinDeSemana) return true;
     return false;
   };
 
@@ -2463,32 +2462,13 @@ async function editarLogistica(id) {
     const grupos = {};
     jornadas.forEach(j => {
       const key = `${j.tipo}__${j.fecha}`;
-      if (!grupos[key]) grupos[key] = { id: Date.now() + Math.random(), tipo: j.tipo === 'Armado/Desarmado' ? (j.fecha === jornadas.find(x=>x.tipo==='Armado/Desarmado')?.fecha ? 'Armado' : 'Desarmado') : j.tipo, fecha: j.fecha, hora_inicio: j.hora_inicio || '', personal: [], transporte: j.transporte || 'Sin transporte', flete_personal: j.flete_personal || '', flete_monto: j.flete_monto || '' };
+      if (!grupos[key]) grupos[key] = { id: Date.now() + Math.random(), tipo: j.tipo, fecha: j.fecha, hora_inicio: j.hora_inicio || '', personal: [], transporte: j.transporte || (['Armado','Desarme'].includes(j.tipo) ? 'Camioneta propia' : 'Sin transporte'), flete_personal: j.flete_personal || '', flete_monto: j.flete_monto || '' };
       if (j.personal_id && !grupos[key].personal.includes(j.personal_id)) grupos[key].personal.push(j.personal_id);
     });
+    logDias = Object.values(grupos);
 
-    // Distinguir Armado vs Desarmado (mismo tipo 'Armado/Desarmado' en DB)
-    const armDesarme = jornadas.filter(j => j.tipo === 'Armado/Desarmado');
-    const fechasArmDes = [...new Set(armDesarme.map(j => j.fecha))].sort();
-    logDias = [];
-    fechasArmDes.forEach((fecha, idx) => {
-      const isLast = idx === fechasArmDes.length - 1;
-      const jornsDay = armDesarme.filter(j => j.fecha === fecha);
-      const pers = [...new Set(jornsDay.map(j => j.personal_id).filter(Boolean))];
-      logDias.push({ id: Date.now() + Math.random(), tipo: (idx === 0 && fechasArmDes.length > 1) ? 'Armado' : isLast && fechasArmDes.length > 1 ? 'Desarmado' : idx === 0 ? 'Armado' : 'Desarmado', fecha, hora_inicio: jornsDay[0]?.hora_inicio || '', personal: pers, transporte: jornsDay[0]?.transporte || 'Camioneta propia', flete_personal: jornsDay[0]?.flete_personal || '', flete_monto: jornsDay[0]?.flete_monto || '' });
-    });
-
-    // Agregar Operador
-    const operadores = jornadas.filter(j => j.tipo === 'Operador');
-    const fechasOp = [...new Set(operadores.map(j => j.fecha))].sort();
-    fechasOp.forEach(fecha => {
-      const jornsDay = operadores.filter(j => j.fecha === fecha);
-      const pers = [...new Set(jornsDay.map(j => j.personal_id).filter(Boolean))];
-      logDias.push({ id: Date.now() + Math.random(), tipo: 'Operador', fecha, hora_inicio: jornsDay[0]?.hora_inicio || '', personal: pers, transporte: 'Sin transporte', flete_personal: '', flete_monto: '' });
-    });
-
-    // Ordenar: Armado → Operador → Desarmado
-    const orden = { 'Armado': 0, 'Operador': 1, 'Desarmado': 2 };
+    // Ordenar: Armado → Operador → Desarme
+    const orden = { 'Armado': 0, 'Operador': 1, 'Desarme': 2 };
     logDias.sort((a,b) => (orden[a.tipo]??3) - (orden[b.tipo]??3) || a.fecha.localeCompare(b.fecha));
 
     renderDiasLog();
@@ -2536,7 +2516,7 @@ function setTipoLog(tipo) {
     logDias = [
       { id: Date.now()+1, tipo: 'Armado',    fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
       { id: Date.now()+2, tipo: 'Operador',  fecha: '', hora_inicio: '', personal: [], transporte: 'Sin transporte',   flete_personal: '', flete_monto: '' },
-      { id: Date.now()+3, tipo: 'Desarmado', fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
+      { id: Date.now()+3, tipo: 'Desarme', fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
     ];
   } else {
     logDias = [
@@ -2621,7 +2601,7 @@ function renderDiasLog() {
     return;
   }
   container.innerHTML = logDias.map(d => {
-    const conTransporte = ['Armado','Desarmado'].includes(d.tipo);
+    const conTransporte = ['Armado','Desarme'].includes(d.tipo);
     const persHtml = personal.map(p => `
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap">
         <input type="checkbox" ${d.personal.includes(p.id)?'checked':''} onchange="togglePersonalDia(${d.id},${p.id})">
@@ -2639,7 +2619,7 @@ function renderDiasLog() {
           ${logTipo === 'Deposito'
             ? `<span style="font-size:12px;font-weight:600;color:var(--orange)">📦 Depósito</span>`
             : `<select class="inp" style="width:140px" onchange="updateDiaLog(${d.id},'tipo',this.value)">
-                ${['Armado','Operador','Desarmado'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
+                ${['Armado','Operador','Desarme'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
                </select>`}
           ${d.tipo === 'Operador'
             ? `<span style="font-size:12px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">${d.fecha ? new Date(d.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'}</span>
@@ -2707,7 +2687,7 @@ async function guardarLogistica() {
         const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito
           : d.tipo === 'Operador' ? p.tarifa_operador
           : p.tarifa_armado;
-        const tipoJornada = (d.tipo === 'Armado' || d.tipo === 'Desarmado') ? 'Armado/Desarmado' : d.tipo;
+        const tipoJornada = d.tipo === 'Depósito' ? 'Depósito' : d.tipo;
         jornadasToInsert.push({
           codigo: `J${new Date().getFullYear()}-${String(base++).padStart(4, '0')}`,
           personal_id: persId,
@@ -2717,7 +2697,7 @@ async function guardarLogistica() {
           tipo: tipoJornada,
           tarifa_ars: tarifa || null,
           pagado: false,
-          transporte: ['Armado','Desarmado'].includes(d.tipo) ? d.transporte : null,
+          transporte: ['Armado','Desarme'].includes(d.tipo) ? d.transporte : null,
           flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
           flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
           logistica_id: logId,
@@ -3183,7 +3163,7 @@ function esIncluida(tipo, fecha) {
   const dow = new Date(fecha + 'T12:00:00').getDay();
   const esFinde = dow === 0 || dow === 6;
   if (tipo === 'Depósito') return true;
-  if ((tipo === 'Armado/Desarmado') && !esFinde) return true;
+  if ((['Armado','Desarme'].includes(tipo)) && !esFinde) return true;
   return false;
 }
 
