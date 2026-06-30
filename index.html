@@ -781,6 +781,10 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="ev-fecha"></div>
         <div class="field"><label class="lbl">Horario</label><select class="inp" id="ev-horario"></select></div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="ev-venue" placeholder="Nombre del salón"></div>
+        <div class="field"><label class="lbl">Fecha armado</label><input class="inp" type="date" id="ev-fecha-armado"></div>
+        <div class="field"><label class="lbl">Hora armado</label><select class="inp" id="ev-hora-armado"></select></div>
+        <div class="field"><label class="lbl">Fecha desarme</label><input class="inp" type="date" id="ev-fecha-desarme"></div>
+        <div class="field"><label class="lbl">Hora desarme</label><select class="inp" id="ev-hora-desarme"></select></div>
         <div class="field"><label class="lbl">Total ARS</label><input class="inp" type="number" id="ev-total" placeholder="0"></div>
         <div class="field"><label class="lbl">Modalidad de pago</label>
           <select class="inp" id="ev-modalidad">
@@ -797,6 +801,11 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
+        <div class="field full">
+          <label class="lbl">Beneficiarios de cláusula de no repetición</label>
+          <div id="ev-clausulas-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBeneficiario()">+ Agregar beneficiario</button>
+        </div>
         <div class="field full" id="ev-motivo-wrap" style="display:none">
           <label class="lbl">Motivo de pérdida</label>
           <select class="inp" id="ev-motivo">
@@ -1553,7 +1562,7 @@ async function initApp() {
     evCache   = await sb('eventos',  { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
     llenarSelectPersonal();
     llenarSelectEventos();
-    ['ev-horario'].forEach(id => {
+    ['ev-horario','ev-hora-armado','ev-hora-desarme'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = buildTimeOpts('');
     });
@@ -1745,7 +1754,11 @@ async function loadDashboard() {
         ${columnsHtml}
         ${productosHtml}
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="enviarMailSeguroEvento(${ev.id},'${(ev.venue||ev.codigo||'').replace(/'/g,"\\'")}')">📧 Enviar seguro</button>
+          ${ev.seguro_enviado
+            ? `<button class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed" disabled>✅ Seguros enviados</button>`
+            : ev.clausulas
+              ? `<button class="btn btn-ghost btn-sm" onclick="enviarMailSeguroEvento(${ev.id},'${(ev.venue||ev.codigo||'').replace(/'/g,"\\'")}')">📧 Enviar seguro</button>`
+              : `<button class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed" title="Cargá las cláusulas del salón en Eventos primero" disabled>📧 Enviar seguro</button>`}
         </div>
       </div>`;
     }).join('');
@@ -1811,6 +1824,21 @@ document.getElementById('ev-estado').addEventListener('change', function() {
 });
 
 let editingEventoId = null;
+let evBeneficiarios = []; // [{nombre, cuit}]
+
+function renderBeneficiarios() {
+  document.getElementById('ev-clausulas-lista').innerHTML = evBeneficiarios.map((b, i) => `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="evBeneficiarios[${i}].nombre=this.value">
+      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" oninput="evBeneficiarios[${i}].cuit=this.value">
+      <button type="button" class="btn btn-danger btn-sm" onclick="evBeneficiarios.splice(${i},1);renderBeneficiarios()">✕</button>
+    </div>`).join('');
+}
+
+function agregarBeneficiario() {
+  evBeneficiarios.push({ nombre: '', cuit: '' });
+  renderBeneficiarios();
+}
 
 async function editEvento(id) {
   const ev = todosEventos.find(e => e.id === id);
@@ -1826,7 +1854,17 @@ async function editEvento(id) {
   document.getElementById('ev-horario').value   = ev.horario || '';
   document.getElementById('ev-total').value     = ev.total_ars || 0;
   document.getElementById('ev-estado').value    = ev.estado;
-  document.getElementById('ev-notas').value     = ev.notas || '';
+  document.getElementById('ev-notas').value = ev.notas || '';
+  const fpArmado = document.getElementById('ev-fecha-armado')._flatpickr;
+  if (fpArmado) { ev.fecha_armado ? fpArmado.setDate(ev.fecha_armado, false, 'Y-m-d') : fpArmado.clear(); }
+  else { document.getElementById('ev-fecha-armado').value = ev.fecha_armado || ''; }
+  document.getElementById('ev-hora-armado').innerHTML = buildTimeOpts(ev.hora_armado || '');
+  const fpDesarme = document.getElementById('ev-fecha-desarme')._flatpickr;
+  if (fpDesarme) { ev.fecha_desarme ? fpDesarme.setDate(ev.fecha_desarme, false, 'Y-m-d') : fpDesarme.clear(); }
+  else { document.getElementById('ev-fecha-desarme').value = ev.fecha_desarme || ''; }
+  document.getElementById('ev-hora-desarme').innerHTML = buildTimeOpts(ev.hora_desarme || '');
+  evBeneficiarios = ev.clausulas ? JSON.parse(ev.clausulas) : [];
+  renderBeneficiarios();
   document.getElementById('ev-motivo-wrap').style.display = ev.estado === 'Perdido' ? 'block' : 'none';
   openModal('modal-evento');
 }
@@ -1846,6 +1884,11 @@ async function guardarEvento() {
     sena_pct:       parseFloat(document.getElementById('ev-sena').value) || 30,
     estado:         document.getElementById('ev-estado').value,
     notas:          document.getElementById('ev-notas').value,
+    fecha_armado:   document.getElementById('ev-fecha-armado').value || null,
+    hora_armado:    document.getElementById('ev-hora-armado').value || null,
+    fecha_desarme:  document.getElementById('ev-fecha-desarme').value || null,
+    hora_desarme:   document.getElementById('ev-hora-desarme').value || null,
+    clausulas:      evBeneficiarios.filter(b => b.nombre || b.cuit).length ? JSON.stringify(evBeneficiarios.filter(b => b.nombre || b.cuit)) : null,
     motivo_perdida: document.getElementById('ev-motivo').value || null,
     updated_at:     new Date().toISOString(),
   };
@@ -1864,6 +1907,8 @@ async function guardarEvento() {
     }
     closeModal('modal-evento');
     editingEventoId = null;
+    evBeneficiarios = [];
+    renderBeneficiarios();
     document.getElementById('modal-evento-title').textContent = 'Nuevo evento';
     loadEventos();
     evCache = await sb('eventos', { filters:['estado=in.(Cotizado,Confirmado,En logística)'], order:'fecha_evento' });
@@ -2432,7 +2477,7 @@ async function loadLogisticas() {
       <td style="display:flex;gap:4px">
         <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}')">✏️ Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
-        <button class="btn btn-ghost btn-sm" onclick="enviarMailSeguro(${f.logId})" title="Enviar lista a seguro">📧</button>
+
         <button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>
       </td>
     </tr>`).join('');
@@ -2534,9 +2579,9 @@ function setTipoLog(tipo) {
   document.getElementById('nlg-sec-deposito').style.display = tipo === 'Deposito' ? '' : 'none';
   if (tipo === 'Evento') {
     logDias = [
-      { id: Date.now()+1, tipo: 'Armado',    fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
+      { id: Date.now()+1, tipo: 'Armado',    fecha: '', hora_inicio: '', personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
       { id: Date.now()+2, tipo: 'Operador',  fecha: '', hora_inicio: '', personal: [], transporte: 'Sin transporte',   flete_personal: '', flete_monto: '' },
-      { id: Date.now()+3, tipo: 'Desarme', fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
+      { id: Date.now()+3, tipo: 'Desarme',  fecha: '', hora_inicio: '', personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
     ];
   } else {
     logDias = [
@@ -2555,14 +2600,10 @@ function onCambioEventoLog() {
   const evId = parseInt(document.getElementById('nlg-evento').value);
   const ev = (evCache || []).find(e => e.id === evId);
   if (!ev) return;
-  const fechaEv = ev.fecha_evento || new Date().toISOString().split('T')[0];
-  const horaEv  = ev.horario || '';
-  // Actualizar fecha y hora del día Operador
   logDias.forEach(d => {
-    if (d.tipo === 'Operador') {
-      d.fecha = fechaEv;
-      d.hora_inicio = horaEv;
-    }
+    if (d.tipo === 'Operador') { d.fecha = ev.fecha_evento || ''; d.hora_inicio = ev.horario || ''; }
+    if (d.tipo === 'Armado')   { d.fecha = ev.fecha_armado  || ''; d.hora_inicio = ev.hora_armado  || ''; }
+    if (d.tipo === 'Desarme')  { d.fecha = ev.fecha_desarme || ''; d.hora_inicio = ev.hora_desarme || ''; }
   });
   renderDiasLog();
 }
@@ -2641,7 +2682,7 @@ function renderDiasLog() {
             : `<select class="inp" style="width:140px" onchange="updateDiaLog(${d.id},'tipo',this.value)">
                 ${['Armado','Operador','Desarme'].map(t=>`<option ${d.tipo===t?'selected':''}>${t}</option>`).join('')}
                </select>`}
-          ${d.tipo === 'Operador'
+          ${['Operador','Armado','Desarme'].includes(d.tipo)
             ? `<span style="font-size:12px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">${d.fecha ? new Date(d.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'}</span>
                <span style="font-size:12px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">🕐 ${d.hora_inicio || '—'}</span>`
             : `<input type="date" class="inp" style="width:150px" value="${d.fecha}" onchange="updateDiaLog(${d.id},'fecha',this.value)">
@@ -2659,7 +2700,6 @@ function renderDiasLog() {
 }
 
 async function guardarLogistica() {
-  console.log('logDias al guardar:', JSON.stringify(logDias.map(d => ({ tipo: d.tipo, fecha: d.fecha, personal: d.personal }))));
   if (!logDias.length) { toast('Agregá al menos un día', 'err'); return; }
   if (!logDias.some(d => d.personal.length)) { toast('Asigná personal a al menos un día', 'err'); return; }
   const notas = document.getElementById('nlg-notas').value.trim();
@@ -2737,6 +2777,10 @@ async function guardarLogistica() {
 
 async function enviarMailSeguroEvento(eventoId, evLabel) {
   try {
+    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'clausulas', limit: 1 });
+    const beneficiarios = evRow[0]?.clausulas ? JSON.parse(evRow[0].clausulas) : [];
+    if (!beneficiarios.length) { toast('Cargá los beneficiarios de la cláusula en el evento primero', 'err'); return; }
+
     const jornadas = await sb('jornadas', { filters: [`evento_id=eq.${eventoId}`], select: 'personal_id', limit: 500 });
     const persIds = [...new Set(jornadas.map(j => j.personal_id).filter(Boolean))];
     if (!persIds.length) { toast('Sin personal asignado a este evento', 'err'); return; }
@@ -2759,6 +2803,10 @@ async function enviarMailSeguroEvento(eventoId, evLabel) {
       </tr>`;
     }).join('');
 
+    const filasClausula = beneficiarios.map(b =>
+      `<li style="margin-bottom:4px"><strong>${b.nombre}</strong> — CUIT ${b.cuit}</li>`
+    ).join('');
+
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
         <div style="background:#1A1A2E;padding:20px 24px;border-radius:8px 8px 0 0">
@@ -2769,6 +2817,10 @@ async function enviarMailSeguroEvento(eventoId, evLabel) {
           <p style="margin:0 0 16px;font-size:14px;color:#333">
             Listado de personal para cobertura de seguro:<br><strong>${evLabel}</strong>
           </p>
+          <div style="background:#fff;border-radius:6px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#333">Cláusula de no repetición a favor de:</p>
+            <ul style="margin:0;padding-left:18px;font-size:13px;color:#555">${filasClausula}</ul>
+          </div>
           <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
             <thead>
               <tr style="background:#1A1A2E;color:#c9a84c">
@@ -2792,8 +2844,15 @@ async function enviarMailSeguroEvento(eventoId, evLabel) {
       body: JSON.stringify({ to: EMAIL_SEGURO, subject: `Seguro personal — ${evLabel}`, html }),
     });
     const data = await res.json();
-    if (res.ok && data.ok) toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
-    else toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
+    if (res.ok && data.ok) {
+      await sbPatch('eventos', eventoId, { seguro_enviado: true });
+      const ev = (evCache || []).find(e => e.id === eventoId);
+      if (ev) ev.seguro_enviado = true;
+      toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
+      loadFechas();
+    } else {
+      toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
+    }
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -4546,7 +4605,8 @@ function filtrarCatalogoPres() {
   const cat  = document.getElementById('pres-cat-filtro').value;
   const lista = catalogoCache.filter(i =>
     (!cat || i.categoria === cat) &&
-    (!q || i.producto.toLowerCase().includes(q) || (i.descripcion||'').toLowerCase().includes(q))
+    (!q || i.producto.toLowerCase().includes(q) || (i.descripcion||'').toLowerCase().includes(q)) &&
+    !presItems.some(p => p.id === i.id && !p.esCustom)
   );
 
   const wrap = document.getElementById('pres-catalogo-lista');
@@ -4613,12 +4673,10 @@ function renderItemsPresup() {
           onchange="cambiarCantidad(${i}, this.value)">
       </td>
       <td style="padding:8px 12px;text-align:right;font-size:12px">
-        ${item.esCustom
-          ? `<input type="number" value="${item.precio}"
-               style="width:110px;text-align:right;background:var(--bg);border:1px solid var(--border);
-                      border-radius:6px;color:var(--text);padding:4px;font-size:12px"
-               onchange="cambiarPrecio(${i}, this.value)">`
-          : fmtARS(item.precio)}
+        <input type="number" value="${item.precio}"
+          style="width:110px;text-align:right;background:var(--bg);border:1px solid var(--border);
+                 border-radius:6px;color:var(--text);padding:4px;font-size:12px"
+          onchange="cambiarPrecio(${i}, this.value)">
       </td>
       <td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600">
         ${fmtARS(item.precio * item.cantidad)}
