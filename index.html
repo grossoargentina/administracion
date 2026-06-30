@@ -1212,6 +1212,42 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
   </div>
 </div>
 
+<!-- MODAL COBRO -->
+<div class="modal-overlay" id="modal-cobro">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <span class="modal-title" id="cobro-titulo">Registrar cobro</span>
+      <button class="modal-close" onclick="closeModal('modal-cobro')">×</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div id="cobro-tipo-wrap">
+        <label class="form-label">Tipo de cobro</label>
+        <select id="cobro-tipo" class="form-input" onchange="onCobroTipoChange()">
+          <option value="Seña">Seña</option>
+          <option value="Saldo">Saldo</option>
+          <option value="Parcial">Parcial</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Monto a cobrar (ARS)</label>
+        <input type="number" id="cobro-monto" class="form-input" min="0" step="100" placeholder="0">
+      </div>
+      <div>
+        <label class="form-label">Fecha</label>
+        <input type="date" id="cobro-fecha" class="form-input">
+      </div>
+      <div id="cobro-nota-wrap" style="display:none">
+        <label class="form-label">Nota (opcional)</label>
+        <input type="text" id="cobro-nota" class="form-input" placeholder="ej: anticipo, cuota 1...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-cobro')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarCobro()">Registrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL PRESUPUESTO -->
 <div class="modal-overlay" id="modal-presupuesto" style="align-items:flex-start;padding:20px">
   <div class="modal" style="max-width:800px;margin:auto">
@@ -1978,34 +2014,90 @@ async function guardarEvento() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-async function registrarCobro(id, cliente, senaOk, saldoOk) {
-  const opciones = [];
-  if (!senaOk) opciones.push('Seña');
-  if (senaOk && !saldoOk) opciones.push('Saldo');
-  if (!opciones.length) { toast('Este evento ya está cobrado completo'); return; }
+let _cobroCtx = null;
 
-  const tipo = opciones.length === 1 ? opciones[0]
-    : prompt(`¿Qué cobrás?\n${opciones.map((o,i)=>`${i+1}. ${o}`).join('\n')}`);
-  if (!tipo) return;
+function onCobroTipoChange() {
+  const tipo = document.getElementById('cobro-tipo').value;
+  document.getElementById('cobro-nota-wrap').style.display = tipo === 'Parcial' ? '' : 'none';
+}
+
+async function registrarCobro(id, cliente, senaOk, saldoOk) {
+  if (senaOk && saldoOk) { toast('Este evento ya está cobrado completo'); return; }
 
   const ev = (todosEventos || []).find(e => e.id === id);
   const totalEv = Number(ev?.total_ars) || 0;
   const senaPct = Number(ev?.sena_pct) || 30;
-  const montoCobro = tipo === 'Seña'
+  const esPagoTotal = ev?.modalidad_pago === 'Pago total al finalizar';
+
+  _cobroCtx = { id, cliente, senaOk, saldoOk, totalEv, senaPct, esPagoTotal };
+
+  // Armar opciones de tipo
+  const sel = document.getElementById('cobro-tipo');
+  sel.innerHTML = '';
+  if (!esPagoTotal && !senaOk) sel.innerHTML += '<option value="Seña">Seña</option>';
+  if (!saldoOk) sel.innerHTML += '<option value="Saldo">Saldo</option>';
+  sel.innerHTML += '<option value="Parcial">Parcial</option>';
+
+  // Precargar monto sugerido
+  const primerTipo = sel.value;
+  const montoSug = primerTipo === 'Seña'
     ? Math.round(totalEv * senaPct / 100)
-    : Math.round(totalEv - (totalEv * senaPct / 100));
+    : primerTipo === 'Saldo'
+      ? Math.round(totalEv - totalEv * senaPct / 100)
+      : 0;
+  document.getElementById('cobro-monto').value = montoSug || '';
+  document.getElementById('cobro-fecha').value = today();
+  document.getElementById('cobro-nota').value = '';
+  document.getElementById('cobro-nota-wrap').style.display = primerTipo === 'Parcial' ? '' : 'none';
+  document.getElementById('cobro-titulo').textContent = `Cobro — ${cliente}`;
+
+  sel.onchange = () => {
+    onCobroTipoChange();
+    const t = sel.value;
+    const m = t === 'Seña'
+      ? Math.round(totalEv * senaPct / 100)
+      : t === 'Saldo'
+        ? Math.round(totalEv - totalEv * senaPct / 100)
+        : 0;
+    document.getElementById('cobro-monto').value = m || '';
+  };
+
+  openModal('modal-cobro');
+}
+
+async function confirmarCobro() {
+  if (!_cobroCtx) return;
+  const { id, cliente, senaOk, totalEv, senaPct, esPagoTotal } = _cobroCtx;
+  const tipo = document.getElementById('cobro-tipo').value;
+  const monto = parseFloat(document.getElementById('cobro-monto').value);
+  const fecha = document.getElementById('cobro-fecha').value || today();
+  const nota = document.getElementById('cobro-nota').value.trim();
+
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
 
   try {
     await sbPost('pagos', {
-      evento_id: id, tipo,
-      monto_ars: montoCobro,
-      fecha_cobro: today(),
+      evento_id: id,
+      tipo: tipo === 'Parcial' ? (nota || 'Parcial') : tipo,
+      monto_ars: monto,
+      fecha_cobro: fecha,
     });
-    const patch = tipo === 'Seña'
-      ? { sena_cobrada: true,  fecha_sena: today() }
-      : { saldo_cobrado: true, fecha_saldo: today(), estado: 'Realizado' };
-    await sbPatch('eventos', id, patch);
-    toast(`${tipo} registrada para ${cliente}`);
+
+    let patch = {};
+    if (tipo === 'Seña') patch = { sena_cobrada: true, fecha_sena: fecha };
+    else if (tipo === 'Saldo') patch = { saldo_cobrado: true, fecha_saldo: fecha, estado: 'Realizado' };
+    // Parcial: si el monto cubre el saldo completo, marcar como cobrado
+    else {
+      const senaAmt = Math.round(totalEv * senaPct / 100);
+      if (!senaOk && monto >= senaAmt) patch = { sena_cobrada: true, fecha_sena: fecha };
+      if (monto >= totalEv) patch = { ...patch, saldo_cobrado: true, fecha_saldo: fecha, estado: 'Realizado' };
+    }
+    if (esPagoTotal && tipo === 'Saldo') patch.estado = 'Realizado';
+
+    if (Object.keys(patch).length) await sbPatch('eventos', id, patch);
+
+    closeModal('modal-cobro');
+    toast(`Cobro registrado para ${cliente}`);
     loadEventos();
     if (currentPage === 'dashboard') loadDashboard();
     if (currentPage === 'cobros') loadCobros();
