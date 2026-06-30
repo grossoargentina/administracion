@@ -1214,31 +1214,29 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
 
 <!-- MODAL COBRO -->
 <div class="modal-overlay" id="modal-cobro">
-  <div class="modal" style="max-width:380px">
+  <div class="modal" style="max-width:420px">
     <div class="modal-header">
       <span class="modal-title" id="cobro-titulo">Registrar cobro</span>
       <button class="modal-close" onclick="closeModal('modal-cobro')">×</button>
     </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
-      <div id="cobro-tipo-wrap">
-        <label class="form-label">Tipo de cobro</label>
-        <select id="cobro-tipo" class="form-input" onchange="onCobroTipoChange()">
-          <option value="Seña">Seña</option>
-          <option value="Saldo">Saldo</option>
-          <option value="Parcial">Parcial</option>
-        </select>
-      </div>
-      <div>
-        <label class="form-label">Monto a cobrar (ARS)</label>
-        <input type="number" id="cobro-monto" class="form-input" min="0" step="100" placeholder="0">
-      </div>
-      <div>
-        <label class="form-label">Fecha</label>
-        <input type="date" id="cobro-fecha" class="form-input">
-      </div>
-      <div id="cobro-nota-wrap" style="display:none">
-        <label class="form-label">Nota (opcional)</label>
-        <input type="text" id="cobro-nota" class="form-input" placeholder="ej: anticipo, cuota 1...">
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Tipo de cobro</label>
+          <select id="cobro-tipo" class="inp"></select>
+        </div>
+        <div class="field">
+          <label class="lbl">Monto (ARS)</label>
+          <input type="number" id="cobro-monto" class="inp" min="0" step="100" placeholder="0">
+        </div>
+        <div class="field">
+          <label class="lbl">Fecha</label>
+          <input type="date" id="cobro-fecha" class="inp">
+        </div>
+        <div class="field" id="cobro-nota-wrap" style="grid-column:1/-1;display:none">
+          <label class="lbl">Nota (opcional)</label>
+          <input type="text" id="cobro-nota" class="inp" placeholder="ej: anticipo, cuota 1...">
+        </div>
       </div>
     </div>
     <div class="modal-footer">
