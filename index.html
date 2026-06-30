@@ -3603,10 +3603,18 @@ let _tipoCambioCache = null;
 async function fetchTipoCambioOficial() {
   if (_tipoCambioCache) return _tipoCambioCache;
   try {
-    const r = await fetch('https://api.dolarapi.com/v1/dolares/oficial');
+    const r = await fetch('https://api.bluelytics.com.ar/v2/latest');
     const d = await r.json();
-    _tipoCambioCache = Number(d.venta) || 1;
-  } catch { _tipoCambioCache = 1; }
+    _tipoCambioCache = Number(d.oficial?.value_sell) || null;
+  } catch { _tipoCambioCache = null; }
+  if (!_tipoCambioCache) {
+    try {
+      const r = await fetch('https://api.dolarapi.com/v1/dolares/oficial');
+      const d = await r.json();
+      _tipoCambioCache = Number(d.venta) || null;
+    } catch { _tipoCambioCache = null; }
+  }
+  _tipoCambioCache = _tipoCambioCache || 1200; // fallback razonable
   return _tipoCambioCache;
 }
 
@@ -4123,7 +4131,7 @@ async function renderImpuestos() {
     s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tc, 0);
 
   document.getElementById('imp-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total del mes</div><div class="kpi-value gold">${fmtARS(totalMes)}</div></div>
+    <div class="kpi"><div class="kpi-label">Total del mes</div><div class="kpi-value gold">${fmtARS(totalMes)}</div><div style="font-size:10px;color:var(--text-3);margin-top:4px">USD @ $${tc.toLocaleString('es-AR')}</div></div>
     <div class="kpi"><div class="kpi-label">Pagados</div><div class="kpi-value green">${pagados} / ${lista.length}</div></div>
     <div class="kpi"><div class="kpi-label">Vencidos sin pagar</div><div class="kpi-value red">${vencidos}</div></div>
   `;
