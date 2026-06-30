@@ -2565,7 +2565,7 @@ function renderDiasLog() {
                </select>`}
           ${d.tipo === 'Operador'
             ? `<span style="font-size:12px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">${d.fecha ? new Date(d.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'}</span>
-               ${d.hora_inicio ? `<span style="font-size:12px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">🕐 ${d.hora_inicio}</span>` : ''}`
+               <span style="font-size:12px;color:var(--text-2);background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">🕐 ${d.hora_inicio || '—'}</span>`
             : `<input type="date" class="inp" style="width:150px" value="${d.fecha}" onchange="updateDiaLog(${d.id},'fecha',this.value)">
                <select class="inp" style="width:110px" onchange="updateDiaLog(${d.id},'hora_inicio',this.value)">${buildTimeOpts(d.hora_inicio||'')}</select>`}
           ${conTransporte ? `<select class="inp" style="width:160px" onchange="updateDiaLog(${d.id},'transporte',this.value)">
