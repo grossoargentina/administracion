@@ -2508,7 +2508,16 @@ function updateDiaLog(id, field, value) {
   const d = logDias.find(d => d.id === id);
   if (!d) return;
   d[field] = value;
-  if (field === 'tipo' || field === 'transporte') renderDiasLog();
+  if (field === 'tipo') {
+    if (value === 'Operador') {
+      const evId = parseInt(document.getElementById('nlg-evento').value);
+      const ev = (evCache || []).find(e => e.id === evId);
+      if (ev) { d.fecha = ev.fecha_evento || d.fecha; d.hora_inicio = ev.horario || ''; }
+    }
+    renderDiasLog();
+  } else if (field === 'transporte') {
+    renderDiasLog();
+  }
 }
 
 function onFleteChofer(diaId, value) {
