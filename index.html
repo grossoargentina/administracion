@@ -2659,6 +2659,7 @@ function renderDiasLog() {
 }
 
 async function guardarLogistica() {
+  console.log('logDias al guardar:', JSON.stringify(logDias.map(d => ({ tipo: d.tipo, fecha: d.fecha, personal: d.personal }))));
   if (!logDias.length) { toast('Agregá al menos un día', 'err'); return; }
   if (!logDias.some(d => d.personal.length)) { toast('Asigná personal a al menos un día', 'err'); return; }
   const notas = document.getElementById('nlg-notas').value.trim();
