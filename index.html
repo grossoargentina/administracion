@@ -4107,7 +4107,7 @@ function actualizarCatImp() {
   if (sel) sel.innerHTML = cats.map(c => `<option>${c}</option>`).join('');
 }
 
-function renderImpuestos() {
+async function renderImpuestos() {
   const mesNombre = MESES_NAMES[impMesIdx];
   document.getElementById('imp-mes-label').textContent = `${mesNombre} ${impAnio}`;
   document.getElementById('imp-mes').value = mesNombre;
@@ -4115,22 +4115,15 @@ function renderImpuestos() {
   const hoy  = new Date();
   const lista = todosImpuestos.filter(i => i.mes === mesNombre && i.anio === impAnio);
 
-  const pagados    = lista.filter(i => i.pagado).length;
-  const totalARS   = lista.filter(i => !i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_ars||0), 0);
-  const totalUSD   = lista.filter(i => !i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_usd||0), 0);
-  const tarjetaARS = lista.filter(i => i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_ars||0), 0);
-  const tarjetaUSD = lista.filter(i => i.paga_por_tarjeta).reduce((s,i) => s + Number(i.monto_usd||0), 0);
-  const vencidos   = lista.filter(i => !i.pagado && esVencido(i, hoy)).length;
+  const pagados  = lista.filter(i => i.pagado).length;
+  const vencidos = lista.filter(i => !i.pagado && esVencido(i, hoy)).length;
 
-  const tarjetaLabel = [
-    tarjetaARS ? fmtARS(tarjetaARS) : '',
-    tarjetaUSD ? `U$D ${tarjetaUSD.toLocaleString('es-AR',{minimumFractionDigits:2})}` : '',
-  ].filter(Boolean).join(' + ');
+  const tc = await fetchTipoCambioOficial();
+  const totalMes = lista.reduce((s, i) =>
+    s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tc, 0);
 
   document.getElementById('imp-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Total ARS del mes</div><div class="kpi-value gold">${fmtARS(totalARS)}</div></div>
-    ${tarjetaLabel ? `<div class="kpi"><div class="kpi-label">Por tarjeta (excluido)</div><div class="kpi-value" style="color:var(--text-2)">${tarjetaLabel}</div></div>` : ''}
-    ${totalUSD ? `<div class="kpi"><div class="kpi-label">Total USD del mes</div><div class="kpi-value gold">U$D ${totalUSD.toLocaleString('es-AR',{minimumFractionDigits:2})}</div></div>` : ''}
+    <div class="kpi"><div class="kpi-label">Total del mes</div><div class="kpi-value gold">${fmtARS(totalMes)}</div></div>
     <div class="kpi"><div class="kpi-label">Pagados</div><div class="kpi-value green">${pagados} / ${lista.length}</div></div>
     <div class="kpi"><div class="kpi-label">Vencidos sin pagar</div><div class="kpi-value red">${vencidos}</div></div>
   `;
