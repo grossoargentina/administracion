@@ -4889,7 +4889,7 @@ function filtrarCatalogoPres() {
   const lista = catalogoCache.filter(i =>
     (!cat || i.categoria === cat) &&
     (!q || i.producto.toLowerCase().includes(q) || (i.descripcion||'').toLowerCase().includes(q)) &&
-    !presItems.some(p => p.id === i.id && !p.esCustom)
+    !presItems.some(p => String(p.id) === String(i.id) && !p.esCustom)
   );
 
   const wrap = document.getElementById('pres-catalogo-lista');
@@ -4899,7 +4899,7 @@ function filtrarCatalogoPres() {
   }
 
   wrap.innerHTML = lista.map(item => {
-    const yaAgregado = presItems.some(p => p.id === item.id && !p.esCustom);
+    const yaAgregado = presItems.some(p => String(p.id) === String(item.id) && !p.esCustom);
     return `<div style="display:flex;align-items:center;justify-content:space-between;
                         padding:10px 14px;border-bottom:1px solid var(--border);
                         ${yaAgregado ? 'opacity:.5' : ''}">
