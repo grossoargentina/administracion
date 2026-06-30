@@ -3625,7 +3625,7 @@ async function loadFinanzas() {
 
     // 2. Impuestos: costos_fijos pagados en el período
     const impuestos = await sb('costos_fijos', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 500 });
-    const totalImpuestos = impuestos.reduce((s, i) => s + Number(i.monto || 0), 0);
+    const totalImpuestos = impuestos.reduce((s, i) => s + Number(i.monto_ars || 0), 0);
 
     // 3. Pagos personal: jornadas pagadas en el período
     const jornadas = await sb('jornadas', { select: 'tarifa_ars,fecha_pago', filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 1000 });
@@ -3686,7 +3686,7 @@ async function loadFinanzas() {
 
     // Detalle egresos
     const detalleEg = [
-      ...impuestos.map(i => ({ desc: i.concepto || i.descripcion || 'Impuesto', monto: i.monto, cat: 'Impuesto' })),
+      ...impuestos.map(i => ({ desc: i.concepto || i.descripcion || 'Impuesto', monto: i.monto_ars, cat: 'Impuesto' })),
       ...jornadas.map(j => ({ desc: 'Pago personal', monto: j.tarifa_ars, cat: 'Personal' })),
       ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: e.monto, cat: 'Caja' })),
     ].sort((a, b) => b.monto - a.monto);
@@ -3694,7 +3694,7 @@ async function loadFinanzas() {
     // Agrupar personal
     const personalTotal = jornadas.reduce((s, j) => s + Number(j.tarifa_ars || 0), 0);
     const egResumen = [
-      ...impuestos.map(i => ({ desc: i.concepto || 'Impuesto', monto: Number(i.monto), cat: 'Impuesto' })),
+      ...impuestos.map(i => ({ desc: i.concepto || 'Impuesto', monto: Number(i.monto_ars), cat: 'Impuesto' })),
       ...(personalTotal > 0 ? [{ desc: `Pagos al personal (${jornadas.length} jornadas)`, monto: personalTotal, cat: 'Personal' }] : []),
       ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: Number(e.monto), cat: 'Caja' })),
     ].sort((a, b) => b.monto - a.monto);
