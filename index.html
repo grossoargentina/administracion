@@ -607,8 +607,6 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       </div>
       <!-- KPIs -->
       <div class="kpi-grid" style="margin-bottom:20px">
-        <div class="kpi"><div class="kpi-label">Ingresos eventos</div><div class="kpi-value" style="color:var(--green)" id="fin-ingresos">—</div></div>
-        <div class="kpi"><div class="kpi-label">Capital neto</div><div class="kpi-value" id="fin-capital">—</div></div>
         <div class="kpi" style="grid-column:1/-1;border:1px solid var(--border)"><div class="kpi-label">Resultado neto</div><div class="kpi-value" id="fin-resultado">—</div></div>
         <div class="kpi"><div class="kpi-label">Eventos pendientes de cobro</div><div class="kpi-value" style="color:var(--orange)" id="fin-pendientes-cobro">—</div></div>
         <div class="kpi"><div class="kpi-label">Jornadas sin pagar</div><div class="kpi-value" style="color:var(--orange)" id="fin-jornadas-sin-pagar">—</div></div>
@@ -631,7 +629,10 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="card">
         <div style="padding:18px 20px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <div style="font-weight:600;color:var(--gold)">Capital</div>
+            <div style="display:flex;align-items:baseline;gap:12px">
+              <div style="font-weight:600;color:var(--gold)">Capital</div>
+              <div style="font-size:13px;font-weight:600" id="fin-capital">—</div>
+            </div>
             <div style="display:flex;gap:8px">
               <button class="btn btn-ghost btn-sm" onclick="abrirModalCapital('egreso')">− Egreso capital</button>
               <button class="btn btn-primary btn-sm" onclick="abrirModalCapital('ingreso')">+ Ingreso capital</button>
