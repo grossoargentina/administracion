@@ -2664,6 +2664,7 @@ function renderDiasLog() {
     container.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px 0">No hay días. Hacé clic en "Agregar día".</div>';
     return;
   }
+  const modoEdicion = !!logEditId;
   container.innerHTML = logDias.map(d => {
     const conTransporte = ['Armado','Desarme'].includes(d.tipo);
     const persHtml = personal.map(p => `
@@ -2671,6 +2672,18 @@ function renderDiasLog() {
         <input type="checkbox" ${d.personal.includes(p.id)?'checked':''} onchange="togglePersonalDia(${d.id},${p.id})">
         ${p.apellido} ${p.nombre}
       </label>`).join('');
+
+    if (modoEdicion) {
+      const TIPO_COLOR = { 'Armado': 'var(--gold)', 'Operador': 'var(--blue)', 'Desarme': 'var(--orange)', 'Depósito': 'var(--text-2)' };
+      const TIPO_ICON  = { 'Armado': '🔧', 'Operador': '🎛️', 'Desarme': '📦', 'Depósito': '🏠' };
+      return `<div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:${TIPO_COLOR[d.tipo]||'var(--text)'};margin-bottom:10px">
+          ${TIPO_ICON[d.tipo]||''} ${d.tipo} · ${d.fecha ? new Date(d.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'} ${d.hora_inicio ? '· 🕐 '+d.hora_inicio : ''}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px">${persHtml}</div>
+      </div>`;
+    }
+
     const choferes = (persCache || []).filter(p => p.activo !== false);
     const choferOpts = `<option value="">— Chofer —</option>` + choferes.map(p => `<option value="${p.apellido} ${p.nombre}" ${d.flete_personal === p.apellido+' '+p.nombre ? 'selected' : ''}>${p.apellido} ${p.nombre}</option>`).join('') + `<option value="__otro__" ${d.flete_personal && !choferes.some(p=>p.apellido+' '+p.nombre===d.flete_personal)?'selected':''}>Otro...</option>`;
     const fleteExtra = d.transporte === 'Flete' ? `
