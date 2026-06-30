@@ -2427,7 +2427,7 @@ async function loadLogisticas() {
       <td style="font-size:12px">${f.persCount} persona(s)</td>
       <td style="display:flex;gap:4px">
         <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}')">✏️ Editar</button>
-        <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId})">📋 Ver</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
         <button class="btn btn-ghost btn-sm" onclick="enviarMailSeguro(${f.logId})" title="Enviar lista a seguro">📧</button>
         <button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>
       </td>
@@ -2835,7 +2835,7 @@ async function eliminarLogistica(id) {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-async function abrirDetLogistica(id) {
+async function abrirDetLogistica(id, tipo) {
   document.getElementById('log-editor').innerHTML = '<div class="spinner"></div>';
   document.getElementById('log-titulo').value    = '';
   document.getElementById('log-subtitulo').value = '';
@@ -2855,7 +2855,10 @@ async function abrirDetLogistica(id) {
       document.getElementById('log-direccion').value = ev.direccion || '';
       document.getElementById('log-det-title').textContent = `Logística — ${ev.venue || ev.codigo || ev.id}`;
     }
-    logJornadas = await sb('v_jornadas', { filters: [`logistica_id=eq.${id}`], order: 'fecha,personal_apellido', limit: 500 });
+    const filters = [`logistica_id=eq.${id}`];
+    if (tipo) filters.push(`tipo=eq.${tipo}`);
+    logJornadas = await sb('v_jornadas', { filters, order: 'fecha,personal_apellido', limit: 500 });
+    if (tipo) document.getElementById('log-det-title').textContent += ` — ${tipo}`;
     if (!logJornadas.length) {
       document.getElementById('log-editor').innerHTML = '<div style="color:var(--text-2);font-size:13px">Sin jornadas en esta logística.</div>';
       return;
