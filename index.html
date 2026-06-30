@@ -2457,7 +2457,7 @@ function setTipoLog(tipo) {
   if (tipo === 'Evento') {
     logDias = [
       { id: Date.now()+1, tipo: 'Armado',    fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
-      { id: Date.now()+2, tipo: 'Operador',  fecha: hoy, personal: [], transporte: 'Sin transporte',   flete_personal: '', flete_monto: '' },
+      { id: Date.now()+2, tipo: 'Operador',  fecha: '', hora_inicio: '', personal: [], transporte: 'Sin transporte',   flete_personal: '', flete_monto: '' },
       { id: Date.now()+3, tipo: 'Desarmado', fecha: hoy, personal: [], transporte: 'Camioneta propia', flete_personal: '', flete_monto: '' },
     ];
   } else {
