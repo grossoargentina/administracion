@@ -486,6 +486,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <button class="filter-btn" onclick="filterEventos('Realizado',this)">Realizados</button>
         <button class="filter-btn" onclick="filterEventos('Perdido',this)">Perdidos</button>
       </div>
+      <div style="margin-bottom:12px">
+        <input class="inp" style="max-width:320px" id="ev-busqueda" placeholder="🔍 Buscar por cliente..." oninput="buscarEventos(this.value)">
+      </div>
       <div class="card">
         <div class="tbl-wrap">
           <table>
@@ -610,6 +613,8 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="kpi"><div class="kpi-label">Pagos personal</div><div class="kpi-value" style="color:var(--red)" id="fin-pagos">—</div></div>
         <div class="kpi"><div class="kpi-label">Otros egresos</div><div class="kpi-value" style="color:var(--red)" id="fin-egresos">—</div></div>
         <div class="kpi" style="grid-column:1/-1;border:1px solid var(--border)"><div class="kpi-label">Resultado neto</div><div class="kpi-value" id="fin-resultado">—</div></div>
+        <div class="kpi"><div class="kpi-label">Eventos pendientes de cobro</div><div class="kpi-value" style="color:var(--orange)" id="fin-pendientes-cobro">—</div></div>
+        <div class="kpi"><div class="kpi-label">Jornadas sin pagar</div><div class="kpi-value" style="color:var(--orange)" id="fin-jornadas-sin-pagar">—</div></div>
       </div>
       <!-- Detalle -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
@@ -681,6 +686,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div><div class="page-title">Personal</div></div>
         <button class="btn btn-primary" onclick="abrirModalPersonal()">+ Agregar</button>
       </div>
+      <div style="margin-bottom:12px">
+        <input class="inp" style="max-width:320px" id="pers-busqueda" placeholder="🔍 Buscar por apellido o nombre..." oninput="buscarPersonal(this.value)">
+      </div>
       <div class="card">
         <div class="tbl-wrap">
           <table>
@@ -728,8 +736,8 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>N°</th><th>Cliente</th><th>Evento</th><th>Total ARS</th><th>Modalidad</th><th>Estado</th><th></th></tr></thead>
-            <tbody id="presup-tbody"><tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos generados aún</div></td></tr></tbody>
+            <thead><tr><th>Fecha</th><th>N°</th><th>Versión</th><th>Cliente</th><th>Evento</th><th>Total ARS</th><th>Modalidad</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="presup-tbody"><tr><td colspan="8"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos generados aún</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -742,6 +750,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <button class="btn btn-primary" onclick="abrirModalProducto()">+ Producto</button>
       </div>
       <div class="filters" id="cat-filters"></div>
+      <div style="margin-bottom:12px">
+        <input class="inp" style="max-width:320px" id="cat-busqueda" placeholder="🔍 Buscar por nombre o código..." oninput="buscarCatalogo(this.value)">
+      </div>
       <div class="card">
         <div class="tbl-wrap">
           <table>
@@ -1486,7 +1497,7 @@ async function logout() {
 
 // ── NAVEGACIÓN ────────────────────────────────────────────
 let currentPage = 'dashboard';
-let evCache = [], persCache = [], evConfirmados = [];
+let evCache = [], persCache = [];
 
 function goTo(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1777,6 +1788,7 @@ async function loadDashboard() {
 // ── EVENTOS ───────────────────────────────────────────────
 let todosEventos = [];
 let filtroEvento = 'todos';
+let busquedaEvento = '';
 
 async function loadEventos() {
   try {
@@ -1786,9 +1798,13 @@ async function loadEventos() {
 }
 
 function renderEventos() {
-  const lista = filtroEvento === 'todos'
+  let lista = filtroEvento === 'todos'
     ? todosEventos
     : todosEventos.filter(e => e.estado === filtroEvento);
+  if (busquedaEvento.trim()) {
+    const q = busquedaEvento.trim().toLowerCase();
+    lista = lista.filter(e => (e.cliente_nombre || '').toLowerCase().includes(q));
+  }
 
   document.getElementById('ev-tbody').innerHTML = lista.length
     ? lista.map(e => `<tr>
@@ -1819,6 +1835,11 @@ function filterEventos(estado, btn) {
   filtroEvento = estado;
   document.querySelectorAll('#ev-filters .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  renderEventos();
+}
+
+function buscarEventos(valor) {
+  busquedaEvento = valor;
   renderEventos();
 }
 
@@ -1968,10 +1989,11 @@ async function loadCobros() {
     document.getElementById('cobros-tbody').innerHTML = cobros.length
       ? cobros.map(c => {
           const pct = c.total_ars > 0 ? Math.round((c.total_ars - c.pendiente_ars) / c.total_ars * 100) : 0;
-          return `<tr>
+          const vencido = c.fecha_evento && new Date(c.fecha_evento) < new Date(today()) && Number(c.pendiente_ars) > 0;
+          return `<tr ${vencido ? 'style="background:rgba(255,80,80,0.08)"' : ''}>
             <td><b>${c.cliente_nombre}</b></td>
             <td>${c.tipo_evento || '—'}</td>
-            <td>${fmtDate(c.fecha_evento)}</td>
+            <td>${fmtDate(c.fecha_evento)} ${vencido ? '<span style="color:var(--red);font-size:10px;font-weight:600">⚠ VENCIDO</span>' : ''}</td>
             <td>${fmtARS(c.total_ars)}</td>
             <td style="color:var(--red);font-weight:600">${fmtARS(c.pendiente_ars)}</td>
             <td>${c.sena_cobrada ? '✅' : '❌'}</td>
@@ -3627,6 +3649,12 @@ async function loadFinanzas() {
     resEl.textContent = fmtARS(resultado);
     resEl.style.color = resultado >= 0 ? 'var(--green)' : 'var(--red)';
 
+    // KPIs adicionales: pendientes de cobro y jornadas sin pagar (estado actual, no atado al período)
+    const cobrosPendientes = await sb('v_cobros_pendientes');
+    document.getElementById('fin-pendientes-cobro').textContent = cobrosPendientes.length;
+    const jornadasSinPagar = await sb('jornadas', { select: 'id', filters: ['pagado=eq.false'], limit: 1000 });
+    document.getElementById('fin-jornadas-sin-pagar').textContent = jornadasSinPagar.length;
+
     // Detalle ingresos por evento
     const porEvento = {};
     cobros.forEach(c => {
@@ -3859,28 +3887,44 @@ async function eliminarMovimientoCaja(id) {
 }
 
 // ── PERSONAL ──────────────────────────────────────────────
+let personalBusqueda = '';
+
 async function loadPersonal() {
   try {
-    const lista = await sb('personal', { order: 'nombre' });
-    document.getElementById('pers-tbody').innerHTML = lista.length
-      ? lista.map(p => `<tr>
-          <td><b>${p.apellido || '—'}</b></td>
-          <td>${p.nombre || '—'}</td>
-          <td style="color:var(--text-2);font-size:12px">${p.dni || '—'}</td>
-          <td><span style="color:${p.tipo==='Fijo'?'var(--green)':p.tipo==='Chofer'?'var(--orange)':'var(--blue)'};font-size:12px">${p.tipo}</span></td>
-          <td>${fmtARS(p.tarifa_deposito)}</td>
-          <td>${fmtARS(p.tarifa_armado)}</td>
-          <td>${fmtARS(p.tarifa_operador)}</td>
-          <td style="color:var(--text-2)">${p.telefono || '—'}</td>
-          <td style="display:flex;gap:4px">
-            <button class="btn btn-ghost btn-sm" onclick="editarPersonal(${p.id})">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="togglePersonal(${p.id},${p.activo})">
-              ${p.activo ? 'Baja' : 'Activar'}
-            </button>
-          </td>
-        </tr>`).join('')
-      : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">👥</div>Sin personal cargado</div></td></tr>`;
+    window._personalLista = await sb('personal', { order: 'nombre' });
+    renderPersonal();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+function buscarPersonal(valor) {
+  personalBusqueda = valor;
+  renderPersonal();
+}
+
+function renderPersonal() {
+  let lista = window._personalLista || [];
+  if (personalBusqueda.trim()) {
+    const q = personalBusqueda.trim().toLowerCase();
+    lista = lista.filter(p => (p.apellido || '').toLowerCase().includes(q) || (p.nombre || '').toLowerCase().includes(q));
+  }
+  document.getElementById('pers-tbody').innerHTML = lista.length
+    ? lista.map(p => `<tr>
+        <td><b>${p.apellido || '—'}</b></td>
+        <td>${p.nombre || '—'}</td>
+        <td style="color:var(--text-2);font-size:12px">${p.dni || '—'}</td>
+        <td><span style="color:${p.tipo==='Fijo'?'var(--green)':p.tipo==='Chofer'?'var(--orange)':'var(--blue)'};font-size:12px">${p.tipo}</span></td>
+        <td>${fmtARS(p.tarifa_deposito)}</td>
+        <td>${fmtARS(p.tarifa_armado)}</td>
+        <td>${fmtARS(p.tarifa_operador)}</td>
+        <td style="color:var(--text-2)">${p.telefono || '—'}</td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="editarPersonal(${p.id})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="togglePersonal(${p.id},${p.activo})">
+            ${p.activo ? 'Baja' : 'Activar'}
+          </button>
+        </td>
+      </tr>`).join('')
+    : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">👥</div>Sin personal cargado</div></td></tr>`;
 }
 
 function onPersTipoChange() {
@@ -4447,10 +4491,19 @@ async function eliminarProducto(id) {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
+let catFiltroActual = 'todos';
+let catBusqueda = '';
+
 function filterCat(cat, btn) {
+  catFiltroActual = cat;
   document.querySelectorAll('#cat-filters .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderCatalogo(cat);
+}
+
+function buscarCatalogo(valor) {
+  catBusqueda = valor;
+  renderCatalogo(catFiltroActual);
 }
 
 function initThumbObserver() {
@@ -4482,7 +4535,11 @@ function initThumbObserver() {
 }
 
 function renderCatalogo(cat) {
-  const lista = cat === 'todos' ? window._catLista : window._catLista.filter(i => i.categoria === cat);
+  let lista = cat === 'todos' ? window._catLista : window._catLista.filter(i => i.categoria === cat);
+  if (catBusqueda.trim()) {
+    const q = catBusqueda.trim().toLowerCase();
+    lista = lista.filter(i => (i.producto || '').toLowerCase().includes(q) || String(i.codigo || '').toLowerCase().includes(q));
+  }
   const catActual = cat;
   document.getElementById('cat-tbody').innerHTML = lista.map(i => `<tr>
     <td style="color:var(--text-3);font-size:12px">${i.codigo || i.id}</td>
@@ -4556,6 +4613,17 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
       evento_id:     (Array.isArray(nuevoEv) ? nuevoEv[0]?.id : nuevoEv?.id) || null,
     });
 
+    // Descartar el resto de las versiones del mismo grupo, si las hay
+    const confirmado = (window._presupLista || []).find(p => p.id === id);
+    if (confirmado) {
+      const root = grupoRootId(confirmado);
+      const hermanas = (window._presupLista || []).filter(p =>
+        p.id !== id && grupoRootId(p) === root && (p.estado_evento || 'Pendiente') === 'Pendiente');
+      for (const h of hermanas) {
+        await sbPatch('presupuestos', h.id, { estado_evento: 'Descartada' });
+      }
+    }
+
     toast(`✅ Evento ${codigo} creado como Confirmado`);
     loadPresupuestos();
     // Actualizar caché de eventos
@@ -4609,17 +4677,40 @@ async function perderPresupuesto(id, cliente) {
 }
 
 // ── CARGAR LISTA DE PRESUPUESTOS ─────────────────────────
+function grupoRootId(p) { return p.grupo_id || p.id; }
+
 async function loadPresupuestos() {
   try {
-    const lista = await sb('presupuestos', { order: 'created_at.desc', limit: 50 });
-    document.getElementById('presup-tbody').innerHTML = lista.length
-      ? lista.map(p => {
-          const estado = p.estado_evento || 'Pendiente';
-          const estadoColor = estado === 'Confirmado' ? 'var(--green)'
-            : estado === 'Perdido' ? 'var(--red)' : 'var(--text-3)';
-          return `<tr>
+    const lista = await sb('presupuestos', { order: 'created_at.desc', limit: 100 });
+    window._presupLista = lista;
+
+    // Ordenar: por grupo (más reciente primero), y dentro del grupo por versión ascendente
+    const grupos = {};
+    lista.forEach(p => {
+      const root = grupoRootId(p);
+      if (!grupos[root]) grupos[root] = [];
+      grupos[root].push(p);
+    });
+    const rootsOrdenados = Object.keys(grupos).sort((a, b) => {
+      const maxA = Math.max(...grupos[a].map(p => new Date(p.created_at).getTime()));
+      const maxB = Math.max(...grupos[b].map(p => new Date(p.created_at).getTime()));
+      return maxB - maxA;
+    });
+
+    const filas = [];
+    rootsOrdenados.forEach(root => {
+      const versiones = grupos[root].sort((a, b) => (a.version || 1) - (b.version || 1));
+      versiones.forEach((p, idx) => {
+        const estado = p.estado_evento || 'Pendiente';
+        const estadoColor = estado === 'Confirmado' ? 'var(--green)'
+          : estado === 'Perdido' ? 'var(--red)'
+          : estado === 'Descartada' ? 'var(--text-3)' : 'var(--text-3)';
+        const esPrimeraDelGrupo = idx === 0;
+        const borderTop = esPrimeraDelGrupo && versiones.length > 1 ? 'border-top:2px solid var(--border)' : '';
+        filas.push(`<tr style="${borderTop}">
             <td style="color:var(--text-2);font-size:12px">${fmtDate(p.created_at?.split('T')[0])}</td>
             <td style="font-weight:600;color:var(--gold)">${p.numero}</td>
+            <td style="font-size:12px;color:var(--text-2)">v${p.version || 1}</td>
             <td><b>${p.cliente}</b></td>
             <td>${p.tipo_evento || '—'}</td>
             <td style="font-weight:600">${fmtARS(p.total_ars)}</td>
@@ -4630,27 +4721,36 @@ async function loadPresupuestos() {
                 ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>` : ''}
                 ${estado === 'Pendiente' ? `
                   <button class="btn btn-sm" style="background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)"
-                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30},'${p.horario||''}')">
+                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30},'${p.horario||''}')">
                     ✅ Confirmar
                   </button>
+                  <button class="btn btn-ghost btn-sm" onclick="nuevaVersionPresupuesto(${p.id})">+ Nueva versión</button>
                   <button class="btn btn-sm btn-danger"
-                    onclick="perderPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\'")}')">
+                    onclick="perderPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\\'")}')">
                     ❌ Perder
                   </button>` : ''}
               </div>
             </td>
-          </tr>`;
-        }).join('')
-      : `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún. Creá el primero.</div></td></tr>`;
+          </tr>`);
+      });
+    });
+
+    document.getElementById('presup-tbody').innerHTML = filas.length
+      ? filas.join('')
+      : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún. Creá el primero.</div></td></tr>`;
   } catch(e) {
     document.getElementById('presup-tbody').innerHTML =
-      `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún.</div></td></tr>`;
+      `<tr><td colspan="8"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún.</div></td></tr>`;
   }
 }
 
 // ── ABRIR MODAL PRESUPUESTO ──────────────────────────────
 const _origOpenModal = openModal;
+let presVersionInfo = null; // { grupoId, nextVersion } cuando se está creando una nueva versión
+
 async function abrirModalPresupuesto() {
+  presVersionInfo = null;
+  document.querySelector('#modal-presupuesto .modal-title').textContent = 'Nuevo presupuesto';
   presItems = [];
   renderItemsPresup();
   calcularTotal();
@@ -4686,6 +4786,45 @@ async function abrirModalPresupuesto() {
   document.getElementById('pres-buscar').value = '';
   filtrarCatalogoPres();
   openModal('modal-presupuesto');
+}
+
+// ── NUEVA VERSIÓN DE UN PRESUPUESTO EXISTENTE ────────────
+async function nuevaVersionPresupuesto(id) {
+  const base = (window._presupLista || []).find(p => p.id === id);
+  if (!base) return;
+  const root = grupoRootId(base);
+  const versiones = (window._presupLista || []).filter(p => grupoRootId(p) === root);
+  const nextVersion = Math.max(...versiones.map(p => p.version || 1)) + 1;
+
+  await abrirModalPresupuesto();
+
+  presVersionInfo = { grupoId: root, nextVersion };
+  document.querySelector('#modal-presupuesto .modal-title').textContent = `Nueva versión — v${nextVersion}`;
+
+  document.getElementById('pres-numero').value   = base.numero;
+  document.getElementById('pres-cliente').value  = base.cliente || '';
+  document.getElementById('pres-tipo').value     = base.tipo_evento || 'Casamiento';
+  document.getElementById('pres-fecha').value    = base.fecha_evento || '';
+  document.getElementById('pres-venue').value    = base.venue || '';
+  document.getElementById('pres-modalidad').value = base.modalidad || 'Pago total al finalizar';
+  toggleSena(base.modalidad || 'Pago total al finalizar');
+  document.getElementById('pres-sena').value      = base.sena_pct || 30;
+  document.getElementById('pres-descuento').value = base.descuento_pct || 0;
+
+  try {
+    const items = await sb('presupuesto_items', { filters: [`presupuesto_id=eq.${id}`], limit: 200 });
+    presItems = items.map(it => ({
+      id: it.catalogo_id || ('C' + it.id),
+      producto: it.producto,
+      categoria: it.categoria || 'OTROS',
+      precio: Number(it.precio_ars) || 0,
+      cantidad: it.cantidad || 1,
+      esCustom: !!it.es_custom,
+    }));
+    renderItemsPresup();
+    calcularTotal();
+    filtrarCatalogoPres();
+  } catch(e) { toast('No se pudieron cargar los ítems de la versión anterior', 'err'); }
 }
 
 // ── FILTRAR CATÁLOGO EN EL MODAL ─────────────────────────
@@ -5325,6 +5464,8 @@ async function generarPresupuesto() {
         pdf_url: pdfUrl,
         nombre_archivo: nombreArchivo,
         estado_evento: 'Pendiente',
+        version: presVersionInfo ? presVersionInfo.nextVersion : 1,
+        grupo_id: presVersionInfo ? presVersionInfo.grupoId : null,
       });
       // Guardar items
       const presId = Array.isArray(pres) ? pres[0]?.id : pres?.id;
@@ -5344,6 +5485,7 @@ async function generarPresupuesto() {
     toast(pdfUrl ? '✅ PDF generado y guardado en Drive' : '✅ PDF generado');
     closeModal('modal-presupuesto');
     presItems = [];
+    presVersionInfo = null;
     loadPresupuestos();
 
   } catch(e) {
