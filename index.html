@@ -609,9 +609,6 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="kpi-grid" style="margin-bottom:20px">
         <div class="kpi"><div class="kpi-label">Ingresos eventos</div><div class="kpi-value" style="color:var(--green)" id="fin-ingresos">—</div></div>
         <div class="kpi"><div class="kpi-label">Capital neto</div><div class="kpi-value" id="fin-capital">—</div></div>
-        <div class="kpi"><div class="kpi-label">Impuestos</div><div class="kpi-value" style="color:var(--red)" id="fin-impuestos">—</div></div>
-        <div class="kpi"><div class="kpi-label">Pagos personal</div><div class="kpi-value" style="color:var(--red)" id="fin-pagos">—</div></div>
-        <div class="kpi"><div class="kpi-label">Otros egresos</div><div class="kpi-value" style="color:var(--red)" id="fin-egresos">—</div></div>
         <div class="kpi" style="grid-column:1/-1;border:1px solid var(--border)"><div class="kpi-label">Resultado neto</div><div class="kpi-value" id="fin-resultado">—</div></div>
         <div class="kpi"><div class="kpi-label">Eventos pendientes de cobro</div><div class="kpi-value" style="color:var(--orange)" id="fin-pendientes-cobro">—</div></div>
         <div class="kpi"><div class="kpi-label">Jornadas sin pagar</div><div class="kpi-value" style="color:var(--orange)" id="fin-jornadas-sin-pagar">—</div></div>
@@ -3615,7 +3612,7 @@ function cambiarPeriodoFinanzas(dir) {
 }
 
 async function loadFinanzas() {
-  const { desde, hasta, label } = getPeriodoFinanzas();
+  const { desde, hasta, label, modo } = getPeriodoFinanzas();
   document.getElementById('finanzas-sub').textContent = label;
 
   try {
@@ -3623,8 +3620,17 @@ async function loadFinanzas() {
     const cobros = await sb('pagos', { filters: [`fecha_cobro=gte.${desde}`, `fecha_cobro=lte.${hasta}`], limit: 500 });
     const totalIngresos = cobros.reduce((s, c) => s + Number(c.monto_ars || 0), 0);
 
-    // 2. Impuestos: costos_fijos pagados en el período
-    const impuestos = await sb('costos_fijos', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 500 });
+    // 2. Impuestos: costos_fijos del mes/año del período (igual criterio que la pantalla Impuestos), excluye tarjeta
+    const anioDesde = Number(desde.slice(0, 4));
+    const anioHasta = Number(hasta.slice(0, 4));
+    const mesesPeriodo = modo === 'mensual'
+      ? [{ mes: MESES_NAMES[Number(desde.slice(5, 7)) - 1], anio: anioDesde }]
+      : MESES_NAMES.map(m => ({ mes: m, anio: anioDesde }));
+    const aniosFiltro = [...new Set(mesesPeriodo.map(m => m.anio))];
+    const impuestosAnio = await sb('costos_fijos', { filters: [`anio=in.(${aniosFiltro.join(',')})`], limit: 1000 });
+    const impuestos = impuestosAnio.filter(i =>
+      !i.paga_por_tarjeta && mesesPeriodo.some(m => m.mes === i.mes && m.anio === i.anio)
+    );
     const totalImpuestos = impuestos.reduce((s, i) => s + Number(i.monto_ars || 0), 0);
 
     // 3. Pagos personal: jornadas pagadas en el período
@@ -3646,9 +3652,6 @@ async function loadFinanzas() {
 
     // KPIs
     document.getElementById('fin-ingresos').textContent  = fmtARS(totalIngresos);
-    document.getElementById('fin-impuestos').textContent = fmtARS(totalImpuestos);
-    document.getElementById('fin-pagos').textContent     = fmtARS(totalPagos);
-    document.getElementById('fin-egresos').textContent   = fmtARS(totalEgresos);
     const capEl = document.getElementById('fin-capital');
     capEl.textContent = (capitalNeto >= 0 ? '+' : '') + fmtARS(capitalNeto);
     capEl.style.color = capitalNeto >= 0 ? 'var(--green)' : 'var(--red)';
