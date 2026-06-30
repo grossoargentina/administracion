@@ -1053,7 +1053,8 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-log-det')">Cerrar</button>
       <button class="btn btn-ghost" onclick="generarWhatsappLogistica()">💬 WhatsApp por persona</button>
-      <button class="btn btn-primary" onclick="generarPDFLogistica()">📄 PDF y guardar en Drive</button>
+      <button class="btn btn-ghost" onclick="generarPDFLogistica()">📄 PDF y guardar en Drive</button>
+      <button class="btn btn-primary" onclick="confirmarPagosLogistica()">💰 Confirmar pagos</button>
     </div>
   </div>
 </div>
@@ -2831,6 +2832,20 @@ async function eliminarLogistica(id) {
     });
     await sbDelete('logisticas', id);
     toast('Logística eliminada');
+    loadLogisticas();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function confirmarPagosLogistica() {
+  const pendientes = (logJornadas || []).filter(j => !j.pagado);
+  if (!pendientes.length) { toast('No hay jornadas pendientes de pago', 'err'); return; }
+  if (!confirm(`¿Confirmar pago de ${pendientes.length} jornada(s)?`)) return;
+  const hoy = today();
+  try {
+    for (const j of pendientes) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
+    logJornadas = logJornadas.map(j => pendientes.some(p => p.id === j.id) ? { ...j, pagado: true, fecha_pago: hoy } : j);
+    toast(`✅ ${pendientes.length} jornada(s) marcadas como pagadas`);
+    closeModal('modal-log-det');
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
