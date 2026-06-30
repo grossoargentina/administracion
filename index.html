@@ -3691,10 +3691,10 @@ async function loadFinanzas() {
       ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: e.monto, cat: 'Caja' })),
     ].sort((a, b) => b.monto - a.monto);
 
-    // Agrupar personal
+    // Agrupar personal e impuestos
     const personalTotal = jornadas.reduce((s, j) => s + Number(j.tarifa_ars || 0), 0);
     const egResumen = [
-      ...impuestos.map(i => ({ desc: i.concepto || 'Impuesto', monto: Number(i.monto_ars), cat: 'Impuesto' })),
+      ...(totalImpuestos > 0 ? [{ desc: `Gastos fijos (${impuestos.length} ítems)`, monto: totalImpuestos, cat: 'Impuesto' }] : []),
       ...(personalTotal > 0 ? [{ desc: `Pagos al personal (${jornadas.length} jornadas)`, monto: personalTotal, cat: 'Personal' }] : []),
       ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: Number(e.monto), cat: 'Caja' })),
     ].sort((a, b) => b.monto - a.monto);
