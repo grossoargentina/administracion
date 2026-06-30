@@ -1905,7 +1905,9 @@ async function guardarEvento() {
       const count = await sb('eventos', { select: 'id' });
       data.codigo = 'EV' + String(count.length + 1).padStart(3, '0');
       data.created_at = new Date().toISOString();
-      await sbPost('eventos', data);
+      const evRow = await sbPost('eventos', data);
+      const newEvId = Array.isArray(evRow) ? evRow[0]?.id : evRow?.id;
+      if (newEvId) await sbPost('logisticas', { tipo: 'Evento', evento_id: newEvId, notas: null });
       toast('Evento creado');
     }
     closeModal('modal-evento');
@@ -2433,10 +2435,18 @@ async function loadLogisticas() {
     const TIPO_COLOR = { 'Armado': 'var(--gold)', 'Operador': 'var(--blue)', 'Desarme': 'var(--orange)', 'Depósito': 'var(--text-2)' };
     const TIPO_ICON  = { 'Armado': '🔧', 'Operador': '🎛️', 'Desarme': '📦', 'Depósito': '🏠' };
 
+    // La logística original de cada evento es la de menor ID — no se puede eliminar
+    const logIdOriginalPorEvento = {};
+    rows.filter(r => r.evento_id && r.tipo !== 'Deposito').forEach(r => {
+      if (!logIdOriginalPorEvento[r.evento_id] || r.id < logIdOriginalPorEvento[r.evento_id])
+        logIdOriginalPorEvento[r.evento_id] = r.id;
+    });
+
     const filas = [];
     rows.forEach(r => {
       const jors = jornadas.filter(j => j.logistica_id === r.id);
       const esDeposito = r.tipo === 'Deposito';
+      const esOriginal = r.evento_id && logIdOriginalPorEvento[r.evento_id] === r.id;
 
       let evLabel;
       if (esDeposito) {
@@ -2452,10 +2462,11 @@ async function loadLogisticas() {
         const dias = [...new Set(jors.map(j => j.fecha))].sort();
         const persIds = [...new Set(jors.map(j => j.personal_id))];
         const fechaLabel = dias.length ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
-        filas.push({ logId: r.id, tipo: 'Depósito', evLabel, fechaLabel, persCount: persIds.length, orden: 3 });
+        filas.push({ logId: r.id, tipo: 'Depósito', evLabel, fechaLabel, persCount: persIds.length, orden: 3, eliminable: true });
       } else {
-        const tipos = [...new Set(jors.map(j => j.tipo))];
-        tipos.forEach(tipo => {
+        const tiposBase = ['Armado', 'Operador', 'Desarme'];
+        const tiposExtra = [...new Set(jors.map(j => j.tipo))].filter(t => !tiposBase.includes(t));
+        [...tiposBase, ...tiposExtra].forEach(tipo => {
           const jorsTipo = jors.filter(j => j.tipo === tipo);
           const dias = [...new Set(jorsTipo.map(j => j.fecha))].sort();
           const persIds = [...new Set(jorsTipo.map(j => j.personal_id))];
@@ -2464,34 +2475,51 @@ async function loadLogisticas() {
               ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
               : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
             : '—';
-          filas.push({ logId: r.id, tipo, evLabel, fechaLabel, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9 });
+          filas.push({ logId: r.id, eventoId: r.evento_id, tipo, evLabel, fechaLabel, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: !esOriginal });
         });
       }
     });
 
-    // Ordenar por logId (desc) y luego por tipo dentro de cada logística
+    // Ordenar por evento y logId asc para numerar bien, luego reordenar por logId desc para mostrar
+    filas.sort((a,b) => (a.eventoId||0) - (b.eventoId||0) || a.logId - b.logId || a.orden - b.orden);
+
+    // Numerar tipos duplicados por evento (Armado 1, Armado 2...)
+    const contadorTipo = {};
+    filas.forEach(f => {
+      const key = `${f.eventoId}__${f.tipo}`;
+      contadorTipo[key] = (contadorTipo[key] || 0) + 1;
+      f._tipoIdx = contadorTipo[key];
+    });
+    const maxPorTipo = {};
+    filas.forEach(f => { const key = `${f.eventoId}__${f.tipo}`; maxPorTipo[key] = Math.max(maxPorTipo[key]||0, f._tipoIdx); });
+    filas.forEach(f => {
+      const key = `${f.eventoId}__${f.tipo}`;
+      f.tipoLabel = maxPorTipo[key] > 1 ? `${f.tipo} ${f._tipoIdx}` : f.tipo;
+    });
+
     filas.sort((a,b) => b.logId - a.logId || a.orden - b.orden);
 
     tbody.innerHTML = filas.map(f => `<tr>
       <td><b style="font-size:13px">${f.evLabel}</b></td>
-      <td><span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipo}</span></td>
+      <td><span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipoLabel}</span></td>
       <td style="font-size:12px;color:var(--text-2)">${f.fechaLabel}</td>
       <td style="font-size:12px">${f.persCount} persona(s)</td>
       <td style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}')">✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}',${f.eliminable})">✏️ Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
-
-        <button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>
+        ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
       </td>
     </tr>`).join('');
   } catch(e) { toast('Error cargando logísticas: ' + e.message, 'err'); }
 }
 
 let logEditTipo = null; // tipo filtrado en modo edición
+let logEditEsExtra = false; // si es logística extra (fecha/hora editable)
 
-async function editarLogistica(id, tipo) {
+async function editarLogistica(id, tipo, esExtra = false) {
   logEditId = id;
   logEditTipo = tipo || null;
+  logEditEsExtra = !!esExtra;
   logEventosDepIds = [];
   document.getElementById('nlg-modal-title').textContent = tipo ? `Editar ${tipo}` : 'Editar logística';
   document.getElementById('nlg-notas').value = '';
@@ -2531,8 +2559,11 @@ async function editarLogistica(id, tipo) {
     const grupos = {};
     jornadas.forEach(j => {
       const key = `${j.tipo}__${j.fecha}`;
-      if (!grupos[key]) grupos[key] = { id: Date.now() + Math.random(), tipo: j.tipo, fecha: j.fecha, hora_inicio: j.hora_inicio || '', personal: [], transporte: j.transporte || (['Armado','Desarme'].includes(j.tipo) ? 'Camioneta propia' : 'Sin transporte'), flete_personal: j.flete_personal || '', flete_monto: j.flete_monto || '' };
-      if (j.personal_id && !grupos[key].personal.includes(j.personal_id)) grupos[key].personal.push(j.personal_id);
+      if (!grupos[key]) grupos[key] = { id: Date.now() + Math.random(), tipo: j.tipo, fecha: j.fecha, hora_inicio: j.hora_inicio || '', personal: [], personalOriginal: {}, transporte: j.transporte || (['Armado','Desarme'].includes(j.tipo) ? 'Camioneta propia' : 'Sin transporte'), flete_personal: j.flete_personal || '', flete_monto: j.flete_monto || '' };
+      if (j.personal_id && !grupos[key].personal.includes(j.personal_id)) {
+        grupos[key].personal.push(j.personal_id);
+        grupos[key].personalOriginal[j.personal_id] = j.id; // jornada_id original
+      }
     });
     logDias = Object.values(grupos);
 
@@ -2676,9 +2707,14 @@ function renderDiasLog() {
     if (modoEdicion) {
       const TIPO_COLOR = { 'Armado': 'var(--gold)', 'Operador': 'var(--blue)', 'Desarme': 'var(--orange)', 'Depósito': 'var(--text-2)' };
       const TIPO_ICON  = { 'Armado': '🔧', 'Operador': '🎛️', 'Desarme': '📦', 'Depósito': '🏠' };
+      const fechaHoraHtml = logEditEsExtra
+        ? `<input type="date" class="inp" style="width:150px" value="${d.fecha}" onchange="updateDiaLog(${d.id},'fecha',this.value)">
+           <select class="inp" style="width:110px" onchange="updateDiaLog(${d.id},'hora_inicio',this.value)">${buildTimeOpts(d.hora_inicio||'')}</select>`
+        : `<span style="font-size:12px;color:var(--text-2)">${d.fecha ? new Date(d.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'} ${d.hora_inicio ? '· 🕐 '+d.hora_inicio : ''}</span>`;
       return `<div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:600;color:${TIPO_COLOR[d.tipo]||'var(--text)'};margin-bottom:10px">
-          ${TIPO_ICON[d.tipo]||''} ${d.tipo} · ${d.fecha ? new Date(d.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'} ${d.hora_inicio ? '· 🕐 '+d.hora_inicio : ''}
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[d.tipo]||'var(--text)'}">${TIPO_ICON[d.tipo]||''} ${d.tipo}</span>
+          ${fechaHoraHtml}
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:10px">${persHtml}</div>
       </div>`;
@@ -2734,12 +2770,6 @@ async function guardarLogistica() {
     if (logEditId) {
       await sbPatch('logisticas', logEditId, { notas: notas || null });
       logId = logEditId;
-      // Borrar solo las jornadas no pagadas del tipo editado (o todas si no hay filtro de tipo)
-      const tipoFilter = logEditTipo ? `&tipo=eq.${encodeURIComponent(logEditTipo)}` : '';
-      await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=eq.${logId}&pagado=eq.false${tipoFilter}`, {
-        method: 'DELETE',
-        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
-      });
     } else {
       // Modo creación
       const logRow = await sbPost('logisticas', {
@@ -2753,35 +2783,75 @@ async function guardarLogistica() {
       }
     }
 
-    const totalJornadas = await sb('jornadas', { select: 'id', limit: 1000 });
-    let base = (totalJornadas.length || 0) + 1;
-
-    const jornadasToInsert = [];
-    logDias.forEach(d => {
-      d.personal.forEach(persId => {
-        const p = (persCache || []).find(x => x.id === persId);
-        if (!p) return;
-        const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito
-          : d.tipo === 'Operador' ? p.tarifa_operador
-          : p.tarifa_armado;
-        const tipoJornada = d.tipo === 'Depósito' ? 'Depósito' : d.tipo;
-        jornadasToInsert.push({
-          codigo: `J${new Date().getFullYear()}-${String(base++).padStart(4, '0')}`,
-          personal_id: persId,
-          evento_id: eventoId ? parseInt(eventoId) : null,
-          fecha: d.fecha,
-          hora_inicio: d.hora_inicio || null,
-          tipo: tipoJornada,
-          tarifa_ars: tarifa || null,
-          pagado: false,
-          transporte: ['Armado','Desarme'].includes(d.tipo) ? d.transporte : null,
-          flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
-          flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
-          logistica_id: logId,
+    if (logEditId) {
+      // Modo edición: solo delta de personal (no tocar fechas ni tarifas)
+      const codigoPrefix = `J${Date.now()}`;
+      let seq = 0;
+      const toInsert = [];
+      const toDelete = [];
+      logDias.forEach(d => {
+        const original = d.personalOriginal || {};
+        const originalIds = Object.keys(original).map(Number);
+        const currentIds  = d.personal;
+        // Personal nuevo → insertar
+        currentIds.filter(id => !originalIds.includes(id)).forEach(persId => {
+          const p = (persCache || []).find(x => x.id === persId);
+          if (!p) return;
+          const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito : d.tipo === 'Operador' ? p.tarifa_operador : p.tarifa_armado;
+          toInsert.push({
+            codigo: `${codigoPrefix}-${seq++}`,
+            personal_id: persId,
+            evento_id: eventoId ? parseInt(eventoId) : null,
+            fecha: d.fecha,
+            hora_inicio: d.hora_inicio || null,
+            tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
+            tarifa_ars: tarifa || null,
+            pagado: false,
+            transporte: ['Armado','Desarme'].includes(d.tipo) ? d.transporte : null,
+            flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
+            flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
+            logistica_id: logId,
+          });
+        });
+        // Personal eliminado → borrar su jornada original (solo si no está pagada)
+        originalIds.filter(id => !currentIds.includes(id)).forEach(id => {
+          if (original[id]) toDelete.push(original[id]);
         });
       });
-    });
-    if (jornadasToInsert.length) await sbPost('jornadas', jornadasToInsert);
+      if (toInsert.length) await sbPost('jornadas', toInsert);
+      for (const jornadaId of toDelete) {
+        await fetch(`${SB_URL}/rest/v1/jornadas?id=eq.${jornadaId}&pagado=eq.false`, {
+          method: 'DELETE', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+        });
+      }
+    } else {
+      // Modo creación
+      const codigoPrefix = `J${Date.now()}`;
+      let seq = 0;
+      const jornadasToInsert = [];
+      logDias.forEach(d => {
+        d.personal.forEach(persId => {
+          const p = (persCache || []).find(x => x.id === persId);
+          if (!p) return;
+          const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito : d.tipo === 'Operador' ? p.tarifa_operador : p.tarifa_armado;
+          jornadasToInsert.push({
+            codigo: `${codigoPrefix}-${seq++}`,
+            personal_id: persId,
+            evento_id: eventoId ? parseInt(eventoId) : null,
+            fecha: d.fecha,
+            hora_inicio: d.hora_inicio || null,
+            tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
+            tarifa_ars: tarifa || null,
+            pagado: false,
+            transporte: ['Armado','Desarme'].includes(d.tipo) ? d.transporte : null,
+            flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
+            flete_monto: d.transporte === 'Flete' ? (parseFloat(d.flete_monto) || null) : null,
+            logistica_id: logId,
+          });
+        });
+      });
+      if (jornadasToInsert.length) await sbPost('jornadas', jornadasToInsert);
+    }
     closeModal('modal-nueva-logistica');
     const wasEdit = !!logEditId;
     logEditId = null;
