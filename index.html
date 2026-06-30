@@ -1399,7 +1399,9 @@ let AUTH = false;
 
 // Inicializar cliente Supabase Auth via CDN
 const { createClient } = supabase;
-const supabaseClient = createClient(SB_URL, SB_KEY);
+const supabaseClient = createClient(SB_URL, SB_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
 
 async function initAuth() {
   // Si hay hash de OAuth en la URL, dejar que Supabase lo procese
@@ -1459,6 +1461,16 @@ async function initAuth() {
   // Sin sesión y sin hash — mostrar botón
   renderGoogleBtn();
 }
+
+// Re-chequear sesión cuando el usuario vuelve a la pestaña
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || AUTH) return;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session?.user?.email === ALLOWED_EMAIL) {
+    AUTH = true;
+    showApp();
+  }
+});
 
 function renderGoogleBtn() {
   document.getElementById('g-signin-btn').innerHTML = `
@@ -5199,7 +5211,8 @@ async function generarPresupuesto() {
         .toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
     }
     const fechaHoy = new Date().toISOString().split('T')[0];
-    const nombreArchivo = `${fechaHoy}-${slugify(venue||'evento')}-${slugify(cliente)}.pdf`;
+    const versionNum = presVersionInfo ? presVersionInfo.nextVersion : 1;
+    const nombreArchivo = `${fechaHoy}-${slugify(venue||'evento')}-${slugify(cliente)}-v${versionNum}.pdf`;
 
     // ── Fotos del catálogo (desde Supabase foto_base64) ───────
     const fotosMap = {};
