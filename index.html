@@ -1622,7 +1622,7 @@ function initRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' },   () => reloadSiCorresponde('jornadas'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'logisticas' }, () => reloadSiCorresponde('logisticas'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'personal' },   () => reloadSiCorresponde('personal'))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'cobros' },     () => reloadSiCorresponde('cobros'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos' },      () => reloadSiCorresponde('cobros'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'costos_fijos'},() => reloadSiCorresponde('costos_fijos'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'presupuestos'},() => reloadSiCorresponde('presupuestos'))
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_mensajes'}, () => {
@@ -1957,10 +1957,17 @@ async function registrarCobro(id, cliente, senaOk, saldoOk) {
     : prompt(`¿Qué cobrás?\n${opciones.map((o,i)=>`${i+1}. ${o}`).join('\n')}`);
   if (!tipo) return;
 
+  const ev = (todosEventos || []).find(e => e.id === id);
+  const totalEv = Number(ev?.total_ars) || 0;
+  const senaPct = Number(ev?.sena_pct) || 30;
+  const montoCobro = tipo === 'Seña'
+    ? Math.round(totalEv * senaPct / 100)
+    : Math.round(totalEv - (totalEv * senaPct / 100));
+
   try {
     await sbPost('pagos', {
       evento_id: id, tipo,
-      monto_ars: null,
+      monto_ars: montoCobro,
       fecha_cobro: today(),
     });
     const patch = tipo === 'Seña'
@@ -3612,9 +3619,9 @@ async function loadFinanzas() {
   document.getElementById('finanzas-sub').textContent = label;
 
   try {
-    // 1. Ingresos: cobros pagados en el período
-    const cobros = await sb('cobros', { filters: [`fecha_cobro=gte.${desde}`, `fecha_cobro=lte.${hasta}`, `pagado=eq.true`], limit: 500 });
-    const totalIngresos = cobros.reduce((s, c) => s + Number(c.monto || 0), 0);
+    // 1. Ingresos: cobros (pagos) registrados en el período
+    const cobros = await sb('pagos', { filters: [`fecha_cobro=gte.${desde}`, `fecha_cobro=lte.${hasta}`], limit: 500 });
+    const totalIngresos = cobros.reduce((s, c) => s + Number(c.monto_ars || 0), 0);
 
     // 2. Impuestos: costos_fijos pagados en el período
     const impuestos = await sb('costos_fijos', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 500 });
@@ -3659,15 +3666,15 @@ async function loadFinanzas() {
     const porEvento = {};
     cobros.forEach(c => {
       const key = c.evento_id || 'Sin evento';
-      if (!porEvento[key]) porEvento[key] = { nombre: c.descripcion || c.evento_id || 'Sin evento', monto: 0 };
-      porEvento[key].monto += Number(c.monto || 0);
+      if (!porEvento[key]) porEvento[key] = { nombre: c.tipo || c.evento_id || 'Sin evento', monto: 0 };
+      porEvento[key].monto += Number(c.monto_ars || 0);
     });
     // Traer nombres de eventos
     const eventoIds = [...new Set(cobros.map(c => c.evento_id).filter(Boolean))];
     let eventosMap = {};
     if (eventoIds.length) {
-      const evs = await sb('eventos', { select: 'id,venue,cliente', filters: [`id=in.(${eventoIds.join(',')})`], limit: 200 });
-      evs.forEach(e => eventosMap[e.id] = `${e.venue || ''} — ${e.cliente || ''}`);
+      const evs = await sb('eventos', { select: 'id,venue,cliente_nombre', filters: [`id=in.(${eventoIds.join(',')})`], limit: 200 });
+      evs.forEach(e => eventosMap[e.id] = `${e.venue || ''} — ${e.cliente_nombre || ''}`);
     }
     document.getElementById('fin-detalle-ingresos').innerHTML = cobros.length
       ? Object.entries(porEvento).map(([id, v]) => `
