@@ -3652,7 +3652,6 @@ async function loadFinanzas() {
     const resultado = totalIngresos + capitalNeto - totalImpuestos - totalPagos - totalEgresos;
 
     // KPIs
-    document.getElementById('fin-ingresos').textContent  = fmtARS(totalIngresos);
     const capEl = document.getElementById('fin-capital');
     capEl.textContent = (capitalNeto >= 0 ? '+' : '') + fmtARS(capitalNeto);
     capEl.style.color = capitalNeto >= 0 ? 'var(--green)' : 'var(--red)';
