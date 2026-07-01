@@ -1106,8 +1106,8 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="form-grid">
         <div class="field"><label class="lbl">Apellido *</label><input class="inp" id="pers-apellido" placeholder="Grosso"></div>
         <div class="field"><label class="lbl">Nombre *</label><input class="inp" id="pers-nombre" placeholder="Sergio"></div>
-        <div class="field"><label class="lbl">DNI</label><input class="inp" id="pers-dni" placeholder="12345678" type="number"></div>
-        <div class="field"><label class="lbl">CUIT</label><input class="inp" id="pers-cuit" placeholder="20-12345678-9"></div>
+        <div class="field"><label class="lbl">DNI</label><input class="inp" id="pers-dni" placeholder="12.345.678" maxlength="10" oninput="onDniInput(this)"></div>
+        <div class="field"><label class="lbl">CUIT</label><input class="inp" id="pers-cuit" placeholder="20-12345678-9" oninput="onCuitInput(this)" maxlength="13"></div>
         <div class="field"><label class="lbl">Fecha de nacimiento</label><input class="inp" type="date" id="pers-nacimiento"></div>
         <div class="field"><label class="lbl">Tipo</label>
           <select class="inp" id="pers-tipo" onchange="onPersTipoChange()"><option>Fijo</option><option>Freelance</option><option>Chofer</option></select>
@@ -1116,7 +1116,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field" id="pers-field-dep"><label class="lbl">Tarifa Depósito (ARS)</label><input class="inp" type="number" id="pers-dep" placeholder="0"></div>
         <div class="field" id="pers-field-arm"><label class="lbl">Tarifa Armado (ARS)</label><input class="inp" type="number" id="pers-arm" placeholder="0"></div>
         <div class="field" id="pers-field-op"><label class="lbl">Tarifa Operador (ARS)</label><input class="inp" type="number" id="pers-op" placeholder="0"></div>
-        <div class="field"><label class="lbl">Teléfono</label><input class="inp" id="pers-tel" placeholder="+54 11..."></div>
+        <div class="field"><label class="lbl">Teléfono</label><input class="inp" id="pers-tel" placeholder="+54 9 11 XXXX-XXXX" maxlength="18" oninput="onTelefonoInput(this)"></div>
         <div class="field full"><label class="lbl">Notas</label><input class="inp" id="pers-notas" placeholder="Opcional"></div>
       </div>
     </div>
@@ -1386,6 +1386,63 @@ async function sbDelete(table, id) {
 const fmtARS = v => v == null ? '—' : '$ ' + Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
 const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR') : '—';
 const today = () => new Date().toISOString().split('T')[0];
+
+function formatTelefono(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 0) return '';
+  // Quitar prefijo 54 o 549 si viene pegado
+  let local = digits;
+  if (local.startsWith('549')) local = local.slice(3);
+  else if (local.startsWith('54')) local = local.slice(2);
+  // Quitar 9 o 0 iniciales de área
+  if (local.startsWith('9')) local = local.slice(1);
+  if (local.startsWith('0')) local = local.slice(1);
+  // Tomar área (2 dígitos si empieza con 11, sino los primeros dígitos del área)
+  if (local.length === 0) return '+54 9 ';
+  const area = local.slice(0, 2); // asumimos AMBA (11)
+  const num = local.slice(2);
+  let result = '+54 9 ' + area;
+  if (num.length > 0) result += ' ' + num.slice(0, 4);
+  if (num.length > 4) result += '-' + num.slice(4, 8);
+  return result;
+}
+function onTelefonoInput(el) {
+  const pos = el.selectionStart;
+  const prev = el.value;
+  el.value = formatTelefono(el.value);
+  const diff = el.value.length - prev.length;
+  try { el.setSelectionRange(pos + diff, pos + diff); } catch(_) {}
+}
+
+function formatDni(raw) {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0,2)}.${digits.slice(2)}`;
+  return `${digits.slice(0,2)}.${digits.slice(2,5)}.${digits.slice(5)}`;
+}
+function onDniInput(el) {
+  const pos = el.selectionStart;
+  const prev = el.value;
+  el.value = formatDni(el.value);
+  const diff = el.value.length - prev.length;
+  try { el.setSelectionRange(pos + diff, pos + diff); } catch(_) {}
+}
+
+function formatCuit(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 10) return `${digits.slice(0,2)}-${digits.slice(2)}`;
+  return `${digits.slice(0,2)}-${digits.slice(2,10)}-${digits.slice(10,11)}`;
+}
+function onCuitInput(el) {
+  const pos = el.selectionStart;
+  const prev = el.value;
+  el.value = formatCuit(el.value);
+  // ajustar cursor si se insertó un guión
+  const diff = el.value.length - prev.length;
+  try { el.setSelectionRange(pos + diff, pos + diff); } catch(_) {}
+}
 
 function badge(estado) {
   const map = {
@@ -1923,7 +1980,7 @@ function renderBeneficiarios() {
   document.getElementById('ev-clausulas-lista').innerHTML = evBeneficiarios.map((b, i) => `
     <div style="display:flex;gap:8px;align-items:center">
       <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="evBeneficiarios[${i}].nombre=this.value">
-      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" oninput="evBeneficiarios[${i}].cuit=this.value">
+      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);evBeneficiarios[${i}].cuit=this.value">
       <button type="button" class="btn btn-danger btn-sm" onclick="evBeneficiarios.splice(${i},1);renderBeneficiarios()">✕</button>
     </div>`).join('');
 }
@@ -4156,14 +4213,14 @@ async function guardarPersonal() {
   const data = {
     apellido,
     nombre,
-    dni:             document.getElementById('pers-dni').value || null,
+    dni:             formatDni(document.getElementById('pers-dni').value) || null,
     tipo,
     sueldo_fijo:     tipo === 'Fijo' ? (parseFloat(document.getElementById('pers-sueldo').value) || null) : null,
     tarifa_deposito: parseFloat(document.getElementById('pers-dep').value) || 0,
     tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
     tarifa_operador: parseFloat(document.getElementById('pers-op').value) || 0,
-    telefono:         document.getElementById('pers-tel').value || null,
-    cuit:             document.getElementById('pers-cuit').value || null,
+    telefono:         formatTelefono(document.getElementById('pers-tel').value) || null,
+    cuit:             formatCuit(document.getElementById('pers-cuit').value) || null,
     fecha_nacimiento: document.getElementById('pers-nacimiento').value || null,
     notas:            document.getElementById('pers-notas').value || null,
   };
