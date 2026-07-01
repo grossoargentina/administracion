@@ -2956,8 +2956,9 @@ async function loadLogisticas() {
         const names = evIds.map(eid => { const e = (evCache||[]).find(x=>x.id===eid); return e ? (e.venue||e.codigo||e.id) : `#${eid}`; });
         evLabel = names.length ? names.join(', ') : '—';
       } else {
-        const ev = (evCache||[]).find(e => e.id === r.evento_id);
-        evLabel = ev ? (ev.venue || ev.codigo || ev.id) : (r.evento_id ? `#${r.evento_id}` : '—');
+        const _evId = logToEvId[r.id];
+        const ev = _evId ? (evCache||[]).find(e => e.id === _evId) : null;
+        evLabel = ev ? (ev.venue || ev.codigo || ev.id) : (_evId ? `#${_evId}` : '—');
       }
 
       const evId = logToEvId[r.id] || null;
@@ -2969,20 +2970,25 @@ async function loadLogisticas() {
         const fechaLabel = dias.length ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
         filas.push({ logId: r.id, tipo: 'Depósito', evLabel, fechaLabel, persCount: persIds.length, orden: 3, eliminable: true });
       } else {
+        const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
+        const fechaFallback = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
         const tiposBase = ['Armado', 'Operador', 'Desarme'];
         const tiposExtra = [...new Set(jors.map(j => j.tipo))].filter(t => !tiposBase.includes(t));
         [...tiposBase, ...tiposExtra].forEach(tipo => {
           const jorsTipo = jors.filter(j => j.tipo === tipo);
-          const dias = [...new Set(jorsTipo.map(j => j.fecha))].sort();
+          const dias = [...new Set(jorsTipo.map(j => j.fecha).filter(Boolean))].sort();
           const persIds = [...new Set(jorsTipo.map(j => j.personal_id).filter(Boolean))];
           const todasConfirmadas = jorsTipo.length > 0 && jorsTipo.every(j => j.confirmada);
           const todasPagadas = jorsTipo.length > 0 && jorsTipo.every(j => j.pagado);
+          const fechaEfectiva = dias.length ? null : (fechaFallback[tipo] || null);
           const fechaLabel = dias.length
             ? dias.length === 1
               ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
               : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
-            : '—';
-          const fechaSort = dias.length ? dias[0] : '9999-99-99';
+            : fechaEfectiva
+              ? `<span style="color:var(--text-3)">${new Date(fechaEfectiva+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`
+              : '—';
+          const fechaSort = dias.length ? dias[0] : (fechaEfectiva || '9999-99-99');
           filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas, todasPagadas });
         });
       }
