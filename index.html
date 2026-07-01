@@ -6453,28 +6453,34 @@ async function generarPresupuesto() {
       doc.text(cat, M+2, y+3.5); y += 5;
 
       items.forEach(it => {
-        // Nombre del producto (truncar si es muy largo)
         const foto = it.esCustom ? (it.foto_base64 || null) : fotosMap[it.id];
-        const rowH  = foto ? 16 : 7; // fila más alta si tiene foto
+        const desc = it.descripcion || '';
+        const hasDesc = !!desc;
+        const rowHFinal = foto ? (hasDesc ? 22 : 18) : (hasDesc ? 13 : 9);
 
-        if (y + rowH > PH - 30) { doc.addPage(); y = 15; }
-        const rowHFinal = foto ? 18 : 9;
+        if (y + rowHFinal > PH - 30) { doc.addPage(); y = 15; }
         fill(idx2%2===0 ? BLANCO : GRIS_F);
         doc.rect(M, y, CW, rowHFinal, 'F');
 
-        // Foto si existe
         if (foto) {
-          try {
-            doc.addImage(foto, M+1, y+1, 14, 14);
-          } catch(e) {}
+          try { doc.addImage(foto, M+1, y+1, 14, 14); } catch(e) {}
         }
         const xText = foto ? M+17 : M+2;
         font('bold', 8.5); text(NEGRO);
-        const prod = it.producto.length > (foto?48:55) ? it.producto.substring(0,foto?45:52)+'...' : it.producto;
-        doc.text(prod, xText, y + (foto ? 7 : 6));
-        font('normal', 8.5);
-        doc.text(String(it.cantidad), M+CW-50, y + (foto ? 10 : 6), { align:'center' });
-        doc.text(fmtA(it.precio * it.cantidad), PW-M-2, y + (foto ? 10 : 6), { align:'right' });
+        const maxChars = foto ? 48 : 55;
+        const prod = it.producto.length > maxChars ? it.producto.substring(0, maxChars-3)+'...' : it.producto;
+        const yProd = y + (foto ? 6 : (hasDesc ? 5 : 6));
+        doc.text(prod, xText, yProd);
+        if (hasDesc) {
+          font('normal', 7.5); text([80,80,80]);
+          const maxDescChars = foto ? 60 : 75;
+          const descTxt = desc.length > maxDescChars ? desc.substring(0, maxDescChars-3)+'...' : desc;
+          doc.text(descTxt, xText, yProd + 4.5);
+        }
+        const yCant = y + rowHFinal / 2 + 2;
+        font('normal', 8.5); text(NEGRO);
+        doc.text(String(it.cantidad), M+CW-50, yCant, { align:'center' });
+        doc.text(fmtA(it.precio * it.cantidad), PW-M-2, yCant, { align:'right' });
         y += rowHFinal; idx2++;
       });
     });
