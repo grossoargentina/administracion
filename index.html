@@ -466,6 +466,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <button class="btn btn-ghost" onclick="cambiarSemana(-1)">← Anterior</button>
           <span id="dash-semana-label" style="font-size:13px;color:var(--text-2);min-width:180px;text-align:center"></span>
           <button class="btn btn-ghost" onclick="cambiarSemana(1)">Siguiente →</button>
+          <button class="btn btn-primary" id="btn-pdf-fechas" style="display:none" onclick="generarPDFFechas()">📄 PDF selección</button>
         </div>
       </div>
       <div id="dash-eventos-semana">
@@ -1824,6 +1825,128 @@ let dashOffset = 0;
 
 function cambiarSemana(dir) { dashOffset += dir; loadDashboard(); }
 
+function onDashCheckbox() {
+  const checked = document.querySelectorAll('#dash-eventos-semana input[type=checkbox]:checked');
+  document.getElementById('btn-pdf-fechas').style.display = checked.length ? '' : 'none';
+}
+
+async function generarPDFFechas() {
+  if (!_dashData) return;
+  const checked = [...document.querySelectorAll('#dash-eventos-semana input[type=checkbox]:checked')];
+  const ids = checked.map(c => Number(c.dataset.evId));
+  const eventos = _dashData.eventos.filter(e => ids.includes(e.id)).sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
+  if (!eventos.length) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const PW = 210, PH = 297, M = 14, CW = PW - M * 2;
+  let y = 0;
+
+  const NEGRO = [26,26,46], ORO = [201,168,76], BLANCO = [255,255,255], GRIS_F = [247,247,247], GRIS_T = [85,85,85];
+  const fill   = c => doc.setFillColor(c[0],c[1],c[2]);
+  const stroke = c => doc.setDrawColor(c[0],c[1],c[2]);
+  const text   = c => doc.setTextColor(c[0],c[1],c[2]);
+  const font   = (style, size) => { doc.setFont('helvetica', style); doc.setFontSize(size); };
+  const checkY = (n) => { if (y + n > PH - 20) { doc.addPage(); y = 15; } };
+
+  const drawHeader = () => {
+    fill(NEGRO); doc.rect(0, 0, PW, 30, 'F');
+    try { doc.addImage(LOGO_B64, 'PNG', M, 1, 24, 24); } catch(e) {}
+    font('bold', 16); text(BLANCO); doc.text('GROSSO ARGENTINA', M + 27, 11);
+    font('normal', 9); text(ORO); doc.text('Soluciones Tecnologicas para Eventos', M + 27, 18);
+    font('normal', 7.5); text([200,200,200]);
+    doc.text('administracion@grossoarg.com', PW - M, 10, { align: 'right' });
+    doc.text('Lomas de Zamora, Buenos Aires', PW - M, 16, { align: 'right' });
+    y = 33;
+    stroke(ORO); doc.setLineWidth(0.8); doc.line(M, y, PW - M, y); y += 6;
+  };
+
+  drawHeader();
+
+  // Título general
+  font('bold', 15); text(NEGRO);
+  doc.text('Resumen de fechas', M, y + 6);
+  font('normal', 9); text(GRIS_T);
+  const fechaHoy = new Date().toLocaleDateString('es-AR', { day:'numeric', month:'long', year:'numeric' });
+  doc.text(`Generado el ${fechaHoy}`, PW - M, y + 6, { align: 'right' });
+  y += 16;
+
+  // Un bloque por evento
+  for (const ev of eventos) {
+    checkY(40);
+
+    // Cabecera del evento
+    fill(NEGRO); doc.rect(M, y, CW, 9, 'F');
+    font('bold', 10); text(ORO);
+    const fechaEv = new Date((ev.fecha_evento||ev.fecha) + 'T12:00:00');
+    const fechaLabel = fechaEv.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    doc.text(`${(ev.venue||'—').toUpperCase()}  ·  ${fechaLabel.toUpperCase()}`, M + 2, y + 6);
+    y += 11;
+
+    // Cliente y estado
+    font('normal', 9); text(GRIS_T);
+    doc.text(`Cliente: ${ev.cliente_nombre || ev.cliente || '—'}   |   Estado: ${ev.estado || '—'}`, M, y + 5);
+    y += 10;
+
+    // Productos
+    const items = _dashData.presByEvento[ev.id] || [];
+    if (items.length) {
+      checkY(16);
+      fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');
+      font('bold', 8); text(NEGRO);
+      doc.text('PRODUCTOS', M + 2, y + 4); y += 7;
+      font('normal', 8); text(GRIS_T);
+      const linea = items.map(i => `${i.cantidad > 1 ? i.cantidad + '× ' : ''}${i.producto}`).join('   ·   ');
+      const wrapped = doc.splitTextToSize(linea, CW - 4);
+      checkY(wrapped.length * 5 + 4);
+      doc.text(wrapped, M + 2, y + 4);
+      y += wrapped.length * 5 + 6;
+    }
+
+    // Logística (personal)
+    const logIds = _dashData.logEvs.filter(le => le.evento_id === ev.id).map(le => le.logistica_id);
+    const logsEvento = _dashData.logisticas.filter(l => logIds.includes(l.id) || l.evento_id === ev.id);
+    const logIdsEv = logsEvento.map(l => l.id);
+    const jornadasEv = _dashData.jornadas.filter(j => logIdsEv.includes(j.logistica_id) || j.evento_id === ev.id);
+
+    if (jornadasEv.length) {
+      checkY(16);
+      fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');
+      font('bold', 8); text(NEGRO);
+      doc.text('LOGÍSTICA', M + 2, y + 4); y += 7;
+
+      // Agrupar por tipo y fecha
+      const grupos = {};
+      jornadasEv.forEach(j => {
+        const key = `${j.tipo}||${j.fecha}`;
+        if (!grupos[key]) grupos[key] = { tipo: j.tipo, fecha: j.fecha, hora: j.hora_inicio, personas: [] };
+        const nombre = `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim();
+        if (nombre && !grupos[key].personas.includes(nombre)) grupos[key].personas.push(nombre);
+      });
+
+      const tipoOrden = ['Depósito','Armado','Operador','Desarme'];
+      const gruposOrden = Object.values(grupos).sort((a,b) => {
+        const oi = t => tipoOrden.indexOf(t) === -1 ? 99 : tipoOrden.indexOf(t);
+        return oi(a.tipo) - oi(b.tipo) || (a.fecha||'').localeCompare(b.fecha||'');
+      });
+
+      gruposOrden.forEach(g => {
+        checkY(10);
+        const fLabel = new Date(g.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
+        font('bold', 8); text(NEGRO);
+        doc.text(`${g.tipo}  —  ${fLabel}${g.hora ? '  🕐 ' + g.hora : ''}`, M + 2, y + 4);
+        font('normal', 8); text(GRIS_T);
+        doc.text(g.personas.join(', ') || 'Sin personal', M + 2, y + 9);
+        y += 13;
+      });
+    }
+
+    stroke([220,220,220]); doc.setLineWidth(0.3); doc.line(M, y, PW - M, y); y += 8;
+  }
+
+  doc.save(`fechas-${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
 function getSemanaActual() {
   const hoy = new Date();
   const dow = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1; // lunes=0
@@ -1860,6 +1983,7 @@ async function loadDashboard() {
 
     if (!eventos.length) {
       cont.innerHTML = '<div class="empty"><div class="empty-icon">📅</div>Sin eventos esta semana</div>';
+      document.getElementById('btn-pdf-fechas').style.display = 'none';
       return;
     }
 
@@ -1879,6 +2003,9 @@ async function loadDashboard() {
       if (!presByEvento[p.evento_id]) presByEvento[p.evento_id] = [];
       presByEvento[p.evento_id].push(...items);
     }
+
+    // Guardar para PDF
+    _dashData = { eventos, jornadas, logisticas, logEvs, presByEvento };
 
     const estadoColor = { 'Confirmado':'var(--green)', 'Realizado':'var(--purple)', 'Cobrado':'var(--blue)' };
 
@@ -1945,9 +2072,12 @@ async function loadDashboard() {
 
       return `<div class="card" style="margin-bottom:12px;padding:16px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-          <div>
-            <div style="font-weight:700;font-size:17px">${ev.venue || '—'}</div>
-            <div style="color:var(--text-2);font-size:13px;margin-top:2px">${ev.cliente_nombre || ev.cliente || ''}</div>
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <input type="checkbox" data-ev-id="${ev.id}" style="margin-top:4px;width:16px;height:16px;cursor:pointer;accent-color:var(--gold)" onchange="onDashCheckbox()">
+            <div>
+              <div style="font-weight:700;font-size:17px">${ev.venue || '—'}</div>
+              <div style="color:var(--text-2);font-size:13px;margin-top:2px">${ev.cliente_nombre || ev.cliente || ''}</div>
+            </div>
           </div>
           <div style="text-align:right">
             <div style="font-size:12px;color:${color};font-weight:600">${ev.estado || ''}</div>
@@ -2162,6 +2292,7 @@ async function guardarEvento() {
 }
 
 let _cobroCtx = null;
+let _dashData = null;
 
 function onCobroTipoChange() {
   const tipo = document.getElementById('cobro-tipo').value;
