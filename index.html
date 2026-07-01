@@ -5420,14 +5420,6 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
       if (logId) {
         // Vincular logística al evento
         await sbPost('logistica_eventos', { logistica_id: logId, evento_id: eventoId });
-
-        // Crear las 3 jornadas vacías (sin personal aún)
-        const codigoBase = `J${Date.now()}`;
-        await sbPost('jornadas', [
-          { codigo: `${codigoBase}-1`, logistica_id: logId, tipo: 'Armado',   fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: null,          pagado: false },
-          { codigo: `${codigoBase}-2`, logistica_id: logId, tipo: 'Operador', fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: horario||null, pagado: false },
-          { codigo: `${codigoBase}-3`, logistica_id: logId, tipo: 'Desarme',  fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: null,          pagado: false },
-        ]);
       }
     }
 
