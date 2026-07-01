@@ -2303,6 +2303,15 @@ async function guardarEvento() {
   try {
     if (editingEventoId) {
       await sbPatch('eventos', editingEventoId, data);
+      // Sincronizar fechas/horas en jornadas automáticas
+      const jornadasEv = await sb('jornadas', { filters: [`evento_id=eq.${editingEventoId}`], select: 'id,tipo', limit: 100 });
+      for (const j of jornadasEv) {
+        const jPatch = {};
+        if (j.tipo === 'Armado'   && data.fecha_armado)  { jPatch.fecha = data.fecha_armado;  if (data.hora_armado)  jPatch.hora_inicio = data.hora_armado; }
+        if (j.tipo === 'Operador' && data.fecha_evento)   { jPatch.fecha = data.fecha_evento;  if (data.horario)      jPatch.hora_inicio = data.horario; }
+        if (j.tipo === 'Desarme'  && data.fecha_desarme)  { jPatch.fecha = data.fecha_desarme; if (data.hora_desarme) jPatch.hora_inicio = data.hora_desarme; }
+        if (Object.keys(jPatch).length) await sbPatch('jornadas', j.id, jPatch);
+      }
       toast('Evento actualizado');
     } else {
       // Generar código único
@@ -2996,28 +3005,17 @@ async function loadLogisticas() {
 
     filas.sort((a,b) => b.logId - a.logId || a.orden - b.orden);
 
-    tbody.innerHTML = filas.map(f => {
-      let estadoBadge = '';
-      if (f.todasPagadas) {
-        estadoBadge = `<span style="font-size:11px;color:var(--green);font-weight:600">✅ Pagado</span>`;
-      } else if (f.todasConfirmadas) {
-        estadoBadge = `<span style="font-size:11px;color:var(--blue);font-weight:600">🔵 En pagos</span>`;
-      } else {
-        estadoBadge = `<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="confirmarJornadas(${f.logId},'${f.tipo}')">✓ Confirmar</button>`;
-      }
-      return `<tr>
-        <td><b style="font-size:13px">${f.evLabel}</b></td>
-        <td><span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipoLabel}</span></td>
-        <td style="font-size:12px;color:var(--text-2)">${f.fechaLabel}</td>
-        <td style="font-size:12px">${f.persCount} persona(s)</td>
-        <td>${estadoBadge}</td>
-        <td style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}',${f.eliminable})">✏️ Editar</button>
-          <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
-          ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
-        </td>
-      </tr>`;
-    }).join('');
+    tbody.innerHTML = filas.map(f => `<tr>
+      <td><b style="font-size:13px">${f.evLabel}</b></td>
+      <td><span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipoLabel}</span></td>
+      <td style="font-size:12px;color:var(--text-2)">${f.fechaLabel}</td>
+      <td style="font-size:12px">${f.persCount} persona(s)</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}',${f.eliminable})">✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
+        ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
+      </td>
+    </tr>`).join('');
   } catch(e) { toast('Error cargando logísticas: ' + e.message, 'err'); }
 }
 
@@ -3150,6 +3148,15 @@ async function guardarAgregarArmado() {
     closeModal('modal-agregar-armado');
     toast('Día de armado agregado');
     loadLogistica();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function confirmarJornadasPersona(persId, desde, hasta) {
+  try {
+    const jors = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.false`], select: 'id', limit: 200 });
+    for (const j of jors) await sbPatch('jornadas', j.id, { confirmada: true });
+    toast(`✅ ${jors.length} jornada(s) confirmadas`);
+    loadPagos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -4014,7 +4021,7 @@ async function loadPagos() {
 
   try {
     const [jornadas, personal] = await Promise.all([
-      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 500 }),
+      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 500 }),
       sb('personal', { limit: 200 }),
     ]);
 
@@ -4091,7 +4098,9 @@ async function loadPagos() {
           <div style="display:flex;align-items:center;gap:12px">
             <span style="font-size:18px;font-weight:700;color:var(--gold)">${fmtARS(total)}</span>
             <button class="btn btn-ghost btn-sm" onclick="generarReciboIndividual(${JSON.stringify(p).replace(/"/g,'&quot;')})">📄 Recibo</button>
-            <button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}','${p.apellido} ${p.nombre}',${total})">✓ Pagar</button>
+            ${p.jornadas.every(j => j.confirmada)
+              ? `<button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}','${p.apellido} ${p.nombre}',${total})">✓ Pagar</button>`
+              : `<button class="btn btn-ghost btn-sm" onclick="confirmarJornadasPersona(${p.id},'${desde}','${hasta}')">✓ Confirmar jornada</button>`}
           </div>
         </div>
         <table style="width:100%;border-collapse:collapse">
