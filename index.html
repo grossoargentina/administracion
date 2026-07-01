@@ -551,7 +551,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <div class="page-title">Logística</div>
           <div class="page-sub">Planificación de personal por evento</div>
         </div>
-        <button class="btn btn-primary" onclick="abrirNuevaLogistica()">+ Nueva logística</button>
+        <button class="btn btn-primary" onclick="abrirAgregarArmado()">+ Agregar días de armado</button>
       </div>
       <div class="card">
         <div class="tbl-wrap">
@@ -1104,6 +1104,41 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
 </div>
 
 <!-- MODAL NUEVA LOGÍSTICA -->
+<!-- MODAL AGREGAR DÍAS DE ARMADO -->
+<div class="modal-overlay" id="modal-agregar-armado">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">Agregar día de armado</span>
+      <button class="modal-close" onclick="closeModal('modal-agregar-armado')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Evento *</label>
+          <select class="inp" id="armado-evento"></select>
+        </div>
+        <div class="field">
+          <label class="lbl">Fecha *</label>
+          <input type="date" class="inp" id="armado-fecha">
+        </div>
+        <div class="field">
+          <label class="lbl">Hora inicio</label>
+          <select class="inp" id="armado-hora"></select>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Personal</label>
+          <select class="inp" id="armado-personal" multiple style="height:120px"></select>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px">Ctrl+clic para seleccionar varios</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-agregar-armado')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarAgregarArmado()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-nueva-logistica">
   <div class="modal" style="max-width:780px">
     <div class="modal-header">
@@ -2924,15 +2959,27 @@ async function loadLogisticas() {
               ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
               : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
             : '—';
-          filas.push({ logId: r.id, eventoId: r.evento_id, tipo, evLabel, fechaLabel, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: !esOriginal });
+          const fechaSort = dias.length ? dias[0] : '9999-99-99';
+          filas.push({ logId: r.id, eventoId: r.evento_id, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false });
         });
       }
     });
 
-    // Ordenar por evento y logId asc para numerar bien, luego reordenar por logId desc para mostrar
-    filas.sort((a,b) => (a.eventoId||0) - (b.eventoId||0) || a.logId - b.logId || a.orden - b.orden);
+    // Contar cuántas filas hay por (eventoId + tipo) para saber cuáles son eliminables
+    const countPorTipo = {};
+    filas.forEach(f => {
+      const key = `${f.eventoId}__${f.tipo}`;
+      countPorTipo[key] = (countPorTipo[key] || 0) + 1;
+    });
+    filas.forEach(f => {
+      const key = `${f.eventoId}__${f.tipo}`;
+      f.eliminable = countPorTipo[key] > 1;
+    });
 
-    // Numerar tipos duplicados por evento (Armado 1, Armado 2...)
+    // Ordenar por evento, tipo y fecha para numerar correctamente
+    filas.sort((a,b) => (a.eventoId||0) - (b.eventoId||0) || a.orden - b.orden || (a.fechaSort||'').localeCompare(b.fechaSort||''));
+
+    // Numerar tipos duplicados por evento según orden de fecha (Armado 1 = más temprano)
     const contadorTipo = {};
     filas.forEach(f => {
       const key = `${f.eventoId}__${f.tipo}`;
@@ -3021,6 +3068,73 @@ async function editarLogistica(id, tipo, esExtra = false) {
 
     renderDiasLog();
   } catch(e) { toast('Error cargando logística: ' + e.message, 'err'); }
+}
+
+function abrirAgregarArmado() {
+  // Poblar eventos
+  const evSel = document.getElementById('armado-evento');
+  const evRelevantes = (evCache || []).filter(e => ['Confirmado','Realizado'].includes(e.estado));
+  evSel.innerHTML = evRelevantes.map(e => `<option value="${e.id}">${e.codigo} · ${e.cliente_nombre} · ${e.venue || ''}</option>`).join('');
+  // Hora
+  document.getElementById('armado-hora').innerHTML = buildTimeOpts('');
+  // Personal
+  const persSel = document.getElementById('armado-personal');
+  persSel.innerHTML = (persCache || []).map(p => `<option value="${p.id}">${p.apellido} ${p.nombre}</option>`).join('');
+  // Fecha hoy
+  document.getElementById('armado-fecha').value = today();
+  openModal('modal-agregar-armado');
+}
+
+async function guardarAgregarArmado() {
+  const evId = parseInt(document.getElementById('armado-evento').value);
+  const fecha = document.getElementById('armado-fecha').value;
+  const hora = document.getElementById('armado-hora').value;
+  if (!evId || !fecha) { toast('Elegí un evento y una fecha', 'err'); return; }
+
+  const persSelOpts = [...document.getElementById('armado-personal').selectedOptions];
+  const persIds = persSelOpts.map(o => parseInt(o.value));
+
+  try {
+    // Find existing logística for this event, or create one
+    let logs = await sb('logisticas', { filters: [`evento_id=eq.${evId}`], limit: 1 });
+    let logId = logs[0]?.id;
+    if (!logId) {
+      const ev = (evCache || []).find(e => e.id === evId);
+      const newLog = await sbPost('logisticas', { evento_id: evId, tipo: 'Evento', notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
+      logId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
+      await sbPost('logistica_eventos', { logistica_id: logId, evento_id: evId });
+    }
+
+    // Build jornadas to insert
+    const codigoBase = `J${Date.now()}`;
+    if (persIds.length > 0) {
+      const jornadas = persIds.map((pid, i) => ({
+        codigo: `${codigoBase}-${i}`,
+        evento_id: evId,
+        logistica_id: logId,
+        tipo: 'Armado',
+        fecha: fecha || null,
+        hora_inicio: hora || null,
+        personal_id: pid,
+        pagado: false,
+      }));
+      await sbPost('jornadas', jornadas);
+    } else {
+      await sbPost('jornadas', [{
+        codigo: `${codigoBase}-0`,
+        evento_id: evId,
+        logistica_id: logId,
+        tipo: 'Armado',
+        fecha: fecha || null,
+        hora_inicio: hora || null,
+        pagado: false,
+      }]);
+    }
+
+    closeModal('modal-agregar-armado');
+    toast('Día de armado agregado');
+    loadLogistica();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 function abrirNuevaLogistica() {
@@ -3305,7 +3419,7 @@ async function guardarLogistica() {
     const wasEdit = !!logEditId;
     logEditId = null;
     logEditTipo = null;
-    toast(wasEdit ? `✅ Logística actualizada` : `✅ Logística creada con ${jornadasToInsert.length} jornadas`);
+    toast(wasEdit ? `✅ Logística actualizada` : `✅ Logística creada con ${jornadasToInsert?.length ?? 0} jornadas`);
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -5239,6 +5353,32 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
         p.id !== id && grupoRootId(p) === root && (p.estado_evento || 'Pendiente') === 'Pendiente');
       for (const h of hermanas) {
         await sbPatch('presupuestos', h.id, { estado_evento: 'Descartada' });
+      }
+    }
+
+    const eventoId = (Array.isArray(nuevoEv) ? nuevoEv[0]?.id : nuevoEv?.id) || null;
+
+    // Crear logística automática con Armado, Operador y Desarme
+    if (eventoId) {
+      const logRow = await sbPost('logisticas', {
+        evento_id: eventoId,
+        tipo: 'Evento',
+        notas: `Logística automática — ${venue || cliente}`,
+        created_at: new Date().toISOString(),
+      });
+      const logId = Array.isArray(logRow) ? logRow[0]?.id : logRow?.id;
+
+      if (logId) {
+        // Vincular logística al evento
+        await sbPost('logistica_eventos', { logistica_id: logId, evento_id: eventoId });
+
+        // Crear las 3 jornadas vacías (sin personal aún)
+        const codigoBase = `J${Date.now()}`;
+        await sbPost('jornadas', [
+          { codigo: `${codigoBase}-1`, evento_id: eventoId, logistica_id: logId, tipo: 'Armado',   fecha: null,        hora_inicio: null,          pagado: false },
+          { codigo: `${codigoBase}-2`, evento_id: eventoId, logistica_id: logId, tipo: 'Operador', fecha: fecha||null, hora_inicio: horario||null, pagado: false },
+          { codigo: `${codigoBase}-3`, evento_id: eventoId, logistica_id: logId, tipo: 'Desarme',  fecha: null,        hora_inicio: null,          pagado: false },
+        ]);
       }
     }
 
