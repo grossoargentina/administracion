@@ -1108,7 +1108,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
 <div class="modal-overlay" id="modal-agregar-armado">
   <div class="modal" style="max-width:440px">
     <div class="modal-header">
-      <span class="modal-title">Agregar día de armado</span>
+      <span class="modal-title" id="armado-modal-title">Agregar día de armado</span>
       <button class="modal-close" onclick="closeModal('modal-agregar-armado')">×</button>
     </div>
     <div class="modal-body">
@@ -1116,6 +1116,14 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Evento *</label>
           <select class="inp" id="armado-evento"></select>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Tipo *</label>
+          <select class="inp" id="armado-tipo">
+            <option value="Armado">Armado</option>
+            <option value="Operador">Operador</option>
+            <option value="Desarme">Desarme</option>
+          </select>
         </div>
         <div class="field">
           <label class="lbl">Fecha *</label>
@@ -3030,7 +3038,7 @@ async function loadLogisticas() {
       <td style="font-size:12px;color:var(--text-2)">${f.fechaLabel}</td>
       <td style="font-size:12px">${f.persCount} persona(s)</td>
       <td style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}',${f.eliminable})">✏️ Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="${f.eliminable ? `editarLogistica(${f.logId},'${f.tipo}',true)` : `abrirAgregarArmadoParaTipo(${f.logId},'${f.tipo}',${f.eventoId})`}">✏️ Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
         ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
       </td>
@@ -3100,6 +3108,17 @@ async function editarLogistica(id, tipo, esExtra = false) {
   } catch(e) { toast('Error cargando logística: ' + e.message, 'err'); }
 }
 
+function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
+  abrirAgregarArmado();
+  document.getElementById('armado-modal-title').textContent = `Agregar día — ${tipo}`;
+  if (evId) document.getElementById('armado-evento').value = evId;
+  document.getElementById('armado-tipo').value = tipo;
+  const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
+  const fechaMap = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
+  const fecha = fechaMap[tipo];
+  if (fecha) document.getElementById('armado-fecha').value = fecha;
+}
+
 function abrirAgregarArmado() {
   // Poblar eventos
   const evSel = document.getElementById('armado-evento');
@@ -3115,6 +3134,9 @@ function abrirAgregarArmado() {
       ${p.apellido} ${p.nombre}
     </label>`
   ).join('');
+  // Resetear título y tipo
+  document.getElementById('armado-modal-title').textContent = 'Agregar día de armado';
+  document.getElementById('armado-tipo').value = 'Armado';
   // Fecha hoy
   document.getElementById('armado-fecha').value = today();
   openModal('modal-agregar-armado');
@@ -3124,12 +3146,12 @@ async function guardarAgregarArmado() {
   const evId = parseInt(document.getElementById('armado-evento').value);
   const fecha = document.getElementById('armado-fecha').value;
   const hora = document.getElementById('armado-hora').value;
+  const tipo = document.getElementById('armado-tipo').value || 'Armado';
   if (!evId || !fecha) { toast('Elegí un evento y una fecha', 'err'); return; }
 
   const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
   try {
-    // Find existing logística for this event via logistica_eventos, or create one
     const armRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${evId}`], select: 'logistica_id', limit: 1 });
     let logId = armRels[0]?.logistica_id;
     if (!logId) {
@@ -3139,14 +3161,12 @@ async function guardarAgregarArmado() {
       await sbPost('logistica_eventos', { logistica_id: logId, evento_id: evId });
     }
 
-    // Build jornadas to insert
     const codigoBase = `J${Date.now()}`;
     if (persIds.length > 0) {
       const jornadas = persIds.map((pid, i) => ({
         codigo: `${codigoBase}-${i}`,
-        evento_id: evId,
         logistica_id: logId,
-        tipo: 'Armado',
+        tipo,
         fecha: fecha || null,
         hora_inicio: hora || null,
         personal_id: pid,
@@ -3156,9 +3176,8 @@ async function guardarAgregarArmado() {
     } else {
       await sbPost('jornadas', [{
         codigo: `${codigoBase}-0`,
-        evento_id: evId,
         logistica_id: logId,
-        tipo: 'Armado',
+        tipo,
         fecha: fecha || null,
         hora_inicio: hora || null,
         pagado: false,
@@ -3166,8 +3185,8 @@ async function guardarAgregarArmado() {
     }
 
     closeModal('modal-agregar-armado');
-    toast('Día de armado agregado');
-    loadLogistica();
+    toast('Día agregado');
+    loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
