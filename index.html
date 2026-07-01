@@ -930,7 +930,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field"><label class="lbl">Hora armado</label><select class="inp" id="ev-hora-armado"></select></div>
         <div class="field"><label class="lbl">Fecha desarme</label><input class="inp" type="date" id="ev-fecha-desarme"></div>
         <div class="field"><label class="lbl">Hora desarme</label><select class="inp" id="ev-hora-desarme"></select></div>
-        <div class="field"><label class="lbl">Total ARS</label><input class="inp ars-input" type="text" id="ev-total" placeholder="0" oninput="fmtInputARS(this)"></div>
+        <div class="field"><label class="lbl">Total ARS (sin IVA)</label><input class="inp ars-input" type="text" id="ev-total" placeholder="0" oninput="fmtInputARS(this); actualizarTotalFinalEv()"></div>
         <div class="field"><label class="lbl">Modalidad de pago</label>
           <select class="inp" id="ev-modalidad" onchange="toggleSenaEv(this.value)">
             <option>Pago total al finalizar</option>
@@ -943,12 +943,57 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
             <option>Confirmado</option><option>Realizado</option><option>Cobrado</option>
           </select>
         </div>
+        <div class="field full" style="display:flex;gap:24px;padding:6px 0">
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="checkbox" id="ev-iva" style="width:16px;height:16px;accent-color:var(--gold)" onchange="actualizarTotalFinalEv()">
+            <label for="ev-iva" class="lbl" style="margin:0;cursor:pointer">Incluir IVA (+21%)</label>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="checkbox" id="ev-pago-diferido" style="width:16px;height:16px;accent-color:var(--gold)" onchange="actualizarTotalFinalEv()">
+            <label for="ev-pago-diferido" class="lbl" style="margin:0;cursor:pointer">Pago diferido (+5%)</label>
+          </div>
+        </div>
+        <div class="field full" style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:8px;padding:10px 14px">
+          <span style="font-size:12px;color:var(--text-2)">Total final</span>
+          <span id="ev-total-final" style="font-size:16px;font-weight:600;color:var(--gold)">$ 0</span>
+        </div>
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-evento')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarEvento()">Guardar evento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR PRESUPUESTO -->
+<div class="modal-overlay" id="modal-confirmar-presupuesto">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Confirmar presupuesto</span>
+      <button class="modal-close" onclick="closeModal('modal-confirmar-presupuesto')">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-2);margin:0 0 14px">Se creará el evento de <b id="confirmar-pres-cliente"></b> en el pipeline como <b>Confirmado</b>.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="confirmar-iva" style="width:16px;height:16px;accent-color:var(--gold)" onchange="actualizarTotalConfirmarPresupuesto()">
+          <label for="confirmar-iva" class="lbl" style="margin:0;cursor:pointer">Incluir IVA (+21%)</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="confirmar-pago-diferido" style="width:16px;height:16px;accent-color:var(--gold)" onchange="actualizarTotalConfirmarPresupuesto()">
+          <label for="confirmar-pago-diferido" class="lbl" style="margin:0;cursor:pointer">Pago diferido (+5%)</label>
+        </div>
+      </div>
+      <div style="background:var(--surface2);border-radius:8px;padding:12px 14px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-2)"><span>Subtotal (sin IVA)</span><span id="confirmar-subtotal">$ 0</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:600;color:var(--gold);margin-top:6px"><span>Total final</span><span id="confirmar-total-final">$ 0</span></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-confirmar-presupuesto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarPresupuestoFinal()">✅ Confirmar</button>
     </div>
   </div>
 </div>
@@ -1623,6 +1668,13 @@ async function sbDelete(table, id) {
 // ── HELPERS ───────────────────────────────────────────────
 const fmtARS = v => v == null ? '—' : '$ ' + Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
 const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR') : '—';
+// Aplica 21% de IVA y/o 5% de recargo por pago diferido (sobre el monto ya con IVA, si corresponde) a un monto base sin IVA
+function calcularTotalConRecargos(base, incluyeIva, pagoDiferido) {
+  let t = Number(base) || 0;
+  if (incluyeIva) t *= 1.21;
+  if (pagoDiferido) t *= 1.05;
+  return t;
+}
 const today = () => new Date().toISOString().split('T')[0];
 
 function formatTelefono(raw) {
@@ -2473,7 +2525,11 @@ async function editEvento(id) {
     } catch(e) {}
   }
   document.getElementById('ev-venue').value     = ev.venue || '';
-  document.getElementById('ev-total').value     = ev.total_ars > 0 ? Number(ev.total_ars).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
+  const evMontoBase = ev.monto_base_ars ?? ev.total_ars ?? 0;
+  document.getElementById('ev-total').value     = evMontoBase > 0 ? Number(evMontoBase).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
+  document.getElementById('ev-iva').checked           = !!ev.incluye_iva;
+  document.getElementById('ev-pago-diferido').checked = !!ev.pago_diferido;
+  actualizarTotalFinalEv();
   document.getElementById('ev-modalidad').value = ev.modalidad_pago || 'Pago total al finalizar';
   toggleSenaEv(ev.modalidad_pago || 'Pago total al finalizar');
   const evSenaEl = document.getElementById('ev-sena');
@@ -2500,11 +2556,18 @@ async function guardarEvento() {
   const fechasEv = fpEv ? fpEv.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
   const horariosEv = getHorariosEv();
 
+  const evMontoBase    = parseARSInput(document.getElementById('ev-total')) || 0;
+  const evIncluyeIva   = document.getElementById('ev-iva').checked;
+  const evPagoDiferido = document.getElementById('ev-pago-diferido').checked;
+
   const data = {
     cliente_nombre:  cliente,
     tipo_evento:     document.getElementById('ev-tipo').value,
     venue:           document.getElementById('ev-venue').value,
-    total_ars:      parseARSInput(document.getElementById('ev-total')) || 0,
+    monto_base_ars: evMontoBase,
+    incluye_iva:    evIncluyeIva,
+    pago_diferido:  evPagoDiferido,
+    total_ars:      calcularTotalConRecargos(evMontoBase, evIncluyeIva, evPagoDiferido),
     modalidad_pago: document.getElementById('ev-modalidad').value,
     sena_monto:     parseARSInput(document.getElementById('ev-sena')),
     estado:         document.getElementById('ev-estado').value,
@@ -5802,22 +5865,46 @@ let presItems = [];       // items seleccionados
 let catalogoCache = [];   // catálogo completo
 
 // ── CONFIRMAR PRESUPUESTO → crea evento en pipeline ─────
+let _confirmarPresupuestoCtx = null; // { id, p } — presupuesto pendiente de confirmar en el modal
+
 async function confirmarPresupuesto(id) {
   const rows = await sb('presupuestos', { filters: [`id=eq.${id}`], limit: 1 });
   const p = rows[0];
   if (!p) { toast('No se encontró el presupuesto', 'err'); return; }
+  _confirmarPresupuestoCtx = { id, p };
+  document.getElementById('confirmar-pres-cliente').textContent = p.cliente || '';
+  document.getElementById('confirmar-iva').checked = false;
+  document.getElementById('confirmar-pago-diferido').checked = false;
+  actualizarTotalConfirmarPresupuesto();
+  openModal('modal-confirmar-presupuesto');
+}
+
+function actualizarTotalConfirmarPresupuesto() {
+  if (!_confirmarPresupuestoCtx) return;
+  const base       = _confirmarPresupuestoCtx.p.total_ars || 0;
+  const incluyeIva = document.getElementById('confirmar-iva').checked;
+  const diferido   = document.getElementById('confirmar-pago-diferido').checked;
+  document.getElementById('confirmar-subtotal').textContent    = fmtARS(base);
+  document.getElementById('confirmar-total-final').textContent = fmtARS(calcularTotalConRecargos(base, incluyeIva, diferido));
+}
+
+async function confirmarPresupuestoFinal() {
+  if (!_confirmarPresupuestoCtx) return;
+  const { id, p } = _confirmarPresupuestoCtx;
   const cliente      = p.cliente || '';
   const tipo         = p.tipo_evento || '';
   const venue        = p.venue || '';
   const fecha        = p.fecha_evento || null;
-  const total        = p.total_ars || 0;
+  const montoBase    = p.total_ars || 0;
   const modalidad    = p.modalidad || 'Pago total al finalizar';
   const senaMonto    = p.sena_monto || 0;
+  const incluyeIva   = document.getElementById('confirmar-iva').checked;
+  const pagoDiferido = document.getElementById('confirmar-pago-diferido').checked;
+  const total        = calcularTotalConRecargos(montoBase, incluyeIva, pagoDiferido);
   let fechasEvento = [];
   try { fechasEvento = p.fechas_evento ? (Array.isArray(p.fechas_evento) ? p.fechas_evento : JSON.parse(p.fechas_evento)) : []; } catch(e) {}
 
-  const ui_confirm = confirm(`¿Confirmar el presupuesto de ${cliente}?\n\nEsto creará el evento en el pipeline como "Confirmado".`);
-  if (!ui_confirm) return;
+  closeModal('modal-confirmar-presupuesto');
 
   try {
     // Generar código de evento
@@ -5833,6 +5920,9 @@ async function confirmarPresupuesto(id) {
       cliente_nombre:  cliente,
       tipo_evento:     tipo || '',
       venue:           venue || '',
+      monto_base_ars:  montoBase,
+      incluye_iva:     incluyeIva,
+      pago_diferido:   pagoDiferido,
       total_ars:       total || 0,
       sena_monto:      esPagoTotal ? 0 : (senaMonto || 0),
       modalidad_pago:  modalidad || 'Pago total al finalizar',
@@ -5905,6 +5995,8 @@ async function confirmarPresupuesto(id) {
     llenarSelectEventos();
   } catch(e) {
     toast('Error: ' + e.message, 'err');
+  } finally {
+    _confirmarPresupuestoCtx = null;
   }
 }
 
@@ -6312,6 +6404,14 @@ function toggleSena(modalidad) {
 function toggleSenaEv(modalidad) {
   const wrap = document.getElementById('ev-sena-wrap');
   if (wrap) wrap.style.display = modalidad === 'Pago total al finalizar' ? 'none' : '';
+}
+
+// Recalcula el total final del evento (base + IVA + recargo por pago diferido)
+function actualizarTotalFinalEv() {
+  const base       = parseARSInput(document.getElementById('ev-total')) || 0;
+  const incluyeIva = document.getElementById('ev-iva').checked;
+  const diferido   = document.getElementById('ev-pago-diferido').checked;
+  document.getElementById('ev-total-final').textContent = fmtARS(calcularTotalConRecargos(base, incluyeIva, diferido));
 }
 
 // ── GENERAR PDF Y SUBIR A DRIVE ───────────────────────────
