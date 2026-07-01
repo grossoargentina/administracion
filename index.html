@@ -4037,7 +4037,7 @@ async function loadPagos() {
 
   try {
     const [jornadas, personal] = await Promise.all([
-      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 500 }),
+      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`, `personal_id=not.is.null`], limit: 500 }),
       sb('personal', { limit: 200 }),
     ]);
 
