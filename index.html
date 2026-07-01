@@ -878,7 +878,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <input type="hidden" id="gasto-id">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="gasto-desc" placeholder="Ej: Almuerzo, Nafta, Farmacia..."></div>
-        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="gasto-monto" placeholder="0"></div>
+        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="gasto-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="gasto-fecha"></div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Categoría *</label>
@@ -920,14 +920,17 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
             <option>Social</option><option>Cumpleaños</option><option>Otro</option>
           </select>
         </div>
-        <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="ev-fecha"></div>
-        <div class="field"><label class="lbl">Horario</label><select class="inp" id="ev-horario"></select></div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Fechas del evento <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios días)</span></label>
+          <input class="inp" type="text" id="ev-fecha" placeholder="Seleccioná una o más fechas..." readonly style="cursor:pointer">
+          <div id="ev-fechas-horarios" style="display:none;margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="ev-venue" placeholder="Nombre del salón"></div>
         <div class="field"><label class="lbl">Fecha armado</label><input class="inp" type="date" id="ev-fecha-armado"></div>
         <div class="field"><label class="lbl">Hora armado</label><select class="inp" id="ev-hora-armado"></select></div>
         <div class="field"><label class="lbl">Fecha desarme</label><input class="inp" type="date" id="ev-fecha-desarme"></div>
         <div class="field"><label class="lbl">Hora desarme</label><select class="inp" id="ev-hora-desarme"></select></div>
-        <div class="field"><label class="lbl">Total ARS</label><input class="inp" type="number" id="ev-total" placeholder="0"></div>
+        <div class="field"><label class="lbl">Total ARS</label><input class="inp ars-input" type="text" id="ev-total" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Modalidad de pago</label>
           <select class="inp" id="ev-modalidad" onchange="toggleSenaEv(this.value)">
             <option>Pago total al finalizar</option>
@@ -1000,7 +1003,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </div>
           <div id="jorn-flete-fields" style="display:none;display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div class="field" style="margin:0"><label class="lbl">Nombre del fletero</label><input class="inp" id="jorn-flete-personal" placeholder="Ej: Juan Pérez"></div>
-            <div class="field" style="margin:0"><label class="lbl">Monto ARS</label><input class="inp" type="number" id="jorn-flete-monto" placeholder="0"></div>
+            <div class="field" style="margin:0"><label class="lbl">Monto ARS</label><input class="inp ars-input" type="text" id="jorn-flete-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
           </div>
         </div>
         <div class="field full">
@@ -1038,7 +1041,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <input type="hidden" id="caja-tipo">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="caja-desc" placeholder="Ej: Compra materiales, Pago servicio..."></div>
-        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="caja-monto" placeholder="0"></div>
+        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="caja-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="caja-fecha"></div>
       </div>
     </div>
@@ -1123,7 +1126,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         </div>
         <div class="field" style="grid-column:1/-1"><label class="lbl">Producto *</label><input class="inp" id="producto-nombre" placeholder="Nombre del producto"></div>
         <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción</label><input class="inp" id="producto-descripcion" placeholder="Descripción opcional"></div>
-        <div class="field"><label class="lbl">Precio ARS *</label><input class="inp" type="number" id="producto-precio" placeholder="0"></div>
+        <div class="field"><label class="lbl">Precio ARS *</label><input class="inp ars-input" type="text" id="producto-precio" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Foto del producto</label>
           <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
@@ -1162,7 +1165,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
             <button type="button" id="capital-moneda-usd" class="btn btn-ghost btn-sm" onclick="setCapitalMoneda('USD')">USD</button>
           </div>
         </div>
-        <div class="field" id="capital-monto-ars-wrap"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="capital-monto" placeholder="0"></div>
+        <div class="field" id="capital-monto-ars-wrap"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="capital-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field" id="capital-monto-usd-wrap" style="display:none"><label class="lbl">Monto (USD) *</label><input class="inp" type="number" id="capital-monto-usd" placeholder="0"></div>
         <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="capital-fecha"></div>
       </div>
@@ -1340,10 +1343,10 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field"><label class="lbl">Tipo</label>
           <select class="inp" id="pers-tipo" onchange="onPersTipoChange()"><option>Fijo</option><option>Freelance</option><option>Chofer</option></select>
         </div>
-        <div class="field" id="pers-field-sueldo"><label class="lbl">Sueldo mensual (ARS)</label><input class="inp" type="number" id="pers-sueldo" placeholder="0"></div>
-        <div class="field" id="pers-field-dep"><label class="lbl">Tarifa Depósito (ARS)</label><input class="inp" type="number" id="pers-dep" placeholder="0"></div>
-        <div class="field" id="pers-field-arm"><label class="lbl">Tarifa Armado (ARS)</label><input class="inp" type="number" id="pers-arm" placeholder="0"></div>
-        <div class="field" id="pers-field-op"><label class="lbl">Tarifa Operador (ARS)</label><input class="inp" type="number" id="pers-op" placeholder="0"></div>
+        <div class="field" id="pers-field-sueldo"><label class="lbl">Sueldo mensual (ARS)</label><input class="inp ars-input" type="text" id="pers-sueldo" placeholder="0" oninput="fmtInputARS(this)"></div>
+        <div class="field" id="pers-field-dep"><label class="lbl">Tarifa Depósito (ARS)</label><input class="inp ars-input" type="text" id="pers-dep" placeholder="0" oninput="fmtInputARS(this)"></div>
+        <div class="field" id="pers-field-arm"><label class="lbl">Tarifa Armado (ARS)</label><input class="inp ars-input" type="text" id="pers-arm" placeholder="0" oninput="fmtInputARS(this)"></div>
+        <div class="field" id="pers-field-op"><label class="lbl">Tarifa Operador (ARS)</label><input class="inp ars-input" type="text" id="pers-op" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Teléfono</label><input class="inp" id="pers-tel" placeholder="+54 9 11 XXXX-XXXX" maxlength="18" oninput="onTelefonoInput(this)"></div>
         <div class="field full"><label class="lbl">Notas</label><input class="inp" id="pers-notas" placeholder="Opcional"></div>
       </div>
@@ -1386,7 +1389,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         </div>
         <div class="field"><label class="lbl">Año</label><input class="inp" type="number" id="imp-anio" value="2026"></div>
         <div class="field"><label class="lbl">Vence día</label><input class="inp" type="number" id="imp-vence" placeholder="22" min="1" max="31"></div>
-        <div class="field"><label class="lbl">Monto ARS</label><input class="inp" type="number" id="imp-monto" placeholder="0"></div>
+        <div class="field"><label class="lbl">Monto ARS</label><input class="inp ars-input" type="text" id="imp-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Monto USD</label><input class="inp" type="number" id="imp-monto-usd" placeholder="0"></div>
         <div class="field full"><label class="lbl">Notas</label><input class="inp" id="imp-notas" placeholder="Opcional"></div>
         <div class="field full" style="display:flex;align-items:center;gap:10px;padding:6px 0">
@@ -1455,7 +1458,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         </div>
         <div class="field">
           <label class="lbl">Monto (ARS)</label>
-          <input type="number" id="cobro-monto" class="inp" min="0" step="100" placeholder="0">
+          <input type="text" id="cobro-monto" class="inp ars-input" placeholder="0" oninput="fmtInputARS(this)">
         </div>
         <div class="field">
           <label class="lbl">Fecha</label>
@@ -1497,6 +1500,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Fechas del evento <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios días)</span></label>
           <input class="inp" id="pres-fechas" placeholder="Seleccioná una o más fechas..." readonly style="cursor:pointer">
+          <div id="pres-fechas-horarios" style="display:none;margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
         </div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón" list="dl-salones" autocomplete="off"><datalist id="dl-salones"></datalist></div>
       </div>
@@ -1533,7 +1537,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <!-- ITEM PERSONALIZADO -->
       <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;margin-bottom:8px;align-items:flex-end">
         <div class="field"><label class="lbl">Título del ítem</label><input class="inp" id="pres-custom-nombre" placeholder="Nombre del servicio"></div>
-        <div class="field"><label class="lbl">Precio ARS</label><input class="inp" type="number" id="pres-custom-precio" placeholder="0"></div>
+        <div class="field"><label class="lbl">Precio ARS</label><input class="inp ars-input" type="text" id="pres-custom-precio" placeholder="0" oninput="fmtInputARS(this)"></div>
         <label style="cursor:pointer;align-self:flex-end;margin-bottom:1px" title="Agregar foto">
           <div id="pres-custom-foto-preview" style="width:38px;height:38px;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg-2);overflow:hidden;cursor:pointer">📷</div>
           <input type="file" id="pres-custom-foto" accept="image/*" style="display:none" onchange="onCustomFotoChange(this)">
@@ -1911,6 +1915,46 @@ function initDatePickers(root) {
       },
     });
   });
+
+  // Flatpickr multi-fecha para evento
+  const evFechaEl = document.getElementById('ev-fecha');
+  if (evFechaEl && !evFechaEl._flatpickr) {
+    flatpickr(evFechaEl, {
+      mode: 'multiple',
+      locale: 'es',
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'j M Y',
+      conjunction: ', ',
+      onChange(selectedDates) {
+        renderHorariosEv([...selectedDates].sort((a,b) => a-b));
+      },
+    });
+  }
+}
+
+function renderHorariosEv(dates, horariosGuardados = []) {
+  const wrap = document.getElementById('ev-fechas-horarios');
+  if (!wrap) return;
+  if (!dates.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = 'flex';
+  wrap.innerHTML = dates.map((d, i) => {
+    const label = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const val   = horariosGuardados[i] || '';
+    return `<div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:12px;color:var(--text-2);min-width:180px;text-transform:capitalize">${label}</span>
+      <input type="time" class="inp" data-ev-hora-idx="${i}" value="${val}"
+        style="width:120px;font-size:13px" placeholder="--:--">
+    </div>`;
+  }).join('');
+}
+
+function getHorariosEv() {
+  const wrap = document.getElementById('ev-fechas-horarios');
+  if (!wrap) return [];
+  return Array.from(wrap.querySelectorAll('input[data-ev-hora-idx]'))
+    .sort((a,b) => a.dataset.evHoraIdx - b.dataset.evHoraIdx)
+    .map(el => el.value || null);
 }
 
 async function initApp() {
@@ -1923,7 +1967,7 @@ async function initApp() {
     persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
     evCache   = await sb('eventos',  { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
     llenarSelectEventos();
-    ['ev-horario','ev-hora-armado','ev-hora-desarme'].forEach(id => {
+    ['ev-hora-armado','ev-hora-desarme'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = buildTimeOpts('');
     });
@@ -2378,11 +2422,23 @@ async function editEvento(id) {
   document.getElementById('ev-cliente').value   = ev.cliente_nombre;
   document.getElementById('ev-tipo').value      = ev.tipo_evento || 'Casamiento';
   const fpFecha = document.getElementById('ev-fecha')._flatpickr;
-  if (fpFecha) { ev.fecha_evento ? fpFecha.setDate(ev.fecha_evento, false, 'Y-m-d') : fpFecha.clear(); }
-  else { document.getElementById('ev-fecha').value = ev.fecha_evento || ''; }
+  if (fpFecha) {
+    fpFecha.clear();
+    const fechasGuardadas = ev.fechas_evento
+      ? (Array.isArray(ev.fechas_evento) ? ev.fechas_evento : JSON.parse(ev.fechas_evento))
+      : (ev.fecha_evento ? [ev.fecha_evento] : []);
+    if (fechasGuardadas.length) {
+      fpFecha.setDate(fechasGuardadas);
+      const horariosGuardados = ev.horarios_evento
+        ? (Array.isArray(ev.horarios_evento) ? ev.horarios_evento : JSON.parse(ev.horarios_evento))
+        : (ev.horario ? [ev.horario] : []);
+      renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horariosGuardados);
+    } else {
+      renderHorariosEv([]);
+    }
+  }
   document.getElementById('ev-venue').value     = ev.venue || '';
-  document.getElementById('ev-horario').value   = ev.horario || '';
-  document.getElementById('ev-total').value     = ev.total_ars || 0;
+  document.getElementById('ev-total').value     = ev.total_ars > 0 ? Number(ev.total_ars).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
   document.getElementById('ev-modalidad').value = ev.modalidad_pago || 'Pago total al finalizar';
   toggleSenaEv(ev.modalidad_pago || 'Pago total al finalizar');
   const evSenaEl = document.getElementById('ev-sena');
@@ -2407,13 +2463,19 @@ async function guardarEvento() {
   const cliente = document.getElementById('ev-cliente').value.trim();
   if (!cliente) { toast('El cliente es obligatorio', 'err'); return; }
 
+  const fpEv = document.getElementById('ev-fecha')._flatpickr;
+  const fechasEv = fpEv ? fpEv.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
+  const horariosEv = getHorariosEv();
+
   const data = {
-    cliente_nombre: cliente,
-    tipo_evento:    document.getElementById('ev-tipo').value,
-    fecha_evento:   document.getElementById('ev-fecha').value || null,
-    horario:        document.getElementById('ev-horario')?.value || null,
-    venue:          document.getElementById('ev-venue').value,
-    total_ars:      parseFloat(document.getElementById('ev-total').value) || 0,
+    cliente_nombre:  cliente,
+    tipo_evento:     document.getElementById('ev-tipo').value,
+    fecha_evento:    fechasEv[0] || null,
+    horario:         horariosEv[0] || null,
+    fechas_evento:   fechasEv.length ? JSON.stringify(fechasEv) : null,
+    horarios_evento: horariosEv.some(h => h) ? JSON.stringify(horariosEv) : null,
+    venue:           document.getElementById('ev-venue').value,
+    total_ars:      parseARSInput(document.getElementById('ev-total')) || 0,
     modalidad_pago: document.getElementById('ev-modalidad').value,
     sena_monto:     parseARSInput(document.getElementById('ev-sena')),
     estado:         document.getElementById('ev-estado').value,
@@ -2433,11 +2495,16 @@ async function guardarEvento() {
       const logRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${editingEventoId}`], select: 'logistica_id', limit: 50 });
       const logIdsEv = logRels.map(r => r.logistica_id);
       const jornadasEv = logIdsEv.length ? await sb('jornadas', { filters: [`logistica_id=in.(${logIdsEv.join(',')})`], select: 'id,tipo', limit: 100 }) : [];
-      for (const j of jornadasEv) {
+      const jornadasOp = jornadasEv.filter(j => j.tipo === 'Operador');
+      for (let i = 0; i < jornadasOp.length; i++) {
+        const fecha = fechasEv[i] || fechasEv[0] || null;
+        const hora  = horariosEv[i] || horariosEv[0] || null;
+        if (fecha) await sbPatch('jornadas', jornadasOp[i].id, { fecha, ...(hora ? { hora_inicio: hora } : {}) });
+      }
+      for (const j of jornadasEv.filter(j => j.tipo !== 'Operador')) {
         const jPatch = {};
-        if (j.tipo === 'Armado'   && data.fecha_armado)  { jPatch.fecha = data.fecha_armado;  if (data.hora_armado)  jPatch.hora_inicio = data.hora_armado; }
-        if (j.tipo === 'Operador' && data.fecha_evento)   { jPatch.fecha = data.fecha_evento;  if (data.horario)      jPatch.hora_inicio = data.horario; }
-        if (j.tipo === 'Desarme'  && data.fecha_desarme)  { jPatch.fecha = data.fecha_desarme; if (data.hora_desarme) jPatch.hora_inicio = data.hora_desarme; }
+        if (j.tipo === 'Armado'  && data.fecha_armado)  { jPatch.fecha = data.fecha_armado;  if (data.hora_armado)  jPatch.hora_inicio = data.hora_armado; }
+        if (j.tipo === 'Desarme' && data.fecha_desarme)  { jPatch.fecha = data.fecha_desarme; if (data.hora_desarme) jPatch.hora_inicio = data.hora_desarme; }
         if (Object.keys(jPatch).length) await sbPatch('jornadas', j.id, jPatch);
       }
       toast('Evento actualizado');
@@ -2498,7 +2565,8 @@ async function registrarCobro(id, cliente, senaOk, saldoOk) {
 
   const getMontoSug = (t) => t === 'Seña' ? montosena : t === 'Saldo' ? pendienteReal : 0;
 
-  document.getElementById('cobro-monto').value = getMontoSug(sel.value) || '';
+  const fmtARS0 = v => v > 0 ? Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
+  document.getElementById('cobro-monto').value = fmtARS0(getMontoSug(sel.value));
   document.getElementById('cobro-fecha').value = today();
   document.getElementById('cobro-nota').value = '';
   document.getElementById('cobro-nota-wrap').style.display = sel.value === 'Parcial' ? '' : 'none';
@@ -2506,7 +2574,7 @@ async function registrarCobro(id, cliente, senaOk, saldoOk) {
 
   sel.onchange = () => {
     onCobroTipoChange();
-    document.getElementById('cobro-monto').value = getMontoSug(sel.value) || '';
+    document.getElementById('cobro-monto').value = fmtARS0(getMontoSug(sel.value));
   };
 
   openModal('modal-cobro');
@@ -2516,7 +2584,7 @@ async function confirmarCobro() {
   if (!_cobroCtx) return;
   const { id, cliente, senaOk, totalEv, montosena, esPagoTotal } = _cobroCtx;
   const tipo = document.getElementById('cobro-tipo').value;
-  const monto = parseFloat(document.getElementById('cobro-monto').value);
+  const monto = parseARSInput(document.getElementById('cobro-monto'));
   const fecha = document.getElementById('cobro-fecha').value || today();
   const nota = document.getElementById('cobro-nota').value.trim();
 
@@ -2756,7 +2824,7 @@ async function guardarJornadas() {
         flete_personal: (['Armado','Desarme'].includes(tipo) && transporteVal === 'Flete')
           ? document.getElementById('jorn-flete-personal').value.trim() || null : null,
         flete_monto:  (['Armado','Desarme'].includes(tipo) && transporteVal === 'Flete')
-          ? parseFloat(document.getElementById('jorn-flete-monto').value) || null : null,
+          ? parseARSInput(document.getElementById('jorn-flete-monto')) || null : null,
       };
       await sbPost('jornadas', row);
     }
@@ -3385,10 +3453,22 @@ function onCambioEventoLog() {
   const evId = parseInt(document.getElementById('nlg-evento').value);
   const ev = (evCache || []).find(e => e.id === evId);
   if (!ev) return;
+  let fechasOp = [];
+  try { fechasOp = ev.fechas_evento ? (Array.isArray(ev.fechas_evento) ? ev.fechas_evento : JSON.parse(ev.fechas_evento)) : []; } catch(e) {}
+  let horasOp = [];
+  try { horasOp = ev.horarios_evento ? (Array.isArray(ev.horarios_evento) ? ev.horarios_evento : JSON.parse(ev.horarios_evento)) : []; } catch(e) {}
+  if (!fechasOp.length && ev.fecha_evento) fechasOp = [ev.fecha_evento];
+  if (!horasOp.length && ev.horario) horasOp = [ev.horario];
+
+  let opIdx = 0;
   logDias.forEach(d => {
-    if (d.tipo === 'Operador') { d.fecha = ev.fecha_evento || ''; d.hora_inicio = ev.horario || ''; }
-    if (d.tipo === 'Armado')   { d.fecha = ev.fecha_armado  || ''; d.hora_inicio = ev.hora_armado  || ''; }
-    if (d.tipo === 'Desarme')  { d.fecha = ev.fecha_desarme || ''; d.hora_inicio = ev.hora_desarme || ''; }
+    if (d.tipo === 'Operador') {
+      d.fecha      = fechasOp[opIdx] || fechasOp[0] || '';
+      d.hora_inicio = horasOp[opIdx] || horasOp[0] || '';
+      opIdx++;
+    }
+    if (d.tipo === 'Armado')  { d.fecha = ev.fecha_armado  || ''; d.hora_inicio = ev.hora_armado  || ''; }
+    if (d.tipo === 'Desarme') { d.fecha = ev.fecha_desarme || ''; d.hora_inicio = ev.hora_desarme || ''; }
   });
   renderDiasLog();
 }
@@ -3416,7 +3496,14 @@ function updateDiaLog(id, field, value) {
     if (value === 'Operador') {
       const evId = parseInt(document.getElementById('nlg-evento').value);
       const ev = (evCache || []).find(e => e.id === evId);
-      if (ev) { d.fecha = ev.fecha_evento || d.fecha; d.hora_inicio = ev.horario || ''; }
+      if (ev) {
+        let fOp = [];
+        try { fOp = ev.fechas_evento ? (Array.isArray(ev.fechas_evento) ? ev.fechas_evento : JSON.parse(ev.fechas_evento)) : []; } catch(e) {}
+        let hOp = [];
+        try { hOp = ev.horarios_evento ? (Array.isArray(ev.horarios_evento) ? ev.horarios_evento : JSON.parse(ev.horarios_evento)) : []; } catch(e) {}
+        d.fecha      = fOp[0] || ev.fecha_evento || d.fecha;
+        d.hora_inicio = hOp[0] || ev.horario || '';
+      }
     }
     renderDiasLog();
   } else if (field === 'transporte') {
@@ -4511,7 +4598,7 @@ async function guardarCapital() {
   const fecha = document.getElementById('capital-fecha').value;
   const esUSD = document.getElementById('capital-monto-usd-wrap').style.display !== 'none';
   const montoUSD = esUSD ? parseFloat(document.getElementById('capital-monto-usd').value) : null;
-  const montoARS = esUSD ? null : parseFloat(document.getElementById('capital-monto').value);
+  const montoARS = esUSD ? null : parseARSInput(document.getElementById('capital-monto'));
   if (!desc) { toast('Ingresá una descripción', 'err'); return; }
   if (esUSD && (!montoUSD || montoUSD <= 0)) { toast('Ingresá un monto válido', 'err'); return; }
   if (!esUSD && (!montoARS || montoARS <= 0)) { toast('Ingresá un monto válido', 'err'); return; }
@@ -4639,7 +4726,7 @@ function abrirModalCaja(tipo) {
 async function guardarMovimientoCaja() {
   const tipo = document.getElementById('caja-tipo').value;
   const desc = document.getElementById('caja-desc').value.trim();
-  const monto = parseFloat(document.getElementById('caja-monto').value);
+  const monto = parseARSInput(document.getElementById('caja-monto'));
   const fecha = document.getElementById('caja-fecha').value;
   if (!desc) { toast('Ingresá una descripción', 'err'); return; }
   if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
@@ -4788,7 +4875,7 @@ function abrirModalGasto() {
 
 async function guardarGasto() {
   const desc = document.getElementById('gasto-desc').value.trim();
-  const monto = parseFloat(document.getElementById('gasto-monto').value);
+  const monto = parseARSInput(document.getElementById('gasto-monto'));
   const fecha = document.getElementById('gasto-fecha').value || today();
   const categoria = document.getElementById('gasto-categoria').value;
   if (!desc) { toast('Ingresá una descripción', 'err'); return; }
@@ -4888,10 +4975,11 @@ function editarPersonal(id) {
     document.getElementById('pers-nombre').value   = p.nombre || '';
     document.getElementById('pers-dni').value      = p.dni || '';
     document.getElementById('pers-tipo').value     = p.tipo || 'Fijo';
-    document.getElementById('pers-sueldo').value    = p.sueldo_fijo || '';
-    document.getElementById('pers-dep').value       = p.tarifa_deposito || '';
-    document.getElementById('pers-arm').value       = p.tarifa_armado || '';
-    document.getElementById('pers-op').value        = p.tarifa_operador || '';
+    const fmtP = v => v > 0 ? Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
+    document.getElementById('pers-sueldo').value    = fmtP(p.sueldo_fijo);
+    document.getElementById('pers-dep').value       = fmtP(p.tarifa_deposito);
+    document.getElementById('pers-arm').value       = fmtP(p.tarifa_armado);
+    document.getElementById('pers-op').value        = fmtP(p.tarifa_operador);
     document.getElementById('pers-tel').value       = p.telefono || '';
     document.getElementById('pers-cuit').value      = p.cuit || '';
     if (p.fecha_nacimiento) document.getElementById('pers-nacimiento')._flatpickr?.setDate(p.fecha_nacimiento);
@@ -4913,10 +5001,10 @@ async function guardarPersonal() {
     nombre,
     dni:             formatDni(document.getElementById('pers-dni').value) || null,
     tipo,
-    sueldo_fijo:     tipo === 'Fijo' ? (parseFloat(document.getElementById('pers-sueldo').value) || null) : null,
-    tarifa_deposito: parseFloat(document.getElementById('pers-dep').value) || 0,
-    tarifa_armado:   parseFloat(document.getElementById('pers-arm').value) || 0,
-    tarifa_operador: parseFloat(document.getElementById('pers-op').value) || 0,
+    sueldo_fijo:     tipo === 'Fijo' ? (parseARSInput(document.getElementById('pers-sueldo')) || null) : null,
+    tarifa_deposito: parseARSInput(document.getElementById('pers-dep')) || 0,
+    tarifa_armado:   parseARSInput(document.getElementById('pers-arm')) || 0,
+    tarifa_operador: parseARSInput(document.getElementById('pers-op')) || 0,
     telefono:         formatTelefono(document.getElementById('pers-tel').value) || null,
     cuit:             formatCuit(document.getElementById('pers-cuit').value) || null,
     fecha_nacimiento: document.getElementById('pers-nacimiento').value || null,
@@ -5157,7 +5245,7 @@ function editarImpuesto(id) {
   document.getElementById('imp-mes').value           = i.mes || '';
   document.getElementById('imp-anio').value          = i.anio || '';
   document.getElementById('imp-vence').value         = i.vence_dia || '';
-  document.getElementById('imp-monto').value         = i.monto_ars || '';
+  document.getElementById('imp-monto').value         = i.monto_ars > 0 ? Number(i.monto_ars).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
   document.getElementById('imp-monto-usd').value     = i.monto_usd || '';
   document.getElementById('imp-notas').value         = i.notas || '';
   document.getElementById('imp-por-tarjeta').checked = !!i.paga_por_tarjeta;
@@ -5176,7 +5264,7 @@ async function guardarImpuesto() {
     mes:       document.getElementById('imp-mes').value,
     anio:      parseInt(document.getElementById('imp-anio').value),
     vence_dia: parseInt(document.getElementById('imp-vence').value) || null,
-    monto_ars: parseFloat(document.getElementById('imp-monto').value) || null,
+    monto_ars: parseARSInput(document.getElementById('imp-monto')) || null,
     monto_usd: parseFloat(document.getElementById('imp-monto-usd').value) || null,
     notas:            document.getElementById('imp-notas').value.trim() || null,
     paga_por_tarjeta: document.getElementById('imp-por-tarjeta').checked,
@@ -5447,7 +5535,7 @@ function abrirModalProducto(item) {
   document.getElementById('producto-categoria').value = item?.categoria || '';
   document.getElementById('producto-nombre').value = item?.producto || '';
   document.getElementById('producto-descripcion').value = item?.descripcion || '';
-  document.getElementById('producto-precio').value = item?.precio_ars || '';
+  document.getElementById('producto-precio').value = item?.precio_ars > 0 ? Number(item.precio_ars).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
   // Reset foto
   document.getElementById('producto-foto-input').value = '';
   window._fotoBlob = null;
@@ -5545,7 +5633,7 @@ async function guardarProducto() {
   const categoria= document.getElementById('producto-categoria').value.trim();
   const producto = document.getElementById('producto-nombre').value.trim();
   const descripcion = document.getElementById('producto-descripcion').value.trim();
-  const precio_ars = parseFloat(document.getElementById('producto-precio').value);
+  const precio_ars = parseARSInput(document.getElementById('producto-precio'));
   if (!categoria || !producto || !precio_ars) { toast('Completá los campos obligatorios', 'err'); return; }
   try {
     let targetId = id;
@@ -5666,7 +5754,23 @@ let presItems = [];       // items seleccionados
 let catalogoCache = [];   // catálogo completo
 
 // ── CONFIRMAR PRESUPUESTO → crea evento en pipeline ─────
-async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaMonto, horario, fechasEventoStr = '') {
+async function confirmarPresupuesto(id) {
+  const rows = await sb('presupuestos', { filters: [`id=eq.${id}`], limit: 1 });
+  const p = rows[0];
+  if (!p) { toast('No se encontró el presupuesto', 'err'); return; }
+  const cliente      = p.cliente || '';
+  const tipo         = p.tipo_evento || '';
+  const venue        = p.venue || '';
+  const fecha        = p.fecha_evento || null;
+  const total        = p.total_ars || 0;
+  const modalidad    = p.modalidad || 'Pago total al finalizar';
+  const senaMonto    = p.sena_monto || 0;
+  const horario      = p.horario || null;
+  let fechasEvento = [];
+  try { fechasEvento = p.fechas_evento ? (Array.isArray(p.fechas_evento) ? p.fechas_evento : JSON.parse(p.fechas_evento)) : []; } catch(e) {}
+  let horariosEvento = [];
+  try { horariosEvento = p.horarios_evento ? (Array.isArray(p.horarios_evento) ? p.horarios_evento : JSON.parse(p.horarios_evento)) : []; } catch(e) {}
+
   const ui_confirm = confirm(`¿Confirmar el presupuesto de ${cliente}?\n\nEsto creará el evento en el pipeline como "Confirmado".`);
   if (!ui_confirm) return;
 
@@ -5680,19 +5784,21 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
     // Crear evento en pipeline
     const nuevoEv = await sbPost('eventos', {
       codigo,
-      estado:         'Confirmado',
-      cliente_nombre: cliente,
-      tipo_evento:    tipo || '',
-      fecha_evento:   fecha || null,
-      horario:        horario || null,
-      venue:          venue || '',
-      total_ars:      total || 0,
-      sena_monto:     esPagoTotal ? 0 : (senaMonto || 0),
-      modalidad_pago: modalidad || 'Pago total al finalizar',
-      sena_cobrada:   esPagoTotal ? true : false,
-      saldo_cobrado:  false,
-      created_at:     new Date().toISOString(),
-      updated_at:     new Date().toISOString(),
+      estado:          'Confirmado',
+      cliente_nombre:  cliente,
+      tipo_evento:     tipo || '',
+      fecha_evento:    fechasEvento[0] || fecha || null,
+      horario:         horariosEvento[0] || horario || null,
+      fechas_evento:   fechasEvento.length ? JSON.stringify(fechasEvento) : null,
+      horarios_evento: horariosEvento.some(h => h) ? JSON.stringify(horariosEvento) : null,
+      venue:           venue || '',
+      total_ars:       total || 0,
+      sena_monto:      esPagoTotal ? 0 : (senaMonto || 0),
+      modalidad_pago:  modalidad || 'Pago total al finalizar',
+      sena_cobrada:    esPagoTotal ? true : false,
+      saldo_cobrado:   false,
+      created_at:      new Date().toISOString(),
+      updated_at:      new Date().toISOString(),
     });
 
     // Actualizar estado del presupuesto y vincular evento
@@ -5738,15 +5844,13 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
         await sbPost('logistica_eventos', { logistica_id: logId, evento_id: eventoId });
 
         // Crear una jornada de Operador por cada fecha seleccionada
-        let fechas = [];
-        try { fechas = fechasEventoStr ? JSON.parse(fechasEventoStr) : []; } catch(e) {}
-        if (!fechas.length && fecha) fechas = [fecha];
+        const fechas = fechasEvento.length ? fechasEvento : (fecha ? [fecha] : []);
         const jornadasOp = fechas.map((f, i) => ({
           codigo: `J${Date.now()}-op${i}`,
           logistica_id: logId,
           tipo: 'Operador',
           fecha: f || null,
-          hora_inicio: horario || null,
+          hora_inicio: horariosEvento[i] || horario || null,
           pagado: false,
         }));
         if (jornadasOp.length) await sbPost('jornadas', jornadasOp);
@@ -5856,7 +5960,7 @@ async function loadPresupuestos() {
                 ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>` : ''}
                 ${estado === 'Pendiente' ? `
                   <button class="btn btn-sm" style="background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)"
-                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_monto||0},'${p.horario||''}','${p.fechas_evento||''}')">
+                    onclick="confirmarPresupuesto(${p.id})">
                     ✅ Confirmar
                   </button>
                   <button class="btn btn-ghost btn-sm" onclick="nuevaVersionPresupuesto(${p.id})">+ Nueva versión</button>
@@ -5925,6 +6029,7 @@ async function abrirModalPresupuesto() {
   const fpEl = document.getElementById('pres-fechas');
   if (fpEl._flatpickr) {
     fpEl._flatpickr.clear();
+    renderHorariosPresup([]);
   } else {
     flatpickr(fpEl, {
       mode: 'multiple',
@@ -5933,6 +6038,10 @@ async function abrirModalPresupuesto() {
       altInput: true,
       altFormat: 'j M Y',
       conjunction: ', ',
+      onChange(selectedDates) {
+        const sorted = [...selectedDates].sort((a,b) => a-b);
+        renderHorariosPresup(sorted);
+      },
     });
   }
 
@@ -5972,7 +6081,13 @@ async function nuevaVersionPresupuesto(id) {
     const fechasGuardadas = base.fechas_evento
       ? (Array.isArray(base.fechas_evento) ? base.fechas_evento : JSON.parse(base.fechas_evento))
       : (base.fecha_evento ? [base.fecha_evento] : []);
-    if (fechasGuardadas.length) fpPres.setDate(fechasGuardadas);
+    if (fechasGuardadas.length) {
+      fpPres.setDate(fechasGuardadas);
+      const horariosGuardados = base.horarios_evento
+        ? (Array.isArray(base.horarios_evento) ? base.horarios_evento : JSON.parse(base.horarios_evento))
+        : [];
+      renderHorariosPresup(fpPres.selectedDates.slice().sort((a,b)=>a-b), horariosGuardados);
+    }
   }
   document.getElementById('pres-venue').value    = base.venue || '';
   document.getElementById('pres-modalidad').value = base.modalidad || 'Pago total al finalizar';
@@ -6000,6 +6115,30 @@ async function nuevaVersionPresupuesto(id) {
 }
 
 // ── FILTRAR CATÁLOGO EN EL MODAL ─────────────────────────
+function renderHorariosPresup(dates, horariosGuardados = []) {
+  const wrap = document.getElementById('pres-fechas-horarios');
+  if (!wrap) return;
+  if (!dates.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = 'flex';
+  wrap.innerHTML = dates.map((d, i) => {
+    const label = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const val   = horariosGuardados[i] || '';
+    return `<div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:12px;color:var(--text-2);min-width:180px;text-transform:capitalize">${label}</span>
+      <input type="time" class="inp" data-fecha-idx="${i}" value="${val}"
+        style="width:120px;font-size:13px" placeholder="--:--">
+    </div>`;
+  }).join('');
+}
+
+function getHorariosPresup() {
+  const wrap = document.getElementById('pres-fechas-horarios');
+  if (!wrap) return [];
+  return Array.from(wrap.querySelectorAll('input[data-fecha-idx]'))
+    .sort((a,b) => a.dataset.fechaIdx - b.dataset.fechaIdx)
+    .map(el => el.value || null);
+}
+
 function filtrarCatalogoPres() {
   const q    = document.getElementById('pres-buscar').value.toLowerCase();
   const cat  = document.getElementById('pres-cat-filtro').value;
@@ -6058,7 +6197,7 @@ function onCustomFotoChange(input) {
 function agregarItemCustom() {
   const nombre = document.getElementById('pres-custom-nombre').value.trim();
   const desc   = document.getElementById('pres-custom-desc').value.trim();
-  const precio = parseFloat(document.getElementById('pres-custom-precio').value) || 0;
+  const precio = parseARSInput(document.getElementById('pres-custom-precio')) || 0;
   if (!nombre) { toast('Ingresá un título para el ítem', 'err'); return; }
   presItems.push({ id: 'C' + Date.now(), producto: nombre, descripcion: desc, foto_base64: _customFotoB64 || null, precio, cantidad: 1, esCustom: true, categoria: 'PERSONALIZADO' });
   document.getElementById('pres-custom-nombre').value = '';
@@ -6100,10 +6239,10 @@ function renderItemsPresup() {
           onchange="cambiarCantidad(${i}, this.value)">
       </td>
       <td style="padding:8px 12px;text-align:right;font-size:12px">
-        <input type="number" value="${item.precio}"
+        <input type="text" value="${(item.precio||0).toLocaleString('es-AR',{maximumFractionDigits:0})}"
           style="width:110px;text-align:right;background:var(--bg);border:1px solid var(--border);
                  border-radius:6px;color:var(--text);padding:4px;font-size:12px"
-          onchange="cambiarPrecio(${i}, this.value)">
+          oninput="fmtInputARS(this)" onchange="cambiarPrecio(${i}, this)">
       </td>
       <td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600">
         ${fmtARS(item.precio * item.cantidad)}
@@ -6124,7 +6263,7 @@ function cambiarCantidad(i, v) {
 }
 
 function cambiarPrecio(i, v) {
-  presItems[i].precio = parseFloat(v) || 0;
+  presItems[i].precio = parseARSInput(v) || 0;
   renderItemsPresup();
   calcularTotal();
 }
@@ -6178,8 +6317,9 @@ async function generarPresupuesto() {
     const tipo      = document.getElementById('pres-tipo').value;
     const fpPres    = document.getElementById('pres-fechas')._flatpickr;
     const fechasEvento = fpPres ? fpPres.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
-    const fecha     = fechasEvento[0] || '';
-    const horario   = '';
+    const fecha        = fechasEvento[0] || '';
+    const horariosEvento = getHorariosPresup();
+    const horario      = horariosEvento[0] || '';
     const modalidad = document.getElementById('pres-modalidad').value;
     const senaMonto = parseARSInput(document.getElementById('pres-sena'));
     const validez   = parseInt(document.getElementById('pres-validez').value) || 10;
@@ -6668,6 +6808,7 @@ async function generarPresupuesto() {
         numero, cliente, tipo_evento: tipo,
         fecha_evento: fecha || null, venue,
         fechas_evento: fechasEvento.length ? JSON.stringify(fechasEvento) : null,
+        horarios_evento: horariosEvento.some(h => h) ? JSON.stringify(horariosEvento) : null,
         dias_evento: fechasEvento.length || 1,
         modalidad, sena_monto: senaMonto || null,
         descuento_pct: descPct,
