@@ -1965,7 +1965,7 @@ async function initApp() {
   // Precargar personal y eventos para modales
   try {
     persCache = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
-    evCache   = await sb('eventos',  { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
+    evCache   = await sb('v_eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
     llenarSelectEventos();
     ['ev-hora-armado','ev-hora-desarme'].forEach(id => {
       const el = document.getElementById(id);
@@ -2170,7 +2170,7 @@ async function loadDashboard() {
 
   try {
     const [eventos, logisticas, logEvs] = await Promise.all([
-      sb('eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
+      sb('v_eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
       sb('logisticas', { limit: 200 }),
       sb('logistica_eventos', { limit: 500 }),
     ]);
@@ -2424,18 +2424,20 @@ async function editEvento(id) {
   const fpFecha = document.getElementById('ev-fecha')._flatpickr;
   if (fpFecha) {
     fpFecha.clear();
-    const fechasGuardadas = ev.fechas_evento
-      ? (Array.isArray(ev.fechas_evento) ? ev.fechas_evento : JSON.parse(ev.fechas_evento))
-      : (ev.fecha_evento ? [ev.fecha_evento] : []);
-    if (fechasGuardadas.length) {
-      fpFecha.setDate(fechasGuardadas);
-      const horariosGuardados = ev.horarios_evento
-        ? (Array.isArray(ev.horarios_evento) ? ev.horarios_evento : JSON.parse(ev.horarios_evento))
-        : (ev.horario ? [ev.horario] : []);
-      renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horariosGuardados);
-    } else {
-      renderHorariosEv([]);
-    }
+    renderHorariosEv([]);
+    try {
+      const logRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 50 });
+      const logIds = logRels.map(r => r.logistica_id);
+      const jorns = logIds.length
+        ? await sb('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha,hora_inicio', order: 'fecha', limit: 100 })
+        : [];
+      const fechas   = jorns.map(j => j.fecha).filter(Boolean);
+      const horarios = jorns.map(j => j.hora_inicio);
+      if (fechas.length) {
+        fpFecha.setDate(fechas);
+        renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horarios);
+      }
+    } catch(e) {}
   }
   document.getElementById('ev-venue').value     = ev.venue || '';
   document.getElementById('ev-total').value     = ev.total_ars > 0 ? Number(ev.total_ars).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
@@ -2470,10 +2472,6 @@ async function guardarEvento() {
   const data = {
     cliente_nombre:  cliente,
     tipo_evento:     document.getElementById('ev-tipo').value,
-    fecha_evento:    fechasEv[0] || null,
-    horario:         horariosEv[0] || null,
-    fechas_evento:   fechasEv.length ? JSON.stringify(fechasEv) : null,
-    horarios_evento: horariosEv.some(h => h) ? JSON.stringify(horariosEv) : null,
     venue:           document.getElementById('ev-venue').value,
     total_ars:      parseARSInput(document.getElementById('ev-total')) || 0,
     modalidad_pago: document.getElementById('ev-modalidad').value,
@@ -4448,7 +4446,7 @@ async function loadFinanzas() {
 
   try {
     // 1. Ingresos: pagos de eventos cuya fecha_evento cae en el período
-    const eventosDelPeriodo = await sb('eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], limit: 200 });
+    const eventosDelPeriodo = await sb('v_eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], limit: 200 });
     const eventoIds = eventosDelPeriodo.map(e => e.id);
     const cobros = eventoIds.length
       ? await sb('pagos', { filters: [`evento_id=in.(${eventoIds.join(',')})`], limit: 500 })
@@ -5787,10 +5785,6 @@ async function confirmarPresupuesto(id) {
       estado:          'Confirmado',
       cliente_nombre:  cliente,
       tipo_evento:     tipo || '',
-      fecha_evento:    fechasEvento[0] || fecha || null,
-      horario:         horariosEvento[0] || horario || null,
-      fechas_evento:   fechasEvento.length ? JSON.stringify(fechasEvento) : null,
-      horarios_evento: horariosEvento.some(h => h) ? JSON.stringify(horariosEvento) : null,
       venue:           venue || '',
       total_ars:       total || 0,
       sena_monto:      esPagoTotal ? 0 : (senaMonto || 0),
