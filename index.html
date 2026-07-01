@@ -1500,7 +1500,6 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Fechas del evento <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios días)</span></label>
           <input class="inp" id="pres-fechas" placeholder="Seleccioná una o más fechas..." readonly style="cursor:pointer">
-          <div id="pres-fechas-horarios" style="display:none;margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
         </div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón" list="dl-salones" autocomplete="off"><datalist id="dl-salones"></datalist></div>
       </div>
@@ -5763,11 +5762,8 @@ async function confirmarPresupuesto(id) {
   const total        = p.total_ars || 0;
   const modalidad    = p.modalidad || 'Pago total al finalizar';
   const senaMonto    = p.sena_monto || 0;
-  const horario      = p.horario || null;
   let fechasEvento = [];
   try { fechasEvento = p.fechas_evento ? (Array.isArray(p.fechas_evento) ? p.fechas_evento : JSON.parse(p.fechas_evento)) : []; } catch(e) {}
-  let horariosEvento = [];
-  try { horariosEvento = p.horarios_evento ? (Array.isArray(p.horarios_evento) ? p.horarios_evento : JSON.parse(p.horarios_evento)) : []; } catch(e) {}
 
   const ui_confirm = confirm(`¿Confirmar el presupuesto de ${cliente}?\n\nEsto creará el evento en el pipeline como "Confirmado".`);
   if (!ui_confirm) return;
@@ -5844,7 +5840,7 @@ async function confirmarPresupuesto(id) {
           logistica_id: logId,
           tipo: 'Operador',
           fecha: f || null,
-          hora_inicio: horariosEvento[i] || horario || null,
+          hora_inicio: null,
           pagado: false,
         }));
         if (jornadasOp.length) await sbPost('jornadas', jornadasOp);
@@ -5854,7 +5850,7 @@ async function confirmarPresupuesto(id) {
     toast(`✅ Evento ${codigo} creado como Confirmado`);
     loadPresupuestos();
     // Actualizar caché de eventos
-    evCache = await sb('eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
+    evCache = await sb('v_eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
     llenarSelectEventos();
   } catch(e) {
     toast('Error: ' + e.message, 'err');
@@ -6023,7 +6019,7 @@ async function abrirModalPresupuesto() {
   const fpEl = document.getElementById('pres-fechas');
   if (fpEl._flatpickr) {
     fpEl._flatpickr.clear();
-    renderHorariosPresup([]);
+
   } else {
     flatpickr(fpEl, {
       mode: 'multiple',
@@ -6032,10 +6028,6 @@ async function abrirModalPresupuesto() {
       altInput: true,
       altFormat: 'j M Y',
       conjunction: ', ',
-      onChange(selectedDates) {
-        const sorted = [...selectedDates].sort((a,b) => a-b);
-        renderHorariosPresup(sorted);
-      },
     });
   }
 
@@ -6080,7 +6072,6 @@ async function nuevaVersionPresupuesto(id) {
       const horariosGuardados = base.horarios_evento
         ? (Array.isArray(base.horarios_evento) ? base.horarios_evento : JSON.parse(base.horarios_evento))
         : [];
-      renderHorariosPresup(fpPres.selectedDates.slice().sort((a,b)=>a-b), horariosGuardados);
     }
   }
   document.getElementById('pres-venue').value    = base.venue || '';
@@ -6109,29 +6100,6 @@ async function nuevaVersionPresupuesto(id) {
 }
 
 // ── FILTRAR CATÁLOGO EN EL MODAL ─────────────────────────
-function renderHorariosPresup(dates, horariosGuardados = []) {
-  const wrap = document.getElementById('pres-fechas-horarios');
-  if (!wrap) return;
-  if (!dates.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
-  wrap.style.display = 'flex';
-  wrap.innerHTML = dates.map((d, i) => {
-    const label = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-    const val   = horariosGuardados[i] || '';
-    return `<div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:12px;color:var(--text-2);min-width:180px;text-transform:capitalize">${label}</span>
-      <input type="time" class="inp" data-fecha-idx="${i}" value="${val}"
-        style="width:120px;font-size:13px" placeholder="--:--">
-    </div>`;
-  }).join('');
-}
-
-function getHorariosPresup() {
-  const wrap = document.getElementById('pres-fechas-horarios');
-  if (!wrap) return [];
-  return Array.from(wrap.querySelectorAll('input[data-fecha-idx]'))
-    .sort((a,b) => a.dataset.fechaIdx - b.dataset.fechaIdx)
-    .map(el => el.value || null);
-}
 
 function filtrarCatalogoPres() {
   const q    = document.getElementById('pres-buscar').value.toLowerCase();
@@ -6312,8 +6280,7 @@ async function generarPresupuesto() {
     const fpPres    = document.getElementById('pres-fechas')._flatpickr;
     const fechasEvento = fpPres ? fpPres.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
     const fecha        = fechasEvento[0] || '';
-    const horariosEvento = getHorariosPresup();
-    const horario      = horariosEvento[0] || '';
+    const horario      = '';
     const modalidad = document.getElementById('pres-modalidad').value;
     const senaMonto = parseARSInput(document.getElementById('pres-sena'));
     const validez   = parseInt(document.getElementById('pres-validez').value) || 10;
@@ -6802,7 +6769,6 @@ async function generarPresupuesto() {
         numero, cliente, tipo_evento: tipo,
         fecha_evento: fecha || null, venue,
         fechas_evento: fechasEvento.length ? JSON.stringify(fechasEvento) : null,
-        horarios_evento: horariosEvento.some(h => h) ? JSON.stringify(horariosEvento) : null,
         dias_evento: fechasEvento.length || 1,
         modalidad, sena_monto: senaMonto || null,
         descuento_pct: descPct,
