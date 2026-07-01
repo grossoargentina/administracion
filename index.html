@@ -3195,19 +3195,28 @@ async function loadLogisticas() {
         [...tiposBase, ...tiposExtra].forEach(tipo => {
           const jorsTipo = jors.filter(j => j.tipo === tipo);
           const dias = [...new Set(jorsTipo.map(j => j.fecha).filter(Boolean))].sort();
-          const persIds = [...new Set(jorsTipo.map(j => j.personal_id).filter(Boolean))];
           const todasConfirmadas = jorsTipo.length > 0 && jorsTipo.every(j => j.confirmada);
           const todasPagadas = jorsTipo.length > 0 && jorsTipo.every(j => j.pagado);
-          const fechaEfectiva = dias.length ? null : (fechaFallback[tipo] || null);
-          const fechaLabel = dias.length
-            ? dias.length === 1
+
+          if (dias.length > 1) {
+            // Una fila por fecha para eventos multi-día
+            dias.forEach(dia => {
+              const jorsDelDia = jorsTipo.filter(j => j.fecha === dia);
+              const persIdsDia = [...new Set(jorsDelDia.map(j => j.personal_id).filter(Boolean))];
+              const fechaLabel = new Date(dia+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+              filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort: dia, persCount: persIdsDia.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas: jorsDelDia.every(j=>j.confirmada), todasPagadas: jorsDelDia.every(j=>j.pagado) });
+            });
+          } else {
+            const persIds = [...new Set(jorsTipo.map(j => j.personal_id).filter(Boolean))];
+            const fechaEfectiva = dias.length ? null : (fechaFallback[tipo] || null);
+            const fechaLabel = dias.length
               ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
-              : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
-            : fechaEfectiva
-              ? `<span style="color:var(--text-3)">${new Date(fechaEfectiva+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`
-              : '—';
-          const fechaSort = dias.length ? dias[0] : (fechaEfectiva || '9999-99-99');
-          filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas, todasPagadas });
+              : fechaEfectiva
+                ? `<span style="color:var(--text-3)">${new Date(fechaEfectiva+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`
+                : '—';
+            const fechaSort = dias.length ? dias[0] : (fechaEfectiva || '9999-99-99');
+            filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas, todasPagadas });
+          }
         });
       }
     });
