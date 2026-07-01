@@ -1665,6 +1665,7 @@ async function sbDelete(table, id) {
 // ── HELPERS ───────────────────────────────────────────────
 const fmtARS = v => v == null ? '—' : '$ ' + Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
 const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR') : '—';
+const escHtml = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 // Aplica 21% de IVA y/o 5% de recargo por pago diferido (sobre el monto ya con IVA, si corresponde) a un monto base sin IVA
 function calcularTotalConRecargos(base, incluyeIva, pagoDiferido) {
   let t = Number(base) || 0;
@@ -6265,7 +6266,7 @@ function filtrarCatalogoPres() {
         <div style="font-size:10px;color:var(--text-3)">${item.categoria} · ${fmtARS(item.precio_ars)}</div>
       </div>
       <button class="btn btn-ghost btn-sm" ${yaAgregado ? 'disabled' : ''}
-        onclick="agregarItemCatalogo('${item.id}','${item.producto.replace(/'/g,"\'")}',${item.precio_ars},'${item.categoria}')">
+        onclick="agregarItemCatalogo('${item.id}')">
         ${yaAgregado ? '✓' : '+ Agregar'}
       </button>
     </div>`;
@@ -6273,8 +6274,13 @@ function filtrarCatalogoPres() {
 }
 
 // ── AGREGAR ITEM DESDE CATÁLOGO ──────────────────────────
-function agregarItemCatalogo(id, producto, precio, categoria) {
-  presItems.push({ id, producto, precio, cantidad: 1, esCustom: false, categoria });
+function agregarItemCatalogo(id) {
+  const cat = catalogoCache.find(c => String(c.id) === String(id));
+  if (!cat) return;
+  presItems.push({
+    id: cat.id, producto: cat.producto, descripcion: cat.descripcion || '',
+    precio: cat.precio_ars, cantidad: 1, esCustom: false, categoria: cat.categoria,
+  });
   renderItemsPresup();
   calcularTotal();
   filtrarCatalogoPres(); // actualizar botones
@@ -6321,15 +6327,24 @@ function renderItemsPresup() {
   tbody.innerHTML = presItems.map((item, i) => `
     <tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 12px;font-size:12px">
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:flex-start;gap:8px">
           ${item.foto_base64
             ? `<img src="${item.foto_base64}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0;border:1px solid var(--border)">`
             : ''}
-          <div>
+          <div style="flex:1;min-width:0">
             <div style="font-weight:500">${item.producto}</div>
-            ${item.descripcion ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">${item.descripcion}</div>` : ''}
-            ${item.esCustom ? '<span style="font-size:10px;color:var(--purple)">a medida</span>' :
-              `<span style="font-size:10px;color:var(--text-3)">${item.categoria}</span>`}
+            <textarea rows="1" placeholder="Descripción (opcional)"
+              style="width:100%;font-size:11px;color:var(--text-2);margin-top:3px;background:var(--bg);
+                     border:1px solid var(--border);border-radius:4px;padding:3px 6px;resize:vertical;
+                     font-family:inherit"
+              onchange="cambiarDescripcion(${i}, this.value)">${escHtml(item.descripcion)}</textarea>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+              ${item.esCustom ? '<span style="font-size:10px;color:var(--purple)">a medida</span>' :
+                `<span style="font-size:10px;color:var(--text-3)">${item.categoria}</span>`}
+              ${item.esCustom ? '' : `<button type="button" onclick="guardarItemEnCatalogo(${i})"
+                style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:11px;padding:0"
+                title="Actualizar precio y descripción en el catálogo para futuros presupuestos">💾 Actualizar catálogo</button>`}
+            </div>
           </div>
         </div>
       </td>
@@ -6367,6 +6382,25 @@ function cambiarPrecio(i, v) {
   presItems[i].precio = parseARSInput(v) || 0;
   renderItemsPresup();
   calcularTotal();
+}
+
+function cambiarDescripcion(i, v) {
+  presItems[i].descripcion = v;
+}
+
+// Aplica el precio/descripción editados en este presupuesto al producto del catálogo,
+// para que queden como default en futuros presupuestos
+async function guardarItemEnCatalogo(i) {
+  const item = presItems[i];
+  if (!item || item.esCustom) return;
+  try {
+    await sbPatch('catalogo', item.id, { descripcion: item.descripcion || null, precio_ars: item.precio });
+    const cacheItem = catalogoCache.find(c => String(c.id) === String(item.id));
+    if (cacheItem) { cacheItem.descripcion = item.descripcion || ''; cacheItem.precio_ars = item.precio; }
+    toast('✅ Producto actualizado en el catálogo');
+  } catch(e) {
+    toast('Error actualizando catálogo: ' + e.message, 'err');
+  }
 }
 
 function quitarItem(i) {
