@@ -1401,6 +1401,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="pres-fecha"></div>
+        <div class="field"><label class="lbl">Días de evento</label><input class="inp" type="number" id="pres-dias-evento" min="1" value="1" placeholder="1"></div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón"></div>
       </div>
 
@@ -5385,7 +5386,7 @@ let presItems = [];       // items seleccionados
 let catalogoCache = [];   // catálogo completo
 
 // ── CONFIRMAR PRESUPUESTO → crea evento en pipeline ─────
-async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaPct, horario) {
+async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaPct, horario, diasEvento = 1) {
   const ui_confirm = confirm(`¿Confirmar el presupuesto de ${cliente}?\n\nEsto creará el evento en el pipeline como "Confirmado".`);
   if (!ui_confirm) return;
 
@@ -5443,8 +5444,28 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
       const logId = Array.isArray(logRow) ? logRow[0]?.id : logRow?.id;
 
       if (logId) {
-        // Vincular logística al evento
         await sbPost('logistica_eventos', { logistica_id: logId, evento_id: eventoId });
+
+        // Crear una jornada de Operador por cada día de evento
+        const nDias = Math.max(1, parseInt(diasEvento) || 1);
+        const jornadasOp = [];
+        for (let i = 0; i < nDias; i++) {
+          let fechaOp = null;
+          if (fecha) {
+            const d = new Date(fecha + 'T12:00:00');
+            d.setDate(d.getDate() + i);
+            fechaOp = d.toISOString().slice(0, 10);
+          }
+          jornadasOp.push({
+            codigo: `J${Date.now()}-op${i}`,
+            logistica_id: logId,
+            tipo: 'Operador',
+            fecha: fechaOp,
+            hora_inicio: horario || null,
+            pagado: false,
+          });
+        }
+        await sbPost('jornadas', jornadasOp);
       }
     }
 
@@ -5551,7 +5572,7 @@ async function loadPresupuestos() {
                 ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>` : ''}
                 ${estado === 'Pendiente' ? `
                   <button class="btn btn-sm" style="background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)"
-                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30},'${p.horario||''}')">
+                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30},'${p.horario||''}',${p.dias_evento||1})">
                     ✅ Confirmar
                   </button>
                   <button class="btn btn-ghost btn-sm" onclick="nuevaVersionPresupuesto(${p.id})">+ Nueva versión</button>
@@ -5635,6 +5656,7 @@ async function nuevaVersionPresupuesto(id) {
   document.getElementById('pres-cliente').value  = base.cliente || '';
   document.getElementById('pres-tipo').value     = base.tipo_evento || 'Casamiento';
   document.getElementById('pres-fecha').value    = base.fecha_evento || '';
+  document.getElementById('pres-dias-evento').value = base.dias_evento || 1;
   document.getElementById('pres-venue').value    = base.venue || '';
   document.getElementById('pres-modalidad').value = base.modalidad || 'Pago total al finalizar';
   toggleSena(base.modalidad || 'Pago total al finalizar');
@@ -6286,6 +6308,7 @@ async function generarPresupuesto() {
 
     // ── Guardar en Supabase ───────────────────────────────
     try {
+      const diasEvento = parseInt(document.getElementById('pres-dias-evento').value) || 1;
       const pres = await sbPost('presupuestos', {
         numero, cliente, tipo_evento: tipo,
         fecha_evento: fecha || null, venue,
@@ -6297,6 +6320,7 @@ async function generarPresupuesto() {
         estado_evento: 'Pendiente',
         version: presVersionInfo ? presVersionInfo.nextVersion : 1,
         grupo_id: presVersionInfo ? presVersionInfo.grupoId : null,
+        dias_evento: diasEvento,
       });
       // Guardar items
       const presId = Array.isArray(pres) ? pres[0]?.id : pres?.id;
