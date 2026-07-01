@@ -1599,9 +1599,6 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field" id="pres-sena-wrap"><label class="lbl">Seña (ARS)</label><input class="inp ars-input" type="text" id="pres-sena" placeholder="0" oninput="fmtInputARS(this)"></div>
-        <div class="field"><label class="lbl">Descuento (%)</label><input class="inp" type="number" id="pres-descuento" value="0" min="0" max="100"></div>
-        <div class="field"><label class="lbl">Validez (días)</label><input class="inp" type="number" id="pres-validez" value="10"></div>
-        <div class="field full"><label class="lbl">Nota descuento</label><input class="inp" id="pres-nota-desc" placeholder="Opcional"></div>
       </div>
 
       <!-- TOTALES -->
@@ -6222,7 +6219,6 @@ async function nuevaVersionPresupuesto(id) {
   toggleSena(base.modalidad || 'Pago total al finalizar');
   const presSenaMonto = base.sena_monto || 0;
   document.getElementById('pres-sena').value = presSenaMonto > 0 ? presSenaMonto.toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
-  document.getElementById('pres-descuento').value = base.descuento_pct || 0;
 
   try {
     const items = await sb('presupuesto_items', { filters: [`presupuesto_id=eq.${id}`], limit: 200 });
@@ -6382,19 +6378,11 @@ function quitarItem(i) {
 
 // ── CALCULAR TOTAL ────────────────────────────────────────
 function calcularTotal() {
-  const subtotal   = presItems.reduce((s, it) => s + it.precio * it.cantidad, 0);
-  const descPct    = parseFloat(document.getElementById('pres-descuento')?.value) || 0;
-  const descuento  = subtotal * descPct / 100;
-  const total      = subtotal - descuento;
+  const total = presItems.reduce((s, it) => s + it.precio * it.cantidad, 0);
   const el = document.getElementById('pres-total-display');
   if (el) el.textContent = fmtARS(total);
-  return { subtotal, descuento, total };
+  return { total };
 }
-
-// Recalcular al cambiar descuento
-document.addEventListener('input', e => {
-  if (e.target.id === 'pres-descuento') calcularTotal();
-});
 
 // Mostrar/ocultar seña según modalidad
 function toggleSena(modalidad) {
@@ -6434,12 +6422,9 @@ async function generarPresupuesto() {
     const horario      = '';
     const modalidad = document.getElementById('pres-modalidad').value;
     const senaMonto = parseARSInput(document.getElementById('pres-sena'));
-    const validez   = parseInt(document.getElementById('pres-validez').value) || 10;
-    const descPct   = parseFloat(document.getElementById('pres-descuento').value) || 0;
-    const notaDesc  = document.getElementById('pres-nota-desc').value;
     const hoy       = new Date().toLocaleDateString('es-AR');
 
-    const { subtotal, descuento, total } = calcularTotal();
+    const { total } = calcularTotal();
     const sena  = senaMonto;
     const saldo = total - sena;
 
@@ -6452,145 +6437,6 @@ async function generarPresupuesto() {
       if (!grupos[c]) grupos[c] = [];
       grupos[c].push(it);
     });
-
-    let filasHTML = '';
-    let idx = 0;
-    Object.entries(grupos).forEach(([cat, items]) => {
-      filasHTML += `<tr><td colspan="3" style="background:#2C3E50;color:#C9A84C;font-weight:bold;font-size:8pt;padding:5px 8px;letter-spacing:.5px">${cat}</td></tr>`;
-      items.forEach(it => {
-        const bg = idx++ % 2 === 0 ? '#fff' : '#f7f7f7';
-        const esCustom = it.esCustom ? '<span style="font-size:7pt;color:#9B59B6;margin-left:4px">a medida</span>' : '';
-        const descRow = it.descripcion ? `<div style="font-size:8pt;color:#555;font-weight:normal;margin-top:2px">${it.descripcion}</div>` : '';
-        filasHTML += `<tr style="background:${bg}">
-          <td style="padding:7px 8px;font-size:9pt;font-weight:bold">${it.producto}${esCustom}${descRow}</td>
-          <td style="padding:7px 8px;font-size:9pt;text-align:center;width:60px">${it.cantidad}</td>
-          <td style="padding:7px 8px;font-size:9pt;text-align:right;width:140px">${fmtA(it.precio * it.cantidad)}</td>
-        </tr>`;
-      });
-    });
-
-    // Descuento
-    if (descPct > 0) {
-      filasHTML += `
-        <tr style="background:#f7f7f7">
-          <td colspan="2" style="padding:6px 8px;font-size:9pt;text-align:right;color:#555">Subtotal</td>
-          <td style="padding:6px 8px;font-size:9pt;text-align:right">${fmtA(subtotal)}</td>
-        </tr>
-        <tr style="background:#FFF3E0">
-          <td colspan="2" style="padding:6px 8px;font-size:9pt;text-align:right;color:#E65100">
-            Descuento ${descPct}%${notaDesc ? ' — ' + notaDesc : ''}
-          </td>
-          <td style="padding:6px 8px;font-size:9pt;text-align:right;color:#E65100">(${fmtA(descuento)})</td>
-        </tr>`;
-    }
-
-    filasHTML += `<tr style="background:#F5E6B8;border-top:2px solid #C9A84C;border-bottom:2px solid #C9A84C">
-      <td colspan="2" style="padding:8px;font-size:11pt;font-weight:bold">TOTAL</td>
-      <td style="padding:8px;font-size:11pt;font-weight:bold;text-align:right;color:#C9A84C">${fmtA(total)}</td>
-    </tr>`;
-
-    // Sección de pago
-    const pagoHTML = modalidad === 'Seña + saldo' ? `
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr style="background:#1A1A2E">
-          <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:left">Concepto</th>
-          <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:right">Importe</th>
-          <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:left">Cuándo</th>
-        </tr></thead>
-        <tbody>
-          <tr style="background:#f7f7f7">
-            <td style="padding:6px 8px;font-size:9pt"><b>Seña — Reserva de fecha</b></td>
-            <td style="padding:6px 8px;font-size:9pt;text-align:right">${fmtA(sena)}</td>
-            <td style="padding:6px 8px;font-size:9pt">Al confirmar</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 8px;font-size:9pt">Saldo restante</td>
-            <td style="padding:6px 8px;font-size:9pt;text-align:right">${fmtA(saldo)}</td>
-            <td style="padding:6px 8px;font-size:9pt">Previo al evento</td>
-          </tr>
-          <tr style="background:#F5E6B8;border-top:2px solid #C9A84C">
-            <td style="padding:7px 8px;font-size:10pt;font-weight:bold">TOTAL</td>
-            <td style="padding:7px 8px;font-size:10pt;font-weight:bold;text-align:right;color:#C9A84C">${fmtA(total)}</td>
-            <td></td>
-          </tr>
-        </tbody>
-      </table>
-      <p style="font-size:8pt;color:#555;margin:4px 0 0;font-style:italic">La reserva de fecha queda confirmada con el pago de la seña.</p>` : `
-      <div style="background:#F5E6B8;border:2px solid #C9A84C;border-radius:4px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:10pt;font-weight:bold">TOTAL — Pago al finalizar el evento</span>
-        <span style="font-size:14pt;font-weight:bold;color:#C9A84C">${fmtA(total)}</span>
-      </div>
-      <div style="background:#E3F2FD;border-left:4px solid #1565C0;padding:7px 10px;margin-top:6px;border-radius:0 4px 4px 0">
-        <p style="font-size:8pt;color:#1565C0;margin:0">No se requiere seña. El pago total se realiza una vez finalizado el evento.</p>
-      </div>`;
-
-    // ── HTML del PDF ──────────────────────────────────────
-    const htmlPDF = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>
-  @page { size: A4; margin: 0; }
-  * { box-sizing: border-box; font-family: Arial, sans-serif; }
-  body { margin: 0; color: #1A1A2E; }
-  .page { padding: 0 16mm 16mm 16mm; }
-  .sh { background:#1A1A2E;color:#fff;font-weight:bold;font-size:8.5pt;padding:5px 8px;margin:5mm 0 2mm;letter-spacing:.5px; }
-  table { width:100%; border-collapse:collapse; }
-</style></head><body>
-<div style="background:#1A1A2E;padding:8mm 16mm;display:flex;justify-content:space-between;align-items:center;margin-bottom:5mm">
-  <div>
-    <div style="color:#fff;font-size:18pt;font-weight:bold;margin-bottom:2mm">GROSSO ARGENTINA</div>
-    <div style="color:#C9A84C;font-size:9pt">Iluminación Profesional para Eventos</div>
-  </div>
-  <div style="text-align:right;color:#ddd;font-size:8pt;line-height:1.7">
-    administracion@grossoarg.com<br>Lomas de Zamora, Buenos Aires<br>CUIT: 20-23091637-4
-  </div>
-</div>
-<div class="page">
-  <div style="height:2px;background:#C9A84C;margin-bottom:5mm"></div>
-  <div style="display:flex;justify-content:space-between;margin-bottom:5mm">
-    <div style="font-size:14pt;font-weight:bold">PRESUPUESTO DE ILUMINACIÓN</div>
-    <div style="text-align:right;font-size:8.5pt;color:#555;line-height:1.8">
-      <b>N° ${numero}</b><br>Fecha: ${hoy}<br>
-      <span style="font-size:7.5pt;color:#888">Válido por ${validez} días</span>
-    </div>
-  </div>
-  <div class="sh">DATOS DEL EVENTO</div>
-  <div style="display:grid;grid-template-columns:130px 1fr 100px 1fr;background:#f7f7f7;font-size:8.5pt;margin-bottom:5mm">
-    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Cliente:</div>
-    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${cliente}</div>
-    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Tipo:</div>
-    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${tipo}</div>
-    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Fecha${fechasEvento.length > 1 ? 's' : ''}:</div>
-    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${fechasEvento.length ? fechasEvento.map(f => new Date(f+'T12:00:00').toLocaleDateString('es-AR')).join(' · ') : (fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '—')}</div>
-    <div style="font-weight:bold;color:#555;padding:5px 8px">Venue:</div>
-    <div style="padding:5px 8px;grid-column:span 3">${venue || '—'}</div>
-  </div>
-  <div class="sh">DETALLE DE SERVICIOS</div>
-  <table style="margin-bottom:3mm">
-    <thead><tr style="background:#2C3E50">
-      <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:left">PRODUCTO</th>
-      <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:center;width:60px">CANT.</th>
-      <th style="padding:6px 8px;font-size:8pt;color:#fff;text-align:right;width:140px">TOTAL</th>
-    </tr></thead>
-    <tbody>${filasHTML}</tbody>
-  </table>
-  <p style="font-size:7.5pt;color:#888;margin:0 0 5mm 4px">* Precios en pesos argentinos (ARS).</p>
-  <div class="sh">CONDICIONES DE PAGO</div>
-  <div style="margin-bottom:5mm">${pagoHTML}</div>
-  <div class="sh">NOTAS Y CONDICIONES GENERALES</div>
-  <div style="margin-bottom:8mm">
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">1. El presupuesto incluye traslado dentro de CABA y alrededores.</p>
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">2. Consumo eléctrico a cargo del venue (220V trifásico requerido).</p>
-    <p style="font-size:8.5pt;color:#444;margin:3px 0">3. Precios expresados en pesos argentinos (ARS).</p>
-  </div>
-  <div style="display:flex;justify-content:space-between;border-top:.5px solid #ddd;padding-top:4mm">
-    <div style="font-size:8.5pt"><b>Grosso Argentina</b><br><span style="color:#888;font-size:8pt">administracion@grossoarg.com</span></div>
-    <div style="text-align:right;font-size:8pt;color:#888">Presupuesto N° ${numero}<br>Válido por ${validez} días desde ${hoy}</div>
-  </div>
-</div>
-<div style="background:#1A1A2E;color:#C9A84C;font-size:7.5pt;padding:3mm 16mm;display:flex;justify-content:space-between;margin-top:6mm">
-  <span>Grosso Argentina | Iluminación Profesional | administracion@grossoarg.com</span>
-  <span>N° ${numero}</span>
-</div>
-</body></html>`;
 
     // ── Generar PDF con jsPDF directo ───────────────────────
     function slugify(s) {
@@ -6661,9 +6507,7 @@ async function generarPresupuesto() {
     font('normal', 8); text(GRIS_T);
     doc.text(`N\u00b0 ${numero}`, PW - M, y + 3, { align: 'right' });
     doc.text(`Fecha: ${hoy}`, PW - M, y + 8, { align: 'right' });
-    font('normal', 7); text([150,150,150]);
-    doc.text(`Valido por ${validez} dias`, PW - M, y + 13, { align: 'right' });
-    y += 18;
+    y += 13;
 
     // ── DATOS DEL EVENTO ──────────────────────────────────
     fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
@@ -6751,19 +6595,6 @@ async function generarPresupuesto() {
       });
     });
 
-    // Descuento
-    if (descPct > 0) {
-      fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');
-      font('normal', 8); text(GRIS_T);
-      doc.text('Subtotal', PW-M-42, y+4);
-      doc.text(fmtA(subtotal), PW-M-2, y+4, { align:'right' });
-      y += 6;
-      fill([255, 243, 224]); doc.rect(M, y, CW, 6, 'F');
-      text([230,126,34]);
-      doc.text(`Descuento ${descPct}%${notaDesc?' - '+notaDesc:''}`, M+2, y+4);
-      doc.text(`(${fmtA(descuento)})`, PW-M-2, y+4, { align:'right' });
-      y += 6;
-    }
 
     // Total
     if (y > PH - 20) { doc.addPage(); y = 15; }
@@ -6838,6 +6669,10 @@ async function generarPresupuesto() {
       'Precios expresados en pesos argentinos (ARS).',
       'El presupuesto incluye traslado dentro de CABA y alrededores.',
       'El presupuesto incluye costos de armado, operador y desarme.',
+      'Valores de pago en efectivo (Factura A – Más IVA).',
+      'Vigencia presupuesto por 15 días.',
+      'Congela valor con pago del 100%.',
+      'Se aceptan pagos diferidos (recargo del 5%).',
     ];
     font('normal', 8.5); text(NEGRO);
     notas.forEach((n, i) => {
@@ -6926,8 +6761,7 @@ async function generarPresupuesto() {
         fechas_evento: fechasEvento.length ? JSON.stringify(fechasEvento) : null,
         dias_evento: fechasEvento.length || 1,
         modalidad, sena_monto: senaMonto || null,
-        descuento_pct: descPct,
-        subtotal_ars: subtotal, total_ars: total,
+        subtotal_ars: total, total_ars: total,
         pdf_url: pdfUrl,
         nombre_archivo: nombreArchivo,
         estado_evento: 'Pendiente',
