@@ -1494,8 +1494,10 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
             <option>Social</option><option>Cumpleaños</option><option>Otro</option>
           </select>
         </div>
-        <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="pres-fecha"></div>
-        <div class="field"><label class="lbl">Días de evento</label><input class="inp" type="number" id="pres-dias-evento" min="1" value="1" placeholder="1"></div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Fechas del evento <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios días)</span></label>
+          <input class="inp" id="pres-fechas" placeholder="Seleccioná una o más fechas..." readonly style="cursor:pointer">
+        </div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón" list="dl-salones" autocomplete="off"><datalist id="dl-salones"></datalist></div>
       </div>
 
@@ -1534,8 +1536,15 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field"><label class="lbl">Precio ARS</label><input class="inp" type="number" id="pres-custom-precio" placeholder="0"></div>
         <button class="btn btn-ghost" onclick="agregarItemCustom()" style="flex-shrink:0;align-self:flex-end">+ Agregar</button>
       </div>
-      <div style="margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:16px;align-items:flex-start">
         <textarea class="inp" id="pres-custom-desc" placeholder="Descripción del servicio (opcional)" rows="2" style="resize:vertical;font-size:12px"></textarea>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <label style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px">
+            <div id="pres-custom-foto-preview" style="width:58px;height:58px;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--bg-2);overflow:hidden;cursor:pointer">📷</div>
+            <span style="font-size:10px;color:var(--text-3)">Foto</span>
+            <input type="file" id="pres-custom-foto" accept="image/*" style="display:none" onchange="onCustomFotoChange(this)">
+          </label>
+        </div>
       </div>
 
       <!-- CONDICIONES DE PAGO -->
@@ -5651,7 +5660,7 @@ let presItems = [];       // items seleccionados
 let catalogoCache = [];   // catálogo completo
 
 // ── CONFIRMAR PRESUPUESTO → crea evento en pipeline ─────
-async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaPct, horario, diasEvento = 1) {
+async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, modalidad, senaPct, horario, fechasEventoStr = '') {
   const ui_confirm = confirm(`¿Confirmar el presupuesto de ${cliente}?\n\nEsto creará el evento en el pipeline como "Confirmado".`);
   if (!ui_confirm) return;
 
@@ -5722,26 +5731,19 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
       if (logId) {
         await sbPost('logistica_eventos', { logistica_id: logId, evento_id: eventoId });
 
-        // Crear una jornada de Operador por cada día de evento
-        const nDias = Math.max(1, parseInt(diasEvento) || 1);
-        const jornadasOp = [];
-        for (let i = 0; i < nDias; i++) {
-          let fechaOp = null;
-          if (fecha) {
-            const d = new Date(fecha + 'T12:00:00');
-            d.setDate(d.getDate() + i);
-            fechaOp = d.toISOString().slice(0, 10);
-          }
-          jornadasOp.push({
-            codigo: `J${Date.now()}-op${i}`,
-            logistica_id: logId,
-            tipo: 'Operador',
-            fecha: fechaOp,
-            hora_inicio: horario || null,
-            pagado: false,
-          });
-        }
-        await sbPost('jornadas', jornadasOp);
+        // Crear una jornada de Operador por cada fecha seleccionada
+        let fechas = [];
+        try { fechas = fechasEventoStr ? JSON.parse(fechasEventoStr) : []; } catch(e) {}
+        if (!fechas.length && fecha) fechas = [fecha];
+        const jornadasOp = fechas.map((f, i) => ({
+          codigo: `J${Date.now()}-op${i}`,
+          logistica_id: logId,
+          tipo: 'Operador',
+          fecha: f || null,
+          hora_inicio: horario || null,
+          pagado: false,
+        }));
+        if (jornadasOp.length) await sbPost('jornadas', jornadasOp);
       }
     }
 
@@ -5848,7 +5850,7 @@ async function loadPresupuestos() {
                 ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>` : ''}
                 ${estado === 'Pendiente' ? `
                   <button class="btn btn-sm" style="background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)"
-                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30},'${p.horario||''}',${p.dias_evento||1})">
+                    onclick="confirmarPresupuesto(${p.id},'${p.cliente.replace(/'/g,"\\'")}','${p.tipo_evento||''}','${p.venue||''}','${p.fecha_evento||''}',${p.total_ars||0},'${p.modalidad||''}',${p.sena_pct||30},'${p.horario||''}','${p.fechas_evento||''}')">
                     ✅ Confirmar
                   </button>
                   <button class="btn btn-ghost btn-sm" onclick="nuevaVersionPresupuesto(${p.id})">+ Nueva versión</button>
@@ -5913,6 +5915,21 @@ async function abrirModalPresupuesto() {
   document.getElementById('pres-buscar').value = '';
   filtrarCatalogoPres();
 
+  // Inicializar flatpickr multi-fecha (o limpiar si ya existe)
+  const fpEl = document.getElementById('pres-fechas');
+  if (fpEl._flatpickr) {
+    fpEl._flatpickr.clear();
+  } else {
+    flatpickr(fpEl, {
+      mode: 'multiple',
+      locale: 'es',
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'j M Y',
+      conjunction: ', ',
+    });
+  }
+
   // Poblar datalists de cliente y salón
   try {
     const [clientes, salones] = await Promise.all([
@@ -5942,8 +5959,15 @@ async function nuevaVersionPresupuesto(id) {
   document.getElementById('pres-numero').value   = base.numero;
   document.getElementById('pres-cliente').value  = base.cliente || '';
   document.getElementById('pres-tipo').value     = base.tipo_evento || 'Casamiento';
-  document.getElementById('pres-fecha').value    = base.fecha_evento || '';
-  document.getElementById('pres-dias-evento').value = base.dias_evento || 1;
+  // Cargar fechas guardadas en el flatpickr multi-fecha
+  const fpPres = document.getElementById('pres-fechas')._flatpickr;
+  if (fpPres) {
+    fpPres.clear();
+    const fechasGuardadas = base.fechas_evento
+      ? (Array.isArray(base.fechas_evento) ? base.fechas_evento : JSON.parse(base.fechas_evento))
+      : (base.fecha_evento ? [base.fecha_evento] : []);
+    if (fechasGuardadas.length) fpPres.setDate(fechasGuardadas);
+  }
   document.getElementById('pres-venue').value    = base.venue || '';
   document.getElementById('pres-modalidad').value = base.modalidad || 'Pago total al finalizar';
   toggleSena(base.modalidad || 'Pago total al finalizar');
@@ -5956,6 +5980,7 @@ async function nuevaVersionPresupuesto(id) {
       id: it.catalogo_id || ('C' + it.id),
       producto: it.producto,
       descripcion: it.descripcion || '',
+      foto_base64: it.foto_base64 || null,
       categoria: it.categoria || 'OTROS',
       precio: Number(it.precio_ars) || 0,
       cantidad: it.cantidad || 1,
@@ -6009,15 +6034,32 @@ function agregarItemCatalogo(id, producto, precio, categoria) {
 }
 
 // ── AGREGAR ITEM PERSONALIZADO ───────────────────────────
+let _customFotoB64 = null;
+
+function onCustomFotoChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _customFotoB64 = e.target.result;
+    const preview = document.getElementById('pres-custom-foto-preview');
+    preview.innerHTML = `<img src="${_customFotoB64}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  reader.readAsDataURL(file);
+}
+
 function agregarItemCustom() {
   const nombre = document.getElementById('pres-custom-nombre').value.trim();
   const desc   = document.getElementById('pres-custom-desc').value.trim();
   const precio = parseFloat(document.getElementById('pres-custom-precio').value) || 0;
   if (!nombre) { toast('Ingresá un título para el ítem', 'err'); return; }
-  presItems.push({ id: 'C' + Date.now(), producto: nombre, descripcion: desc, precio, cantidad: 1, esCustom: true, categoria: 'PERSONALIZADO' });
+  presItems.push({ id: 'C' + Date.now(), producto: nombre, descripcion: desc, foto_base64: _customFotoB64 || null, precio, cantidad: 1, esCustom: true, categoria: 'PERSONALIZADO' });
   document.getElementById('pres-custom-nombre').value = '';
   document.getElementById('pres-custom-desc').value   = '';
   document.getElementById('pres-custom-precio').value = '';
+  document.getElementById('pres-custom-foto').value   = '';
+  document.getElementById('pres-custom-foto-preview').innerHTML = '📷';
+  _customFotoB64 = null;
   renderItemsPresup();
   calcularTotal();
 }
@@ -6032,10 +6074,17 @@ function renderItemsPresup() {
   tbody.innerHTML = presItems.map((item, i) => `
     <tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 12px;font-size:12px">
-        <div style="font-weight:500">${item.producto}</div>
-        ${item.descripcion ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">${item.descripcion}</div>` : ''}
-        ${item.esCustom ? '<span style="font-size:10px;color:var(--purple)">a medida</span>' :
-          `<span style="font-size:10px;color:var(--text-3)">${item.categoria}</span>`}
+        <div style="display:flex;align-items:center;gap:8px">
+          ${item.foto_base64
+            ? `<img src="${item.foto_base64}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0;border:1px solid var(--border)">`
+            : ''}
+          <div>
+            <div style="font-weight:500">${item.producto}</div>
+            ${item.descripcion ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">${item.descripcion}</div>` : ''}
+            ${item.esCustom ? '<span style="font-size:10px;color:var(--purple)">a medida</span>' :
+              `<span style="font-size:10px;color:var(--text-3)">${item.categoria}</span>`}
+          </div>
+        </div>
       </td>
       <td style="padding:8px;text-align:center">
         <input type="number" min="1" value="${item.cantidad}"
@@ -6120,7 +6169,9 @@ async function generarPresupuesto() {
   try {
     const numero    = document.getElementById('pres-numero').value;
     const tipo      = document.getElementById('pres-tipo').value;
-    const fecha     = document.getElementById('pres-fecha').value;
+    const fpPres    = document.getElementById('pres-fechas')._flatpickr;
+    const fechasEvento = fpPres ? fpPres.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
+    const fecha     = fechasEvento[0] || '';
     const horario   = '';
     const modalidad = document.getElementById('pres-modalidad').value;
     const senaPct   = parseFloat(document.getElementById('pres-sena').value) || 30;
@@ -6248,8 +6299,8 @@ async function generarPresupuesto() {
     <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${cliente}</div>
     <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Tipo:</div>
     <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${tipo}</div>
-    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Fecha:</div>
-    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '—'}</div>
+    <div style="font-weight:bold;color:#555;padding:5px 8px;border-bottom:.3px solid #ddd">Fecha${fechasEvento.length > 1 ? 's' : ''}:</div>
+    <div style="padding:5px 8px;border-bottom:.3px solid #ddd">${fechasEvento.length ? fechasEvento.map(f => new Date(f+'T12:00:00').toLocaleDateString('es-AR')).join(' · ') : (fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '—')}</div>
     <div style="font-weight:bold;color:#555;padding:5px 8px">Venue:</div>
     <div style="padding:5px 8px;grid-column:span 3">${venue || '—'}</div>
   </div>
@@ -6362,7 +6413,7 @@ async function generarPresupuesto() {
 
     const eventoRows = [
       ['Cliente:', cliente, 'Tipo:', tipo],
-      ['Fecha:', fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '-', '', ''],
+      [`Fecha${fechasEvento.length > 1 ? 's' : ''}:`, fechasEvento.length ? fechasEvento.map(f => new Date(f+'T12:00:00').toLocaleDateString('es-AR')).join(' · ') : (fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '-'), '', ''],
       ['Venue:', venue||'-', '', ''],
     ];
     eventoRows.forEach((row, ri) => {
@@ -6406,7 +6457,7 @@ async function generarPresupuesto() {
 
       items.forEach(it => {
         // Nombre del producto (truncar si es muy largo)
-        const foto = !it.esCustom ? fotosMap[it.id] : null;
+        const foto = it.esCustom ? (it.foto_base64 || null) : fotosMap[it.id];
         const rowH  = foto ? 16 : 7; // fila más alta si tiene foto
 
         if (y + rowH > PH - 30) { doc.addPage(); y = 15; }
@@ -6600,10 +6651,11 @@ async function generarPresupuesto() {
 
     // ── Guardar en Supabase ───────────────────────────────
     try {
-      const diasEvento = parseInt(document.getElementById('pres-dias-evento').value) || 1;
       const pres = await sbPost('presupuestos', {
         numero, cliente, tipo_evento: tipo,
         fecha_evento: fecha || null, venue,
+        fechas_evento: fechasEvento.length ? JSON.stringify(fechasEvento) : null,
+        dias_evento: fechasEvento.length || 1,
         modalidad, sena_pct: senaPct,
         descuento_pct: descPct,
         subtotal_ars: subtotal, total_ars: total,
@@ -6612,7 +6664,6 @@ async function generarPresupuesto() {
         estado_evento: 'Pendiente',
         version: presVersionInfo ? presVersionInfo.nextVersion : 1,
         grupo_id: presVersionInfo ? presVersionInfo.grupoId : null,
-        dias_evento: diasEvento,
       });
       // Guardar items
       const presId = Array.isArray(pres) ? pres[0]?.id : pres?.id;
@@ -6622,6 +6673,7 @@ async function generarPresupuesto() {
           catalogo_id: it.esCustom ? null : (it.id || null),
           producto: it.producto,
           descripcion: it.descripcion || null,
+          foto_base64: (it.esCustom && it.foto_base64) ? it.foto_base64 : null,
           categoria: it.categoria || null,
           precio_ars: it.precio,
           cantidad: it.cantidad || 1,
