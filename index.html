@@ -1434,7 +1434,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Datos del evento</div>
       <div class="form-grid" style="margin-bottom:20px">
         <div class="field"><label class="lbl">N° Presupuesto</label><input class="inp" id="pres-numero" placeholder="2026-001"></div>
-        <div class="field"><label class="lbl">Cliente *</label><input class="inp" id="pres-cliente" placeholder="Nombre del cliente"></div>
+        <div class="field"><label class="lbl">Cliente *</label><input class="inp" id="pres-cliente" placeholder="Nombre del cliente" list="dl-clientes" autocomplete="off"><datalist id="dl-clientes"></datalist></div>
         <div class="field"><label class="lbl">Tipo de evento</label>
           <select class="inp" id="pres-tipo">
             <option>Casamiento</option><option>Corporativo</option>
@@ -1443,7 +1443,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         </div>
         <div class="field"><label class="lbl">Fecha del evento</label><input class="inp" type="date" id="pres-fecha"></div>
         <div class="field"><label class="lbl">Días de evento</label><input class="inp" type="number" id="pres-dias-evento" min="1" value="1" placeholder="1"></div>
-        <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón"></div>
+        <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón" list="dl-salones" autocomplete="off"><datalist id="dl-salones"></datalist></div>
       </div>
 
       <!-- PRODUCTOS DEL CATÁLOGO -->
@@ -5773,6 +5773,17 @@ async function abrirModalPresupuesto() {
 
   document.getElementById('pres-buscar').value = '';
   filtrarCatalogoPres();
+
+  // Poblar datalists de cliente y salón
+  try {
+    const [clientes, salones] = await Promise.all([
+      sb('clientes', { select: 'nombre', order: 'nombre', limit: 500 }),
+      sb('salones',  { select: 'nombre', order: 'nombre', limit: 500 }),
+    ]);
+    document.getElementById('dl-clientes').innerHTML = clientes.map(c => `<option value="${c.nombre}">`).join('');
+    document.getElementById('dl-salones').innerHTML  = salones.map(s => `<option value="${s.nombre}">`).join('');
+  } catch(e) { /* no bloquear si falla */ }
+
   openModal('modal-presupuesto');
 }
 
