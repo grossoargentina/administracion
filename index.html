@@ -1939,9 +1939,9 @@ async function generarPDFFechas() {
 
     // Logística (personal)
     const logIds = _dashData.logEvs.filter(le => le.evento_id === ev.id).map(le => le.logistica_id);
-    const logsEvento = _dashData.logisticas.filter(l => logIds.includes(l.id) || l.evento_id === ev.id);
+    const logsEvento = _dashData.logisticas.filter(l => logIds.includes(l.id));
     const logIdsEv = logsEvento.map(l => l.id);
-    const jornadasEv = _dashData.jornadas.filter(j => logIdsEv.includes(j.logistica_id) || j.evento_id === ev.id);
+    const jornadasEv = _dashData.jornadas.filter(j => logIdsEv.includes(j.logistica_id));
 
     if (jornadasEv.length) {
       checkY(16);
@@ -2049,11 +2049,11 @@ async function loadDashboard() {
 
       // Logísticas de este evento
       const logIds = logEvs.filter(le => le.evento_id === ev.id).map(le => le.logistica_id);
-      const logsEvento = logisticas.filter(l => logIds.includes(l.id) || l.evento_id === ev.id);
+      const logsEvento = logisticas.filter(l => logIds.includes(l.id));
 
       // Jornadas de este evento (via logísticas asignadas)
       const logIdsEv = logsEvento.map(l => l.id);
-      const jornadasEv = jornadas.filter(j => logIdsEv.includes(j.logistica_id) || j.evento_id === ev.id);
+      const jornadasEv = jornadas.filter(j => logIdsEv.includes(j.logistica_id));
 
       // Agrupar jornadas por tipo
       const soloArmados  = jornadasEv.filter(j => j.tipo === 'Armado');
@@ -2304,7 +2304,9 @@ async function guardarEvento() {
     if (editingEventoId) {
       await sbPatch('eventos', editingEventoId, data);
       // Sincronizar fechas/horas en jornadas automáticas
-      const jornadasEv = await sb('jornadas', { filters: [`evento_id=eq.${editingEventoId}`], select: 'id,tipo', limit: 100 });
+      const logRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${editingEventoId}`], select: 'logistica_id', limit: 50 });
+      const logIdsEv = logRels.map(r => r.logistica_id);
+      const jornadasEv = logIdsEv.length ? await sb('jornadas', { filters: [`logistica_id=in.(${logIdsEv.join(',')})`], select: 'id,tipo', limit: 100 }) : [];
       for (const j of jornadasEv) {
         const jPatch = {};
         if (j.tipo === 'Armado'   && data.fecha_armado)  { jPatch.fecha = data.fecha_armado;  if (data.hora_armado)  jPatch.hora_inicio = data.hora_armado; }
@@ -2320,7 +2322,11 @@ async function guardarEvento() {
       data.created_at = new Date().toISOString();
       const evRow = await sbPost('eventos', data);
       const newEvId = Array.isArray(evRow) ? evRow[0]?.id : evRow?.id;
-      if (newEvId) await sbPost('logisticas', { tipo: 'Evento', evento_id: newEvId, notas: null });
+      if (newEvId) {
+        const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: null });
+        const newLogId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
+        if (newLogId) await sbPost('logistica_eventos', { logistica_id: newLogId, evento_id: newEvId });
+      }
       toast('Evento creado');
     }
     closeModal('modal-evento');
@@ -2619,7 +2625,6 @@ async function guardarJornadas() {
         personal_id:  persId,
         tipo,
         fecha,
-        evento_id:    evId,
         tarifa_ars:   tarifa || 0,
         pagado:       false,
         notas,
@@ -2923,15 +2928,20 @@ async function loadLogisticas() {
       sb('logistica_eventos', { filters: [`logistica_id=in.(${ids.join(',')})`], limit: 500 }),
     ]);
 
+    // Mapa logistica_id → evento_id (desde logistica_eventos, sin depender de logisticas.evento_id)
+    const logToEvId = {};
+    logEvRels.forEach(r => { if (!logToEvId[r.logistica_id]) logToEvId[r.logistica_id] = r.evento_id; });
+
     const TIPO_ORDEN = { 'Armado': 0, 'Operador': 1, 'Desarme': 2, 'Depósito': 3 };
     const TIPO_COLOR = { 'Armado': 'var(--gold)', 'Operador': 'var(--blue)', 'Desarme': 'var(--orange)', 'Depósito': 'var(--text-2)' };
     const TIPO_ICON  = { 'Armado': '🔧', 'Operador': '🎛️', 'Desarme': '📦', 'Depósito': '🏠' };
 
     // La logística original de cada evento es la de menor ID — no se puede eliminar
     const logIdOriginalPorEvento = {};
-    rows.filter(r => r.evento_id && r.tipo !== 'Deposito').forEach(r => {
-      if (!logIdOriginalPorEvento[r.evento_id] || r.id < logIdOriginalPorEvento[r.evento_id])
-        logIdOriginalPorEvento[r.evento_id] = r.id;
+    rows.filter(r => logToEvId[r.id] && r.tipo !== 'Deposito').forEach(r => {
+      const evId = logToEvId[r.id];
+      if (!logIdOriginalPorEvento[evId] || r.id < logIdOriginalPorEvento[evId])
+        logIdOriginalPorEvento[evId] = r.id;
     });
 
     const filas = [];
@@ -2950,9 +2960,12 @@ async function loadLogisticas() {
         evLabel = ev ? (ev.venue || ev.codigo || ev.id) : (r.evento_id ? `#${r.evento_id}` : '—');
       }
 
+      const evId = logToEvId[r.id] || null;
+      const esOriginal = evId && logIdOriginalPorEvento[evId] === r.id;
+
       if (esDeposito) {
         const dias = [...new Set(jors.map(j => j.fecha))].sort();
-        const persIds = [...new Set(jors.map(j => j.personal_id))];
+        const persIds = [...new Set(jors.map(j => j.personal_id).filter(Boolean))];
         const fechaLabel = dias.length ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
         filas.push({ logId: r.id, tipo: 'Depósito', evLabel, fechaLabel, persCount: persIds.length, orden: 3, eliminable: true });
       } else {
@@ -2970,7 +2983,7 @@ async function loadLogisticas() {
               : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
             : '—';
           const fechaSort = dias.length ? dias[0] : '9999-99-99';
-          filas.push({ logId: r.id, eventoId: r.evento_id, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas, todasPagadas });
+          filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas, todasPagadas });
         });
       }
     });
@@ -3055,8 +3068,9 @@ async function editarLogistica(id, tipo, esExtra = false) {
 
     if (log.notas) document.getElementById('nlg-notas').value = log.notas;
     setTipoLog(log.tipo === 'Deposito' ? 'Deposito' : 'Evento');
-    if (log.tipo !== 'Deposito' && log.evento_id) {
-      document.getElementById('nlg-evento').value = log.evento_id;
+    if (log.tipo !== 'Deposito') {
+      const evRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
+      if (evRel[0]?.evento_id) document.getElementById('nlg-evento').value = evRel[0].evento_id;
     }
 
     // Filtrar por tipo si estamos editando uno solo
@@ -3109,12 +3123,12 @@ async function guardarAgregarArmado() {
   const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
   try {
-    // Find existing logística for this event, or create one
-    let logs = await sb('logisticas', { filters: [`evento_id=eq.${evId}`], limit: 1 });
-    let logId = logs[0]?.id;
+    // Find existing logística for this event via logistica_eventos, or create one
+    const armRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${evId}`], select: 'logistica_id', limit: 1 });
+    let logId = armRels[0]?.logistica_id;
     if (!logId) {
       const ev = (evCache || []).find(e => e.id === evId);
-      const newLog = await sbPost('logisticas', { evento_id: evId, tipo: 'Evento', notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
+      const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
       logId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
       await sbPost('logistica_eventos', { logistica_id: logId, evento_id: evId });
     }
@@ -3370,11 +3384,12 @@ async function guardarLogistica() {
       // Modo creación
       const logRow = await sbPost('logisticas', {
         tipo: logTipo,
-        evento_id: eventoId ? parseInt(eventoId) : null,
         notas: notas || null,
       });
       logId = Array.isArray(logRow) ? logRow[0].id : logRow.id;
-      if (logTipo === 'Deposito' && logEventosDepIds.length) {
+      if (logTipo === 'Evento' && eventoId) {
+        await sbPost('logistica_eventos', { logistica_id: logId, evento_id: parseInt(eventoId) });
+      } else if (logTipo === 'Deposito' && logEventosDepIds.length) {
         await sbPost('logistica_eventos', logEventosDepIds.map(eid => ({ logistica_id: logId, evento_id: eid })));
       }
     }
@@ -3397,7 +3412,6 @@ async function guardarLogistica() {
           toInsert.push({
             codigo: `${codigoPrefix}-${seq++}`,
             personal_id: persId,
-            evento_id: eventoId ? parseInt(eventoId) : null,
             fecha: d.fecha,
             hora_inicio: d.hora_inicio || null,
             tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
@@ -3433,7 +3447,6 @@ async function guardarLogistica() {
           jornadasToInsert.push({
             codigo: `${codigoPrefix}-${seq++}`,
             personal_id: persId,
-            evento_id: eventoId ? parseInt(eventoId) : null,
             fecha: d.fecha,
             hora_inicio: d.hora_inicio || null,
             tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
@@ -3463,7 +3476,9 @@ async function enviarMailSeguroEvento(eventoId, evLabel) {
     const beneficiarios = evRow[0]?.clausulas ? JSON.parse(evRow[0].clausulas) : [];
     if (!beneficiarios.length) { toast('Cargá los beneficiarios de la cláusula en el evento primero', 'err'); return; }
 
-    const jornadas = await sb('jornadas', { filters: [`evento_id=eq.${eventoId}`], select: 'personal_id', limit: 500 });
+    const segRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${eventoId}`], select: 'logistica_id', limit: 50 });
+    const segLogIds = segRels.map(r => r.logistica_id);
+    const jornadas = segLogIds.length ? await sb('jornadas', { filters: [`logistica_id=in.(${segLogIds.join(',')})`], select: 'personal_id', limit: 500 }) : [];
     const persIds = [...new Set(jornadas.map(j => j.personal_id).filter(Boolean))];
     if (!persIds.length) { toast('Sin personal asignado a este evento', 'err'); return; }
 
@@ -3558,8 +3573,8 @@ async function enviarMailSeguro(logId) {
     });
 
     // Traer info del evento para el asunto
-    const logRow = await sb('logisticas', { filters: [`id=eq.${logId}`], limit: 1 });
-    const ev = logRow[0]?.evento_id ? (evCache||[]).find(e => e.id === logRow[0].evento_id) : null;
+    const mailRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${logId}`], select: 'evento_id', limit: 1 });
+    const ev = mailRel[0]?.evento_id ? (evCache||[]).find(e => e.id === mailRel[0].evento_id) : null;
     const evLabel = ev ? (ev.venue || ev.codigo || `Evento #${ev.id}`) : `Logística #${logId}`;
 
     const filas = personal.map(p => {
@@ -3670,7 +3685,8 @@ async function abrirDetLogistica(id, tipo) {
     const log = logRows[0];
     if (!log) { toast('Logística no encontrada', 'err'); return; }
     if (log.notas) document.getElementById('log-notas').value = log.notas;
-    const ev = (evCache || []).find(e => e.id === log.evento_id);
+    const detRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
+    const ev = detRel[0]?.evento_id ? (evCache || []).find(e => e.id === detRel[0].evento_id) : null;
     if (ev) {
       document.getElementById('log-titulo').value    = ev.venue || '';
       document.getElementById('log-subtitulo').value = ev.cliente_nombre || '';
@@ -5376,7 +5392,6 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
     // Actualizar estado del presupuesto y vincular evento
     await sbPatch('presupuestos', id, {
       estado_evento: 'Confirmado',
-      evento_codigo: codigo,
       evento_id:     (Array.isArray(nuevoEv) ? nuevoEv[0]?.id : nuevoEv?.id) || null,
     });
 
@@ -5396,7 +5411,6 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
     // Crear logística automática con Armado, Operador y Desarme
     if (eventoId) {
       const logRow = await sbPost('logisticas', {
-        evento_id: eventoId,
         tipo: 'Evento',
         notas: `Logística automática — ${venue || cliente}`,
         created_at: new Date().toISOString(),
@@ -5410,9 +5424,9 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
         // Crear las 3 jornadas vacías (sin personal aún)
         const codigoBase = `J${Date.now()}`;
         await sbPost('jornadas', [
-          { codigo: `${codigoBase}-1`, evento_id: eventoId, logistica_id: logId, tipo: 'Armado',   fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: null,          pagado: false },
-          { codigo: `${codigoBase}-2`, evento_id: eventoId, logistica_id: logId, tipo: 'Operador', fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: horario||null, pagado: false },
-          { codigo: `${codigoBase}-3`, evento_id: eventoId, logistica_id: logId, tipo: 'Desarme',  fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: null,          pagado: false },
+          { codigo: `${codigoBase}-1`, logistica_id: logId, tipo: 'Armado',   fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: null,          pagado: false },
+          { codigo: `${codigoBase}-2`, logistica_id: logId, tipo: 'Operador', fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: horario||null, pagado: false },
+          { codigo: `${codigoBase}-3`, logistica_id: logId, tipo: 'Desarme',  fecha: fecha||new Date().toISOString().slice(0,10), hora_inicio: null,          pagado: false },
         ]);
       }
     }
@@ -5459,7 +5473,6 @@ async function perderPresupuesto(id, cliente) {
     // Actualizar estado del presupuesto
     await sbPatch('presupuestos', id, {
       estado_evento: 'Perdido',
-      evento_codigo: codigo,
     });
 
     toast(`Presupuesto marcado como perdido — ${motivoTexto}`);
