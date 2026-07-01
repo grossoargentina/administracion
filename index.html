@@ -445,6 +445,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('catalogo')">
         <span class="nav-icon">📦</span> Catálogo
       </div>
+      <div class="nav-item" onclick="goTo('salones')">
+        <span class="nav-icon">🏛️</span> Salones
+      </div>
     </nav>
     <div class="sidebar-footer">
       <div style="margin-bottom:6px">administracion@grossoarg.com</div>
@@ -764,6 +767,21 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       </div>
     </div>
 
+    <!-- SALONES -->
+    <div class="page" id="p-salones">
+      <div class="page-header">
+        <div><div class="page-title">Salones</div><div class="page-sub">Venues y datos de seguro</div></div>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Salón</th><th>Dirección</th><th>Seguro</th><th>Eventos</th><th></th></tr></thead>
+            <tbody id="salones-tbody"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- GASTOS PERSONALES -->
     <div class="page" id="p-gastos">
       <div class="page-header">
@@ -1014,6 +1032,29 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
 </div>
 
 <!-- MODAL PRODUCTO CATÁLOGO -->
+<div class="modal-overlay" id="modal-salon">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title" id="salon-modal-title">Editar salón</span>
+      <button class="modal-close" onclick="closeModal('modal-salon')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre del salón *</label><input class="inp" id="salon-nombre" placeholder="Nombre"></div>
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Dirección</label><input class="inp" id="salon-direccion" placeholder="Calle, número, localidad"></div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Datos del seguro</label>
+          <textarea class="inp" id="salon-seguro" rows="4" placeholder="Compañía, póliza, contacto, requisitos especiales..." style="resize:vertical;font-size:13px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-salon')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarSalon()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-producto">
   <div class="modal" style="max-width:480px">
     <div class="modal-header">
@@ -1435,10 +1476,13 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       </div>
 
       <!-- ITEM PERSONALIZADO -->
-      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:flex-end">
-        <div class="field" style="flex:2"><label class="lbl">Ítem personalizado</label><input class="inp" id="pres-custom-nombre" placeholder="Descripción del servicio"></div>
-        <div class="field" style="width:120px"><label class="lbl">Precio ARS</label><input class="inp" type="number" id="pres-custom-precio" placeholder="0"></div>
-        <button class="btn btn-ghost" onclick="agregarItemCustom()" style="flex-shrink:0">+ Agregar</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:flex-end">
+        <div class="field"><label class="lbl">Título del ítem</label><input class="inp" id="pres-custom-nombre" placeholder="Nombre del servicio"></div>
+        <div class="field"><label class="lbl">Precio ARS</label><input class="inp" type="number" id="pres-custom-precio" placeholder="0"></div>
+        <button class="btn btn-ghost" onclick="agregarItemCustom()" style="flex-shrink:0;align-self:flex-end">+ Agregar</button>
+      </div>
+      <div style="margin-bottom:16px">
+        <textarea class="inp" id="pres-custom-desc" placeholder="Descripción del servicio (opcional)" rows="2" style="resize:vertical;font-size:12px"></textarea>
       </div>
 
       <!-- CONDICIONES DE PAGO -->
@@ -1767,6 +1811,7 @@ async function loadPage(page) {
     case 'impuestos':  loadImpuestos(); break;
     case 'presupuestos': loadPresupuestos(); break;
     case 'catalogo':   loadCatalogo(); break;
+    case 'salones':    loadSalones(); break;
     case 'gastos':     loadGastos(); break;
   }
 }
@@ -5133,6 +5178,87 @@ async function confirmarMesNuevo() {
 
 
 // ── CATÁLOGO ──────────────────────────────────────────────
+// ── SALONES ─────────────────────────────────────────────
+let salonEditId = null;
+
+async function loadSalones() {
+  const tbody = document.getElementById('salones-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
+  try {
+    const [salones, eventos] = await Promise.all([
+      sb('salones', { order: 'nombre', limit: 200 }),
+      sb('eventos', { select: 'salon_id', filters: ['salon_id=not.is.null'], limit: 500 }),
+    ]);
+    const countMap = {};
+    eventos.forEach(e => { countMap[e.salon_id] = (countMap[e.salon_id] || 0) + 1; });
+
+    if (!salones.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-3);font-size:13px">No hay salones registrados aún. Se crean automáticamente al confirmar presupuestos.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = salones.map(s => `<tr>
+      <td style="font-weight:600;font-size:13px">${s.nombre}</td>
+      <td style="font-size:12px;color:var(--text-2)">${s.direccion || '<span style="color:var(--text-3)">—</span>'}</td>
+      <td style="font-size:12px;color:var(--text-2);max-width:280px;white-space:pre-wrap">${s.seguro_info ? `<span style="color:var(--green);font-size:11px">✓ Cargado</span>` : '<span style="color:var(--text-3)">—</span>'}</td>
+      <td style="font-size:12px">${countMap[s.id] || 0}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editarSalon(${s.id})">✏️ Editar</button></td>
+    </tr>`).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="5" style="padding:16px;color:var(--red)">${e.message}</td></tr>`; }
+}
+
+async function editarSalon(id) {
+  salonEditId = id;
+  try {
+    const rows = await sb('salones', { filters: [`id=eq.${id}`], limit: 1 });
+    const s = rows[0];
+    if (!s) return;
+    document.getElementById('salon-modal-title').textContent = s.nombre;
+    document.getElementById('salon-nombre').value    = s.nombre || '';
+    document.getElementById('salon-direccion').value = s.direccion || '';
+    document.getElementById('salon-seguro').value    = s.seguro_info || '';
+    openModal('modal-salon');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function guardarSalon() {
+  const nombre   = document.getElementById('salon-nombre').value.trim();
+  const direccion = document.getElementById('salon-direccion').value.trim();
+  const seguro   = document.getElementById('salon-seguro').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  try {
+    await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info: seguro || null });
+    closeModal('modal-salon');
+    toast('Salón actualizado');
+    loadSalones();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function upsertClienteYSalon(clienteNombre, salonNombre) {
+  let clienteId = null, salonId = null;
+  try {
+    // Cliente: buscar por nombre (case-insensitive) o crear
+    const clExist = await sb('clientes', { filters: [`nombre=ilike.${clienteNombre}`], select: 'id', limit: 1 });
+    if (clExist.length) {
+      clienteId = clExist[0].id;
+    } else {
+      const newCl = await sbPost('clientes', { nombre: clienteNombre });
+      clienteId = Array.isArray(newCl) ? newCl[0]?.id : newCl?.id;
+    }
+  } catch(e) { console.warn('Error upsert cliente:', e.message); }
+  try {
+    if (salonNombre) {
+      const slExist = await sb('salones', { filters: [`nombre=ilike.${salonNombre}`], select: 'id', limit: 1 });
+      if (slExist.length) {
+        salonId = slExist[0].id;
+      } else {
+        const newSl = await sbPost('salones', { nombre: salonNombre });
+        salonId = Array.isArray(newSl) ? newSl[0]?.id : newSl?.id;
+      }
+    }
+  } catch(e) { console.warn('Error upsert salon:', e.message); }
+  return { clienteId, salonId };
+}
+
 async function loadCatalogo() {
   document.getElementById('cat-tbody').innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
   try {
@@ -5434,7 +5560,18 @@ async function confirmarPresupuesto(id, cliente, tipo, venue, fecha, total, moda
 
     const eventoId = (Array.isArray(nuevoEv) ? nuevoEv[0]?.id : nuevoEv?.id) || null;
 
-    // Crear logística automática con Armado, Operador y Desarme
+    // Upsert cliente y salón, vincularlos al evento
+    if (eventoId) {
+      const { clienteId, salonId } = await upsertClienteYSalon(cliente, venue);
+      if (clienteId || salonId) {
+        const patch = {};
+        if (clienteId) patch.cliente_id = clienteId;
+        if (salonId)   patch.salon_id   = salonId;
+        await sbPatch('eventos', eventoId, patch);
+      }
+    }
+
+    // Crear logística automática
     if (eventoId) {
       const logRow = await sbPost('logisticas', {
         tipo: 'Evento',
@@ -5668,6 +5805,7 @@ async function nuevaVersionPresupuesto(id) {
     presItems = items.map(it => ({
       id: it.catalogo_id || ('C' + it.id),
       producto: it.producto,
+      descripcion: it.descripcion || '',
       categoria: it.categoria || 'OTROS',
       precio: Number(it.precio_ars) || 0,
       cantidad: it.cantidad || 1,
@@ -5723,10 +5861,12 @@ function agregarItemCatalogo(id, producto, precio, categoria) {
 // ── AGREGAR ITEM PERSONALIZADO ───────────────────────────
 function agregarItemCustom() {
   const nombre = document.getElementById('pres-custom-nombre').value.trim();
+  const desc   = document.getElementById('pres-custom-desc').value.trim();
   const precio = parseFloat(document.getElementById('pres-custom-precio').value) || 0;
-  if (!nombre) { toast('Ingresá una descripción para el ítem', 'err'); return; }
-  presItems.push({ id: 'C' + Date.now(), producto: nombre, precio, cantidad: 1, esCustom: true, categoria: 'PERSONALIZADO' });
+  if (!nombre) { toast('Ingresá un título para el ítem', 'err'); return; }
+  presItems.push({ id: 'C' + Date.now(), producto: nombre, descripcion: desc, precio, cantidad: 1, esCustom: true, categoria: 'PERSONALIZADO' });
   document.getElementById('pres-custom-nombre').value = '';
+  document.getElementById('pres-custom-desc').value   = '';
   document.getElementById('pres-custom-precio').value = '';
   renderItemsPresup();
   calcularTotal();
@@ -5743,6 +5883,7 @@ function renderItemsPresup() {
     <tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 12px;font-size:12px">
         <div style="font-weight:500">${item.producto}</div>
+        ${item.descripcion ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">${item.descripcion}</div>` : ''}
         ${item.esCustom ? '<span style="font-size:10px;color:var(--purple)">a medida</span>' :
           `<span style="font-size:10px;color:var(--text-3)">${item.categoria}</span>`}
       </td>
@@ -5859,8 +6000,9 @@ async function generarPresupuesto() {
       items.forEach(it => {
         const bg = idx++ % 2 === 0 ? '#fff' : '#f7f7f7';
         const esCustom = it.esCustom ? '<span style="font-size:7pt;color:#9B59B6;margin-left:4px">a medida</span>' : '';
+        const descRow = it.descripcion ? `<div style="font-size:8pt;color:#555;font-weight:normal;margin-top:2px">${it.descripcion}</div>` : '';
         filasHTML += `<tr style="background:${bg}">
-          <td style="padding:7px 8px;font-size:9pt;font-weight:bold">${it.producto}${esCustom}</td>
+          <td style="padding:7px 8px;font-size:9pt;font-weight:bold">${it.producto}${esCustom}${descRow}</td>
           <td style="padding:7px 8px;font-size:9pt;text-align:center;width:60px">${it.cantidad}</td>
           <td style="padding:7px 8px;font-size:9pt;text-align:right;width:140px">${fmtA(it.precio * it.cantidad)}</td>
         </tr>`;
@@ -6329,6 +6471,7 @@ async function generarPresupuesto() {
           presupuesto_id: presId,
           catalogo_id: it.esCustom ? null : (it.id || null),
           producto: it.producto,
+          descripcion: it.descripcion || null,
           categoria: it.categoria || null,
           precio_ars: it.precio,
           cantidad: it.cantidad || 1,
