@@ -427,6 +427,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('caja')">
         <span class="nav-icon">🏦</span> Caja
       </div>
+      <div class="nav-item" onclick="goTo('gastos')">
+        <span class="nav-icon">🧾</span> Gastos personales
+      </div>
       <div class="nav-item" onclick="goTo('mensajes')">
         <span class="nav-icon">💬</span> Mensajes <span id="nav-mensajes-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px"></span>
       </div>
@@ -760,6 +763,59 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       </div>
     </div>
 
+    <!-- GASTOS PERSONALES -->
+    <div class="page" id="p-gastos">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Gastos personales</div>
+          <div class="page-sub">Efectivo, fuera de tarjeta</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirModalGasto()">+ Gasto</button>
+      </div>
+      <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
+        <!-- Donut chart -->
+        <div class="card" style="padding:20px;min-width:280px;flex:0 0 auto">
+          <div style="font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.06em;margin-bottom:14px">POR CATEGORÍA</div>
+          <div style="display:flex;gap:20px;align-items:center">
+            <svg id="gastos-donut" width="120" height="120" viewBox="0 0 120 120"></svg>
+            <div id="gastos-leyenda" style="display:flex;flex-direction:column;gap:6px;font-size:12px"></div>
+          </div>
+        </div>
+        <!-- KPIs -->
+        <div style="display:flex;flex-direction:column;gap:12px;flex:1">
+          <div class="kpi"><div class="kpi-label">Total filtrado</div><div class="kpi-value" id="gastos-total-filtrado">—</div></div>
+          <div class="kpi"><div class="kpi-label">Total este mes</div><div class="kpi-value" id="gastos-mes">—</div></div>
+          <div class="kpi"><div class="kpi-label">Total este año</div><div class="kpi-value" id="gastos-anio">—</div></div>
+        </div>
+      </div>
+      <!-- Filtros -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <select class="inp" id="gastos-filtro-mes" style="width:160px" onchange="renderGastos()">
+          <option value="">Todos los meses</option>
+        </select>
+        <select class="inp" id="gastos-filtro-cat" style="width:180px" onchange="renderGastos()">
+          <option value="">Todas las categorías</option>
+          <option>Comida</option>
+          <option>Transporte</option>
+          <option>Salud</option>
+          <option>Ropa</option>
+          <option>Entretenimiento</option>
+          <option>Hogar</option>
+          <option>Educación</option>
+          <option>Varios</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosGastos()">Limpiar</button>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th><th></th></tr></thead>
+            <tbody id="gastos-tbody"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- MOBILE NAV -->
@@ -772,6 +828,41 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="mobile-nav-item" onclick="goTo('impuestos')"><span class="mn-icon">🗓️</span>Impuestos</div>
     </div>
   </nav>
+</div>
+
+<!-- MODAL GASTO PERSONAL -->
+<div class="modal-overlay" id="modal-gasto">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="gasto-modal-title">Registrar gasto</span>
+      <button class="modal-close" onclick="closeModal('modal-gasto')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="gasto-id">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="gasto-desc" placeholder="Ej: Almuerzo, Nafta, Farmacia..."></div>
+        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp" type="number" id="gasto-monto" placeholder="0"></div>
+        <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="gasto-fecha"></div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Categoría *</label>
+          <select class="inp" id="gasto-categoria">
+            <option value="Comida">Comida</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Salud">Salud</option>
+            <option value="Ropa">Ropa</option>
+            <option value="Entretenimiento">Entretenimiento</option>
+            <option value="Hogar">Hogar</option>
+            <option value="Educación">Educación</option>
+            <option value="Varios">Varios</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-gasto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarGasto()">Guardar</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── MODALES ──────────────────────────────────────────── -->
@@ -1632,6 +1723,7 @@ async function loadPage(page) {
     case 'impuestos':  loadImpuestos(); break;
     case 'presupuestos': loadPresupuestos(); break;
     case 'catalogo':   loadCatalogo(); break;
+    case 'gastos':     loadGastos(); break;
   }
 }
 
@@ -2386,32 +2478,52 @@ async function eliminarJornada(id) {
 }
 
 // ── LIQUIDACIÓN SEMANAL ────────────────────────────────────
+async function refreshDriveToken() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const refresh = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
+  if (!refresh) return null;
+  try {
+    const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+    if (r.ok) {
+      const { access_token } = await r.json();
+      localStorage.setItem('drive_token', access_token);
+      return access_token;
+    }
+  } catch(_) {}
+  return null;
+}
+
 async function getDriveToken() {
   const { data: { session } } = await supabaseClient.auth.getSession();
-  let token = session?.provider_token || localStorage.getItem('drive_token');
-  if (!token) {
-    const refresh = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
-    if (refresh) {
-      const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refresh }),
-      });
-      if (r.ok) { const { access_token } = await r.json(); token = access_token; localStorage.setItem('drive_token', access_token); }
-    }
-  }
-  return token;
+  return session?.provider_token || localStorage.getItem('drive_token') || await refreshDriveToken();
 }
 
 async function subirPdfDrive(pdfBlob, nombreArchivo, folderId) {
-  const token = await getDriveToken();
+  let token = await getDriveToken();
   if (!token) { toast('Sin acceso a Drive. Cerrá sesión y volvé a ingresar.', 'err'); return null; }
-  const metadata = { name: nombreArchivo, parents: [folderId], mimeType: 'application/pdf' };
-  const fd = new FormData();
-  fd.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-  fd.append('file', pdfBlob, nombreArchivo);
-  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
-    { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
-  if (res.status === 401) { localStorage.removeItem('drive_token'); toast('Token Drive expirado. Cerrá sesión y volvé a ingresar.', 'err'); return null; }
+
+  const doUpload = async (t) => {
+    const metadata = { name: nombreArchivo, parents: [folderId], mimeType: 'application/pdf' };
+    const fd = new FormData();
+    fd.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    fd.append('file', pdfBlob, nombreArchivo);
+    return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+      { method: 'POST', headers: { Authorization: `Bearer ${t}` }, body: fd });
+  };
+
+  let res = await doUpload(token);
+
+  // Si el token expiró, refrescar y reintentar automáticamente
+  if (res.status === 401) {
+    localStorage.removeItem('drive_token');
+    token = await refreshDriveToken();
+    if (!token) { toast('Sesión de Drive expirada. Cerrá sesión y volvé a ingresar.', 'err'); return null; }
+    res = await doUpload(token);
+  }
+
   if (!res.ok) { toast('Error subiendo a Drive', 'err'); return null; }
   return (await res.json()).webViewLink;
 }
@@ -4109,6 +4221,155 @@ async function eliminarMovimientoCaja(id) {
     await sbDelete('caja', id);
     toast('Movimiento eliminado');
     loadCaja();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ── GASTOS PERSONALES ─────────────────────────────────────
+const GASTOS_CAT_COLOR = { Comida:'var(--orange)', Transporte:'var(--blue)', Salud:'var(--green)', Ropa:'var(--purple)', Entretenimiento:'var(--gold)', Hogar:'var(--text-2)', Educación:'var(--green)', Varios:'var(--text-3)' };
+let _todosGastos = [];
+
+async function loadGastos() {
+  document.getElementById('gastos-tbody').innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
+  try {
+    _todosGastos = await sb('gastos_personales', { order: 'fecha.desc,created_at.desc', limit: 500 });
+
+    // KPIs globales (mes y año actuales, sin filtro)
+    const ahora = new Date();
+    let totalMes = 0, totalAnio = 0;
+    _todosGastos.forEach(g => {
+      const f = new Date(g.fecha + 'T12:00:00');
+      if (f.getFullYear() === ahora.getFullYear()) {
+        totalAnio += Number(g.monto);
+        if (f.getMonth() === ahora.getMonth()) totalMes += Number(g.monto);
+      }
+    });
+    document.getElementById('gastos-mes').textContent = fmtARS(totalMes);
+    document.getElementById('gastos-anio').textContent = fmtARS(totalAnio);
+
+    // Poblar selector de meses con los que existen
+    const mesesSel = document.getElementById('gastos-filtro-mes');
+    const valActual = mesesSel.value;
+    const mesesVisto = new Set();
+    _todosGastos.forEach(g => { if (g.fecha) mesesVisto.add(g.fecha.slice(0, 7)); });
+    const mesesOrden = [...mesesVisto].sort().reverse();
+    mesesSel.innerHTML = '<option value="">Todos los meses</option>' +
+      mesesOrden.map(m => {
+        const [y, mo] = m.split('-');
+        const label = new Date(`${m}-15`).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+        return `<option value="${m}" ${m === valActual ? 'selected' : ''}>${label}</option>`;
+      }).join('');
+
+    renderGastos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+const GASTOS_CAT_HEX = {
+  Comida:'#f59e42', Transporte:'#4e9af1', Salud:'#4ade80', Ropa:'#a78bfa',
+  Entretenimiento:'#fbbf24', Hogar:'#94a3b8', Educación:'#34d399', Varios:'#64748b'
+};
+
+function renderDonutGastos(lista) {
+  const totalesCat = {};
+  lista.forEach(g => { totalesCat[g.categoria] = (totalesCat[g.categoria] || 0) + Number(g.monto); });
+  const entradas = Object.entries(totalesCat).sort((a,b) => b[1]-a[1]);
+  const total = entradas.reduce((s,[,v]) => s+v, 0);
+  const svg = document.getElementById('gastos-donut');
+  const ley = document.getElementById('gastos-leyenda');
+
+  if (!total) {
+    svg.innerHTML = `<circle cx="60" cy="60" r="44" fill="none" stroke="var(--surface-2)" stroke-width="18"/>`;
+    ley.innerHTML = '';
+    return;
+  }
+
+  const cx = 60, cy = 60, r = 44, sw = 18;
+  const circ = 2 * Math.PI * r;
+  let startAngle = -90;
+  let segmentos = '';
+  let leyendaHTML = '';
+
+  entradas.forEach(([cat, val]) => {
+    const pct = val / total;
+    const dash = pct * circ;
+    const color = GASTOS_CAT_HEX[cat] || '#64748b';
+    // Cada segmento: dash cubre su arco, el resto es gap; rotate posiciona el inicio
+    segmentos += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+      stroke-dasharray="${dash.toFixed(2)} ${(circ - dash).toFixed(2)}"
+      transform="rotate(${startAngle.toFixed(2)} ${cx} ${cy})"/>`;
+    startAngle += pct * 360;
+    leyendaHTML += `<div style="display:flex;align-items:center;gap:6px">
+      <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span>
+      <span style="color:var(--text-2)">${cat}</span>
+      <span style="color:var(--text-3);margin-left:4px">${Math.round(pct*100)}%</span>
+    </div>`;
+  });
+
+  svg.innerHTML = segmentos +
+    `<circle cx="${cx}" cy="${cy}" r="${r - sw/2 - 1}" fill="var(--surface-1)"/>` +
+    `<text x="${cx}" y="${cy-5}" text-anchor="middle" font-size="9" fill="var(--text-3)">TOTAL</text>` +
+    `<text x="${cx}" y="${cy+8}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-1)">${fmtARS(total).replace('$ ','$')}</text>`;
+  ley.innerHTML = leyendaHTML;
+}
+
+function renderGastos() {
+  const filtroMes = document.getElementById('gastos-filtro-mes').value;
+  const filtroCat = document.getElementById('gastos-filtro-cat').value;
+  const lista = _todosGastos.filter(g => {
+    if (filtroMes && !g.fecha?.startsWith(filtroMes)) return false;
+    if (filtroCat && g.categoria !== filtroCat) return false;
+    return true;
+  });
+  const totalFiltrado = lista.reduce((s, g) => s + Number(g.monto), 0);
+  document.getElementById('gastos-total-filtrado').textContent = fmtARS(totalFiltrado);
+  renderDonutGastos(lista);
+  document.getElementById('gastos-tbody').innerHTML = lista.length
+    ? lista.map(g => `<tr>
+        <td>${fmtDate(g.fecha)}</td>
+        <td>${g.descripcion}</td>
+        <td><span style="font-size:11px;font-weight:600;color:${GASTOS_CAT_COLOR[g.categoria]||'var(--text-2)'}">${g.categoria}</span></td>
+        <td>${fmtARS(g.monto)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="eliminarGasto(${g.id})">✕</button></td>
+      </tr>`).join('')
+    : '<tr><td colspan="5"><div class="empty"><div class="empty-icon">🧾</div>Sin gastos para este filtro</div></td></tr>';
+}
+
+function limpiarFiltrosGastos() {
+  document.getElementById('gastos-filtro-mes').value = '';
+  document.getElementById('gastos-filtro-cat').value = '';
+  renderGastos();
+}
+
+function abrirModalGasto() {
+  document.getElementById('gasto-id').value = '';
+  document.getElementById('gasto-desc').value = '';
+  document.getElementById('gasto-monto').value = '';
+  document.getElementById('gasto-fecha').value = today();
+  document.getElementById('gasto-categoria').value = 'Varios';
+  document.getElementById('gasto-modal-title').textContent = 'Registrar gasto';
+  openModal('modal-gasto');
+}
+
+async function guardarGasto() {
+  const desc = document.getElementById('gasto-desc').value.trim();
+  const monto = parseFloat(document.getElementById('gasto-monto').value);
+  const fecha = document.getElementById('gasto-fecha').value || today();
+  const categoria = document.getElementById('gasto-categoria').value;
+  if (!desc) { toast('Ingresá una descripción', 'err'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
+  try {
+    await sbInsert('gastos_personales', { descripcion: desc, monto, fecha, categoria });
+    closeModal('modal-gasto');
+    toast('✅ Gasto registrado');
+    loadGastos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function eliminarGasto(id) {
+  if (!confirm('¿Eliminar este gasto?')) return;
+  try {
+    await sbDelete('gastos_personales', id);
+    toast('Gasto eliminado');
+    loadGastos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
