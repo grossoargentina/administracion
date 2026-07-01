@@ -2027,7 +2027,13 @@ async function registrarCobro(id, cliente, senaOk, saldoOk) {
   const senaPct = Number(ev?.sena_pct) || 30;
   const esPagoTotal = ev?.modalidad_pago === 'Pago total al finalizar';
 
-  _cobroCtx = { id, cliente, senaOk, saldoOk, totalEv, senaPct, esPagoTotal };
+  // Buscar pendiente real desde pagos registrados
+  const pagosEv = await sb('pagos', { filters: [`evento_id=eq.${id}`], limit: 100 });
+  const totalPagado = pagosEv.reduce((s, p) => s + Number(p.monto_ars || 0), 0);
+  const pendienteReal = Math.max(0, totalEv - totalPagado);
+  const montosena = Math.round(totalEv * senaPct / 100);
+
+  _cobroCtx = { id, cliente, senaOk, saldoOk, totalEv, senaPct, esPagoTotal, pendienteReal, montosena };
 
   // Armar opciones de tipo
   const sel = document.getElementById('cobro-tipo');
@@ -2036,28 +2042,17 @@ async function registrarCobro(id, cliente, senaOk, saldoOk) {
   if (!saldoOk) sel.innerHTML += '<option value="Saldo">Saldo</option>';
   sel.innerHTML += '<option value="Parcial">Parcial</option>';
 
-  // Precargar monto sugerido
-  const primerTipo = sel.value;
-  const montoSug = primerTipo === 'Seña'
-    ? Math.round(totalEv * senaPct / 100)
-    : primerTipo === 'Saldo'
-      ? Math.round(totalEv - totalEv * senaPct / 100)
-      : 0;
-  document.getElementById('cobro-monto').value = montoSug || '';
+  const getMontoSug = (t) => t === 'Seña' ? montosena : t === 'Saldo' ? pendienteReal : 0;
+
+  document.getElementById('cobro-monto').value = getMontoSug(sel.value) || '';
   document.getElementById('cobro-fecha').value = today();
   document.getElementById('cobro-nota').value = '';
-  document.getElementById('cobro-nota-wrap').style.display = primerTipo === 'Parcial' ? '' : 'none';
+  document.getElementById('cobro-nota-wrap').style.display = sel.value === 'Parcial' ? '' : 'none';
   document.getElementById('cobro-titulo').textContent = `Cobro — ${cliente}`;
 
   sel.onchange = () => {
     onCobroTipoChange();
-    const t = sel.value;
-    const m = t === 'Seña'
-      ? Math.round(totalEv * senaPct / 100)
-      : t === 'Saldo'
-        ? Math.round(totalEv - totalEv * senaPct / 100)
-        : 0;
-    document.getElementById('cobro-monto').value = m || '';
+    document.getElementById('cobro-monto').value = getMontoSug(sel.value) || '';
   };
 
   openModal('modal-cobro');
