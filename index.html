@@ -944,11 +944,6 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           </select>
         </div>
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
-        <div class="field full">
-          <label class="lbl">Beneficiarios de cláusula de no repetición</label>
-          <div id="ev-clausulas-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBeneficiario()">+ Agregar beneficiario</button>
-        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1063,8 +1058,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre *</label><input class="inp" id="cliente-nombre" placeholder="Nombre del cliente"></div>
         <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Cláusulas de seguro del cliente</label>
-          <textarea class="inp" id="cliente-seguro" rows="5" placeholder="Cláusulas específicas del cliente: cobertura mínima, beneficiarios adicionales, requisitos especiales..." style="resize:vertical;font-size:13px"></textarea>
+          <label class="lbl">Beneficiarios de cláusula de no repetición</label>
+          <div id="cliente-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBenefCliente()">+ Agregar beneficiario</button>
         </div>
       </div>
     </div>
@@ -1099,8 +1095,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre del salón *</label><input class="inp" id="salon-nombre" placeholder="Nombre"></div>
         <div class="field" style="grid-column:1/-1"><label class="lbl">Dirección</label><input class="inp" id="salon-direccion" placeholder="Calle, número, localidad"></div>
         <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Datos del seguro</label>
-          <textarea class="inp" id="salon-seguro" rows="4" placeholder="Compañía, póliza, contacto, requisitos especiales..." style="resize:vertical;font-size:13px"></textarea>
+          <label class="lbl">Beneficiarios de cláusula de no repetición</label>
+          <div id="salon-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBenefSalon()">+ Agregar beneficiario</button>
         </div>
       </div>
     </div>
@@ -1490,7 +1487,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Datos del evento</div>
       <div class="form-grid" style="margin-bottom:20px">
         <div class="field"><label class="lbl">N° Presupuesto</label><input class="inp" id="pres-numero" placeholder="2026-001"></div>
-        <div class="field"><label class="lbl">Cliente *</label><input class="inp" id="pres-cliente" placeholder="Nombre del cliente" list="dl-clientes" autocomplete="off"><datalist id="dl-clientes"></datalist></div>
+        <div class="field"><label class="lbl">Cliente *</label><div style="position:relative"><input class="inp" id="pres-cliente" placeholder="Nombre del cliente" autocomplete="off" oninput="acFilter('pres-cliente','ac-clientes')" onfocus="acFilter('pres-cliente','ac-clientes')" onblur="acHide('ac-clientes')"><div id="ac-clientes" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;z-index:9999;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.2);margin-top:2px"></div></div></div>
         <div class="field"><label class="lbl">Tipo de evento</label>
           <select class="inp" id="pres-tipo">
             <option>Casamiento</option><option>Corporativo</option>
@@ -1501,7 +1498,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <label class="lbl">Fechas del evento <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios días)</span></label>
           <input class="inp" id="pres-fechas" placeholder="Seleccioná una o más fechas..." readonly style="cursor:pointer">
         </div>
-        <div class="field full"><label class="lbl">Venue / Lugar</label><input class="inp" id="pres-venue" placeholder="Nombre del salón" list="dl-salones" autocomplete="off"><datalist id="dl-salones"></datalist></div>
+        <div class="field full"><label class="lbl">Venue / Lugar</label><div style="position:relative"><input class="inp" id="pres-venue" placeholder="Nombre del salón" autocomplete="off" oninput="acFilter('pres-venue','ac-salones')" onfocus="acFilter('pres-venue','ac-salones')" onblur="acHide('ac-salones')"><div id="ac-salones" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;z-index:9999;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.2);margin-top:2px"></div></div></div>
       </div>
 
       <!-- PRODUCTOS DEL CATÁLOGO -->
@@ -2290,9 +2287,7 @@ async function loadDashboard() {
           <button class="btn btn-ghost btn-sm" onclick="verSegurosEvento(${ev.id})">🛡️ Ver cláusulas</button>
           ${ev.seguro_enviado
             ? `<button class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed" disabled>✅ Seguros enviados</button>`
-            : ev.clausulas
-              ? `<button class="btn btn-ghost btn-sm" onclick="enviarMailSeguroEvento(${ev.id},'${(ev.venue||ev.codigo||'').replace(/'/g,"\\'")}')">📧 Enviar seguro</button>`
-              : `<button class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed" title="Cargá las cláusulas del salón en Eventos primero" disabled>📧 Enviar seguro</button>`}
+            : `<button class="btn btn-ghost btn-sm" onclick="enviarMailSeguroEvento(${ev.id},'${(ev.venue||ev.codigo||'').replace(/'/g,"\\'")}')">📧 Enviar seguro</button>`}
         </div>
       </div>`;
     }).join('');
@@ -2397,20 +2392,59 @@ function buscarEventos(valor) {
 
 
 let editingEventoId = null;
-let evBeneficiarios = []; // [{nombre, cuit}]
-
-function renderBeneficiarios() {
-  document.getElementById('ev-clausulas-lista').innerHTML = evBeneficiarios.map((b, i) => `
-    <div style="display:flex;gap:8px;align-items:center">
-      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="evBeneficiarios[${i}].nombre=this.value">
-      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);evBeneficiarios[${i}].cuit=this.value">
-      <button type="button" class="btn btn-danger btn-sm" onclick="evBeneficiarios.splice(${i},1);renderBeneficiarios()">✕</button>
-    </div>`).join('');
+// ── AUTOCOMPLETE CUSTOM ──────────────────────────────────
+const _acData = {};
+function acFilter(inputId, dropId) {
+  const q = (document.getElementById(inputId).value || '').toLowerCase();
+  const opts = _acData[inputId] || [];
+  const matches = opts.filter(o => !q || o.toLowerCase().includes(q)).slice(0, 10);
+  const drop = document.getElementById(dropId);
+  if (!drop) return;
+  if (!matches.length) { drop.style.display = 'none'; return; }
+  drop.innerHTML = matches.map(m =>
+    `<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)"
+      onmousedown="acSelect('${inputId}','${dropId}',this)"
+      onmouseover="this.style.background='var(--bg-3)'"
+      onmouseout="this.style.background=''">${m}</div>`
+  ).join('');
+  drop.style.display = 'block';
+}
+function acHide(dropId) {
+  setTimeout(() => { const d = document.getElementById(dropId); if (d) d.style.display = 'none'; }, 150);
+}
+function acSelect(inputId, dropId, el) {
+  document.getElementById(inputId).value = el.textContent;
+  document.getElementById(dropId).style.display = 'none';
 }
 
-function agregarBeneficiario() {
-  evBeneficiarios.push({ nombre: '', cuit: '' });
-  renderBeneficiarios();
+// ── BENEFICIARIOS CLIENTE ────────────────────────────────
+let clienteBeneficiarios = [];
+function renderClienteBenef() {
+  document.getElementById('cliente-benef-lista').innerHTML = clienteBeneficiarios.map((b, i) => `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="clienteBeneficiarios[${i}].nombre=this.value">
+      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);clienteBeneficiarios[${i}].cuit=this.value">
+      <button type="button" class="btn btn-danger btn-sm" onclick="clienteBeneficiarios.splice(${i},1);renderClienteBenef()">✕</button>
+    </div>`).join('');
+}
+function agregarBenefCliente() {
+  clienteBeneficiarios.push({ nombre: '', cuit: '' });
+  renderClienteBenef();
+}
+
+// ── BENEFICIARIOS SALON ──────────────────────────────────
+let salonBeneficiarios = [];
+function renderSalonBenef() {
+  document.getElementById('salon-benef-lista').innerHTML = salonBeneficiarios.map((b, i) => `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="salonBeneficiarios[${i}].nombre=this.value">
+      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);salonBeneficiarios[${i}].cuit=this.value">
+      <button type="button" class="btn btn-danger btn-sm" onclick="salonBeneficiarios.splice(${i},1);renderSalonBenef()">✕</button>
+    </div>`).join('');
+}
+function agregarBenefSalon() {
+  salonBeneficiarios.push({ nombre: '', cuit: '' });
+  renderSalonBenef();
 }
 
 async function editEvento(id) {
@@ -2455,8 +2489,6 @@ async function editEvento(id) {
   if (fpDesarme) { ev.fecha_desarme ? fpDesarme.setDate(ev.fecha_desarme, false, 'Y-m-d') : fpDesarme.clear(); }
   else { document.getElementById('ev-fecha-desarme').value = ev.fecha_desarme || ''; }
   document.getElementById('ev-hora-desarme').innerHTML = buildTimeOpts(ev.hora_desarme || '');
-  evBeneficiarios = ev.clausulas ? JSON.parse(ev.clausulas) : [];
-  renderBeneficiarios();
   openModal('modal-evento');
 }
 
@@ -2481,7 +2513,6 @@ async function guardarEvento() {
     hora_armado:    document.getElementById('ev-hora-armado').value || null,
     fecha_desarme:  document.getElementById('ev-fecha-desarme').value || null,
     hora_desarme:   document.getElementById('ev-hora-desarme').value || null,
-    clausulas:      evBeneficiarios.filter(b => b.nombre || b.cuit).length ? JSON.stringify(evBeneficiarios.filter(b => b.nombre || b.cuit)) : null,
     updated_at:     new Date().toISOString(),
   };
 
@@ -2521,11 +2552,9 @@ async function guardarEvento() {
     }
     closeModal('modal-evento');
     editingEventoId = null;
-    evBeneficiarios = [];
-    renderBeneficiarios();
     document.getElementById('modal-evento-title').textContent = 'Nuevo evento';
     loadEventos();
-    evCache = await sb('eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
+    evCache = await sb('v_eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
     llenarSelectEventos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -3697,9 +3726,18 @@ async function guardarLogistica() {
 
 async function enviarMailSeguroEvento(eventoId, evLabel) {
   try {
-    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'clausulas', limit: 1 });
-    const beneficiarios = evRow[0]?.clausulas ? JSON.parse(evRow[0].clausulas) : [];
-    if (!beneficiarios.length) { toast('Cargá los beneficiarios de la cláusula en el evento primero', 'err'); return; }
+    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id', limit: 1 });
+    const ev0 = evRow[0] || {};
+    let beneficiarios = [];
+    if (ev0.cliente_id) {
+      const clRow = await sb('clientes', { filters: [`id=eq.${ev0.cliente_id}`], select: 'seguro_info', limit: 1 });
+      try { beneficiarios = clRow[0]?.seguro_info ? JSON.parse(clRow[0].seguro_info) : []; } catch(e) {}
+    }
+    if (!beneficiarios.length && ev0.salon_id) {
+      const slRow = await sb('salones', { filters: [`id=eq.${ev0.salon_id}`], select: 'seguro_info', limit: 1 });
+      try { beneficiarios = slRow[0]?.seguro_info ? JSON.parse(slRow[0].seguro_info) : []; } catch(e) {}
+    }
+    if (!beneficiarios.length) { toast('Cargá los beneficiarios en el cliente o salón primero', 'err'); return; }
 
     const segRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${eventoId}`], select: 'logistica_id', limit: 50 });
     const segLogIds = segRels.map(r => r.logistica_id);
@@ -5367,17 +5405,18 @@ async function editarCliente(id) {
     const c = rows[0]; if (!c) return;
     document.getElementById('cliente-modal-title').textContent = c.nombre;
     document.getElementById('cliente-nombre').value  = c.nombre || '';
-    document.getElementById('cliente-seguro').value  = c.seguro_info || '';
+    try { clienteBeneficiarios = c.seguro_info ? JSON.parse(c.seguro_info) : []; } catch(e) { clienteBeneficiarios = []; }
+    renderClienteBenef();
     openModal('modal-cliente');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 async function guardarCliente() {
   const nombre = document.getElementById('cliente-nombre').value.trim();
-  const seguro = document.getElementById('cliente-seguro').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  const benefs = clienteBeneficiarios.filter(b => b.nombre || b.cuit);
   try {
-    await sbPatch('clientes', clienteEditId, { nombre, seguro_info: seguro || null });
+    await sbPatch('clientes', clienteEditId, { nombre, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
     closeModal('modal-cliente');
     toast('Cliente actualizado');
     loadClientes();
@@ -5399,19 +5438,21 @@ async function verSegurosEvento(eventoId) {
     const cliente = clRows[0];
     const salon   = slRows[0];
 
-    const seccion = (titulo, texto) => texto
-      ? `<div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:6px">${titulo}</div>
-          <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;white-space:pre-wrap;line-height:1.6">${texto}</div>
-        </div>`
-      : `<div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:6px">${titulo}</div>
-          <div style="color:var(--text-3);font-size:13px;font-style:italic">Sin cláusulas cargadas</div>
-        </div>`;
+    const seccionBenef = (titulo, seguroInfo) => {
+      let benefs = [];
+      try { benefs = seguroInfo ? JSON.parse(seguroInfo) : []; } catch(e) {}
+      const contenido = benefs.length
+        ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-1);line-height:1.8">${benefs.map(b => `<li><strong>${b.nombre}</strong>${b.cuit ? ` — CUIT ${b.cuit}` : ''}</li>`).join('')}</ul>`
+        : `<div style="color:var(--text-3);font-size:13px;font-style:italic">Sin beneficiarios cargados</div>`;
+      return `<div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:6px">${titulo}</div>
+        <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:12px">${contenido}</div>
+      </div>`;
+    };
 
     document.getElementById('modal-seguros-body').innerHTML =
-      seccion(`🏛️ Salón — ${salon?.nombre || ev.venue || '—'}`, salon?.seguro_info) +
-      seccion(`👤 Cliente — ${cliente?.nombre || ev.cliente_nombre || '—'}`, cliente?.seguro_info);
+      seccionBenef(`🏛️ Salón — ${salon?.nombre || ev.venue || '—'}`, salon?.seguro_info) +
+      seccionBenef(`👤 Cliente — ${cliente?.nombre || ev.cliente_nombre || '—'}`, cliente?.seguro_info);
 
     openModal('modal-seguros-evento');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -5454,7 +5495,8 @@ async function editarSalon(id) {
     document.getElementById('salon-modal-title').textContent = s.nombre;
     document.getElementById('salon-nombre').value    = s.nombre || '';
     document.getElementById('salon-direccion').value = s.direccion || '';
-    document.getElementById('salon-seguro').value    = s.seguro_info || '';
+    try { salonBeneficiarios = s.seguro_info ? JSON.parse(s.seguro_info) : []; } catch(e) { salonBeneficiarios = []; }
+    renderSalonBenef();
     openModal('modal-salon');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -5462,10 +5504,10 @@ async function editarSalon(id) {
 async function guardarSalon() {
   const nombre   = document.getElementById('salon-nombre').value.trim();
   const direccion = document.getElementById('salon-direccion').value.trim();
-  const seguro   = document.getElementById('salon-seguro').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  const benefs = salonBeneficiarios.filter(b => b.nombre || b.cuit);
   try {
-    await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info: seguro || null });
+    await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
     closeModal('modal-salon');
     toast('Salón actualizado');
     loadSalones();
@@ -6031,14 +6073,14 @@ async function abrirModalPresupuesto() {
     });
   }
 
-  // Poblar datalists de cliente y salón
+  // Poblar autocomplete de cliente y venue
   try {
     const [clientes, salones] = await Promise.all([
       sb('clientes', { select: 'nombre', order: 'nombre', limit: 500 }),
       sb('salones',  { select: 'nombre', order: 'nombre', limit: 500 }),
     ]);
-    document.getElementById('dl-clientes').innerHTML = clientes.map(c => `<option value="${c.nombre}">`).join('');
-    document.getElementById('dl-salones').innerHTML  = salones.map(s => `<option value="${s.nombre}">`).join('');
+    _acData['pres-cliente'] = clientes.map(c => c.nombre);
+    _acData['pres-venue']   = salones.map(s => s.nombre);
   } catch(e) { /* no bloquear si falla */ }
 
   openModal('modal-presupuesto');
