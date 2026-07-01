@@ -6618,26 +6618,30 @@ async function generarPresupuesto() {
         const foto = it.esCustom ? (it.foto_base64 || null) : fotosMap[it.id];
         const desc = it.descripcion || '';
         const hasDesc = !!desc;
-        const rowHFinal = foto ? (hasDesc ? 22 : 18) : (hasDesc ? 13 : 9);
+        const imgSize = 24;
+        const xText = foto ? M+imgSize+3 : M+2;
+
+        font('normal', 7.5);
+        const descLines = hasDesc ? doc.splitTextToSize(desc, CW - (xText - M) - 2) : [];
+        const descLineH = 4;
+        const textH = 6 + (hasDesc ? descLines.length * descLineH : 0) + 2;
+        const rowHFinal = Math.max(foto ? imgSize + 3 : 9, textH);
 
         if (y + rowHFinal > PH - 30) { doc.addPage(); y = 15; }
         fill(idx2%2===0 ? BLANCO : GRIS_F);
         doc.rect(M, y, CW, rowHFinal, 'F');
 
         if (foto) {
-          try { doc.addImage(foto, M+1, y+1, 14, 14); } catch(e) {}
+          try { doc.addImage(foto, M+1, y+1, imgSize, imgSize); } catch(e) {}
         }
-        const xText = foto ? M+17 : M+2;
         font('bold', 8.5); text(NEGRO);
-        const maxChars = foto ? 48 : 55;
+        const maxChars = foto ? 42 : 55;
         const prod = it.producto.length > maxChars ? it.producto.substring(0, maxChars-3)+'...' : it.producto;
-        const yProd = y + (foto ? 6 : (hasDesc ? 5 : 6));
+        const yProd = y + (hasDesc ? 5 : rowHFinal/2 + 2);
         doc.text(prod, xText, yProd);
         if (hasDesc) {
           font('normal', 7.5); text([80,80,80]);
-          const maxDescChars = foto ? 60 : 75;
-          const descTxt = desc.length > maxDescChars ? desc.substring(0, maxDescChars-3)+'...' : desc;
-          doc.text(descTxt, xText, yProd + 4.5);
+          descLines.forEach((line, li) => doc.text(line, xText, yProd + 4.5 + li*descLineH));
         }
         const yCant = y + rowHFinal / 2 + 2;
         font('normal', 8.5); text(NEGRO);
