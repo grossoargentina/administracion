@@ -448,6 +448,9 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="nav-item" onclick="goTo('salones')">
         <span class="nav-icon">🏛️</span> Salones
       </div>
+      <div class="nav-item" onclick="goTo('clientes')">
+        <span class="nav-icon">👥</span> Clientes
+      </div>
     </nav>
     <div class="sidebar-footer">
       <div style="margin-bottom:6px">administracion@grossoarg.com</div>
@@ -782,6 +785,21 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       </div>
     </div>
 
+    <!-- CLIENTES -->
+    <div class="page" id="p-clientes">
+      <div class="page-header">
+        <div><div class="page-title">Clientes</div><div class="page-sub">Historial y cláusulas de seguro por cliente</div></div>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th>Cláusula de seguro</th><th>Eventos</th><th></th></tr></thead>
+            <tbody id="clientes-tbody"><tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- GASTOS PERSONALES -->
     <div class="page" id="p-gastos">
       <div class="page-header">
@@ -1032,6 +1050,41 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
 </div>
 
 <!-- MODAL PRODUCTO CATÁLOGO -->
+<div class="modal-overlay" id="modal-cliente">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title" id="cliente-modal-title">Editar cliente</span>
+      <button class="modal-close" onclick="closeModal('modal-cliente')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre *</label><input class="inp" id="cliente-nombre" placeholder="Nombre del cliente"></div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Cláusulas de seguro del cliente</label>
+          <textarea class="inp" id="cliente-seguro" rows="5" placeholder="Cláusulas específicas del cliente: cobertura mínima, beneficiarios adicionales, requisitos especiales..." style="resize:vertical;font-size:13px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCliente()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-seguros-evento">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-header">
+      <span class="modal-title">🛡️ Cláusulas de seguro</span>
+      <button class="modal-close" onclick="closeModal('modal-seguros-evento')">×</button>
+    </div>
+    <div class="modal-body" id="modal-seguros-body" style="display:flex;flex-direction:column;gap:16px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-seguros-evento')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-salon">
   <div class="modal" style="max-width:480px">
     <div class="modal-header">
@@ -1812,6 +1865,7 @@ async function loadPage(page) {
     case 'presupuestos': loadPresupuestos(); break;
     case 'catalogo':   loadCatalogo(); break;
     case 'salones':    loadSalones(); break;
+    case 'clientes':   loadClientes(); break;
     case 'gastos':     loadGastos(); break;
   }
 }
@@ -2175,6 +2229,7 @@ async function loadDashboard() {
         ${columnsHtml}
         ${productosHtml}
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="verSegurosEvento(${ev.id})">🛡️ Ver cláusulas</button>
           ${ev.seguro_enviado
             ? `<button class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed" disabled>✅ Seguros enviados</button>`
             : ev.clausulas
@@ -5178,6 +5233,90 @@ async function confirmarMesNuevo() {
 
 
 // ── CATÁLOGO ──────────────────────────────────────────────
+// ── CLIENTES ────────────────────────────────────────────
+let clienteEditId = null;
+
+async function loadClientes() {
+  const tbody = document.getElementById('clientes-tbody');
+  tbody.innerHTML = '<tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr>';
+  try {
+    const [clientes, eventos] = await Promise.all([
+      sb('clientes', { order: 'nombre', limit: 500 }),
+      sb('eventos', { select: 'cliente_id', filters: ['cliente_id=not.is.null'], limit: 500 }),
+    ]);
+    const countMap = {};
+    eventos.forEach(e => { countMap[e.cliente_id] = (countMap[e.cliente_id] || 0) + 1; });
+
+    if (!clientes.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-3);font-size:13px">No hay clientes registrados. Se crean automáticamente al confirmar presupuestos.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = clientes.map(c => `<tr>
+      <td style="font-weight:600;font-size:13px">${c.nombre}</td>
+      <td style="font-size:12px">${c.seguro_info ? '<span style="color:var(--green);font-size:11px">✓ Cargado</span>' : '<span style="color:var(--text-3)">—</span>'}</td>
+      <td style="font-size:12px">${countMap[c.id] || 0}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editarCliente(${c.id})">✏️ Editar</button></td>
+    </tr>`).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="4" style="padding:16px;color:var(--red)">${e.message}</td></tr>`; }
+}
+
+async function editarCliente(id) {
+  clienteEditId = id;
+  try {
+    const rows = await sb('clientes', { filters: [`id=eq.${id}`], limit: 1 });
+    const c = rows[0]; if (!c) return;
+    document.getElementById('cliente-modal-title').textContent = c.nombre;
+    document.getElementById('cliente-nombre').value  = c.nombre || '';
+    document.getElementById('cliente-seguro').value  = c.seguro_info || '';
+    openModal('modal-cliente');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function guardarCliente() {
+  const nombre = document.getElementById('cliente-nombre').value.trim();
+  const seguro = document.getElementById('cliente-seguro').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  try {
+    await sbPatch('clientes', clienteEditId, { nombre, seguro_info: seguro || null });
+    closeModal('modal-cliente');
+    toast('Cliente actualizado');
+    loadClientes();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function verSegurosEvento(eventoId) {
+  try {
+    const rows = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,cliente_nombre,venue', limit: 1 });
+    const ev = rows[0]; if (!ev) return;
+
+    const fetches = [];
+    if (ev.cliente_id) fetches.push(sb('clientes', { filters: [`id=eq.${ev.cliente_id}`], select: 'nombre,seguro_info', limit: 1 }));
+    else fetches.push(Promise.resolve([]));
+    if (ev.salon_id) fetches.push(sb('salones', { filters: [`id=eq.${ev.salon_id}`], select: 'nombre,seguro_info', limit: 1 }));
+    else fetches.push(Promise.resolve([]));
+
+    const [clRows, slRows] = await Promise.all(fetches);
+    const cliente = clRows[0];
+    const salon   = slRows[0];
+
+    const seccion = (titulo, texto) => texto
+      ? `<div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:6px">${titulo}</div>
+          <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;white-space:pre-wrap;line-height:1.6">${texto}</div>
+        </div>`
+      : `<div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:6px">${titulo}</div>
+          <div style="color:var(--text-3);font-size:13px;font-style:italic">Sin cláusulas cargadas</div>
+        </div>`;
+
+    document.getElementById('modal-seguros-body').innerHTML =
+      seccion(`🏛️ Salón — ${salon?.nombre || ev.venue || '—'}`, salon?.seguro_info) +
+      seccion(`👤 Cliente — ${cliente?.nombre || ev.cliente_nombre || '—'}`, cliente?.seguro_info);
+
+    openModal('modal-seguros-evento');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
 // ── SALONES ─────────────────────────────────────────────
 let salonEditId = null;
 
