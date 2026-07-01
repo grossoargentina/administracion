@@ -2948,7 +2948,7 @@ async function loadLogisticas() {
     rows.forEach(r => {
       const jors = jornadas.filter(j => j.logistica_id === r.id);
       const esDeposito = r.tipo === 'Deposito';
-      const esOriginal = r.evento_id && logIdOriginalPorEvento[r.evento_id] === r.id;
+
 
       let evLabel;
       if (esDeposito) {
