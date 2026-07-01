@@ -2953,7 +2953,7 @@ async function loadLogisticas() {
         [...tiposBase, ...tiposExtra].forEach(tipo => {
           const jorsTipo = jors.filter(j => j.tipo === tipo);
           const dias = [...new Set(jorsTipo.map(j => j.fecha))].sort();
-          const persIds = [...new Set(jorsTipo.map(j => j.personal_id))];
+          const persIds = [...new Set(jorsTipo.map(j => j.personal_id).filter(Boolean))];
           const fechaLabel = dias.length
             ? dias.length === 1
               ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
