@@ -1127,8 +1127,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Personal</label>
-          <select class="inp" id="armado-personal" multiple style="height:120px"></select>
-          <div style="font-size:11px;color:var(--text-3);margin-top:4px">Ctrl+clic para seleccionar varios</div>
+          <div id="armado-personal" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;padding:8px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px"></div>
         </div>
       </div>
     </div>
@@ -2911,7 +2910,7 @@ async function loadLogisticas() {
     }
     const ids = rows.map(r => r.id);
     const [jornadas, logEvRels] = await Promise.all([
-      sb('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,tipo,fecha,personal_id', limit: 2000 }),
+      sb('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,tipo,fecha,personal_id,confirmada,pagado', limit: 2000 }),
       sb('logistica_eventos', { filters: [`logistica_id=in.(${ids.join(',')})`], limit: 500 }),
     ]);
 
@@ -2954,13 +2953,15 @@ async function loadLogisticas() {
           const jorsTipo = jors.filter(j => j.tipo === tipo);
           const dias = [...new Set(jorsTipo.map(j => j.fecha))].sort();
           const persIds = [...new Set(jorsTipo.map(j => j.personal_id).filter(Boolean))];
+          const todasConfirmadas = jorsTipo.length > 0 && jorsTipo.every(j => j.confirmada);
+          const todasPagadas = jorsTipo.length > 0 && jorsTipo.every(j => j.pagado);
           const fechaLabel = dias.length
             ? dias.length === 1
               ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})
               : `${new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} → ${new Date(dias[dias.length-1]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`
             : '—';
           const fechaSort = dias.length ? dias[0] : '9999-99-99';
-          filas.push({ logId: r.id, eventoId: r.evento_id, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false });
+          filas.push({ logId: r.id, eventoId: r.evento_id, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas, todasPagadas });
         });
       }
     });
@@ -2995,17 +2996,28 @@ async function loadLogisticas() {
 
     filas.sort((a,b) => b.logId - a.logId || a.orden - b.orden);
 
-    tbody.innerHTML = filas.map(f => `<tr>
-      <td><b style="font-size:13px">${f.evLabel}</b></td>
-      <td><span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipoLabel}</span></td>
-      <td style="font-size:12px;color:var(--text-2)">${f.fechaLabel}</td>
-      <td style="font-size:12px">${f.persCount} persona(s)</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}',${f.eliminable})">✏️ Editar</button>
-        <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
-        ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
-      </td>
-    </tr>`).join('');
+    tbody.innerHTML = filas.map(f => {
+      let estadoBadge = '';
+      if (f.todasPagadas) {
+        estadoBadge = `<span style="font-size:11px;color:var(--green);font-weight:600">✅ Pagado</span>`;
+      } else if (f.todasConfirmadas) {
+        estadoBadge = `<span style="font-size:11px;color:var(--blue);font-weight:600">🔵 En pagos</span>`;
+      } else {
+        estadoBadge = `<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="confirmarJornadas(${f.logId},'${f.tipo}')">✓ Confirmar</button>`;
+      }
+      return `<tr>
+        <td><b style="font-size:13px">${f.evLabel}</b></td>
+        <td><span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipoLabel}</span></td>
+        <td style="font-size:12px;color:var(--text-2)">${f.fechaLabel}</td>
+        <td style="font-size:12px">${f.persCount} persona(s)</td>
+        <td>${estadoBadge}</td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="editarLogistica(${f.logId},'${f.tipo}',${f.eliminable})">✏️ Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
+          ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
   } catch(e) { toast('Error cargando logísticas: ' + e.message, 'err'); }
 }
 
@@ -3077,9 +3089,14 @@ function abrirAgregarArmado() {
   evSel.innerHTML = evRelevantes.map(e => `<option value="${e.id}">${e.codigo} · ${e.cliente_nombre} · ${e.venue || ''}</option>`).join('');
   // Hora
   document.getElementById('armado-hora').innerHTML = buildTimeOpts('');
-  // Personal
-  const persSel = document.getElementById('armado-personal');
-  persSel.innerHTML = (persCache || []).map(p => `<option value="${p.id}">${p.apellido} ${p.nombre}</option>`).join('');
+  // Personal checkboxes
+  const persDiv = document.getElementById('armado-personal');
+  persDiv.innerHTML = (persCache || []).map(p =>
+    `<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+      <input type="checkbox" value="${p.id}" style="width:15px;height:15px;cursor:pointer">
+      ${p.apellido} ${p.nombre}
+    </label>`
+  ).join('');
   // Fecha hoy
   document.getElementById('armado-fecha').value = today();
   openModal('modal-agregar-armado');
@@ -3091,8 +3108,7 @@ async function guardarAgregarArmado() {
   const hora = document.getElementById('armado-hora').value;
   if (!evId || !fecha) { toast('Elegí un evento y una fecha', 'err'); return; }
 
-  const persSelOpts = [...document.getElementById('armado-personal').selectedOptions];
-  const persIds = persSelOpts.map(o => parseInt(o.value));
+  const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
   try {
     // Find existing logística for this event, or create one
@@ -3134,6 +3150,16 @@ async function guardarAgregarArmado() {
     closeModal('modal-agregar-armado');
     toast('Día de armado agregado');
     loadLogistica();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function confirmarJornadas(logId, tipo) {
+  try {
+    const jors = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, `confirmada=eq.false`], select: 'id', limit: 200 });
+    if (!jors.length) { toast('Ya están todas confirmadas'); return; }
+    for (const j of jors) await sbPatch('jornadas', j.id, { confirmada: true });
+    toast(`✅ ${jors.length} jornada(s) confirmadas — aparecen en Pagos`);
+    loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -3988,7 +4014,7 @@ async function loadPagos() {
 
   try {
     const [jornadas, personal] = await Promise.all([
-      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 500 }),
+      sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 500 }),
       sb('personal', { limit: 200 }),
     ]);
 
@@ -4096,7 +4122,7 @@ async function confirmarPagoPersona(metodo) {
   closeModal('modal-pago-metodo');
   const hoy = new Date().toISOString().split('T')[0];
   try {
-    const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 });
+    const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 });
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
     if (metodo === 'efectivo' && total > 0) {
       await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy });
@@ -4112,7 +4138,7 @@ function generarReciboIndividual(p) {
   const domingo = new Date(hasta + 'T12:00:00');
   const periodo = `${lunes.toLocaleDateString('es-AR')} al ${domingo.toLocaleDateString('es-AR')}`;
   // Reusar generarReciboPDF con datos de esta persona
-  sb('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 })
+  sb('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 })
     .then(jornadas => {
       const data = { apellido: p.apellido, nombre: p.nombre, tipo: p.tipo, sueldo_fijo: p.sueldo_fijo, jornadas };
       const blob = generarReciboPDF(data, periodo, lunes);
