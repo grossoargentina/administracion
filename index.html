@@ -1768,7 +1768,7 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
 });
 
 // ── AUTH SUPABASE + GOOGLE ────────────────────────────────
-const ALLOWED_EMAIL = 'administracion@grossoarg.com';
+const ALLOWED_EMAILS = ['administracion@grossoarg.com'];
 let AUTH = false;
 
 // Inicializar cliente Supabase Auth via CDN
@@ -1777,28 +1777,29 @@ const supabaseClient = createClient(SB_URL, SB_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
 
+const isAllowedEmail = email => ALLOWED_EMAILS.includes(email);
+let _appInitialized = false; // evita llamar showApp/initApp más de una vez
+
 async function initAuth() {
-  // Si hay hash de OAuth en la URL, dejar que Supabase lo procese
   const hasOAuthHash = window.location.hash.includes('access_token');
 
-  // Escuchar cambios de sesión PRIMERO
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth event:', event, session?.user?.email);
+
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-      if (session?.user?.email === ALLOWED_EMAIL) {
+      if (isAllowedEmail(session?.user?.email)) {
         AUTH = true;
-        // Guardar tokens en localStorage para que persistan entre recargas
-        if (session.provider_token) {
+        if (session.provider_token)
           localStorage.setItem('drive_token', session.provider_token);
-        }
-        if (session.provider_refresh_token) {
+        if (session.provider_refresh_token)
           localStorage.setItem('drive_refresh_token', session.provider_refresh_token);
-        }
-        // Limpiar hash de la URL
-        if (window.location.hash) {
+        if (window.location.hash)
           history.replaceState(null, '', window.location.pathname);
+        // Solo inicializar la app una vez por carga de página
+        if (!_appInitialized) {
+          _appInitialized = true;
+          showApp();
         }
-        showApp();
       } else if (session?.user?.email) {
         await supabaseClient.auth.signOut();
         showError('Cuenta no autorizada: ' + session.user.email);
@@ -1806,33 +1807,29 @@ async function initAuth() {
       }
     } else if (event === 'SIGNED_OUT') {
       AUTH = false;
+      _appInitialized = false;
       document.getElementById('app').classList.remove('visible');
       document.getElementById('login-screen').style.display = 'flex';
       renderGoogleBtn();
     }
   });
 
-  // Verificar sesión existente
+  // Verificar sesión existente al cargar
   const { data: { session } } = await supabaseClient.auth.getSession();
-  console.log('Sesión existente:', session?.user?.email || 'ninguna');
-
-  if (session?.user?.email === ALLOWED_EMAIL) {
+  if (isAllowedEmail(session?.user?.email)) {
     AUTH = true;
-    showApp();
+    if (!_appInitialized) {
+      _appInitialized = true;
+      showApp();
+    }
     return;
   }
 
-  // Si hay hash OAuth, esperar al onAuthStateChange
   if (hasOAuthHash) {
-    console.log('Procesando callback OAuth...');
-    // Supabase procesa el hash automáticamente, esperamos el evento
-    setTimeout(() => {
-      if (!AUTH) renderGoogleBtn();
-    }, 3000);
+    setTimeout(() => { if (!AUTH) renderGoogleBtn(); }, 3000);
     return;
   }
 
-  // Sin sesión y sin hash — mostrar botón
   renderGoogleBtn();
 }
 
@@ -1840,11 +1837,26 @@ async function initAuth() {
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || AUTH) return;
   const { data: { session } } = await supabaseClient.auth.getSession();
-  if (session?.user?.email === ALLOWED_EMAIL) {
+  if (isAllowedEmail(session?.user?.email)) {
     AUTH = true;
-    showApp();
+    if (!_appInitialized) { _appInitialized = true; showApp(); }
   }
 });
+
+// Refrescar el token de Google cada 50 minutos (expira al hora)
+setInterval(async () => {
+  if (!AUTH) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session?.provider_refresh_token) {
+      localStorage.setItem('drive_refresh_token', session.provider_refresh_token);
+    }
+    if (session?.provider_token) {
+      localStorage.setItem('drive_token', session.provider_token);
+    }
+    await refreshDriveToken();
+  } catch(e) { console.warn('Token refresh silencioso falló:', e); }
+}, 50 * 60 * 1000);
 
 function renderGoogleBtn() {
   document.getElementById('g-signin-btn').innerHTML = `
@@ -1862,7 +1874,8 @@ async function loginConGoogle() {
       scopes: 'https://www.googleapis.com/auth/drive',
       queryParams: {
         access_type: 'offline',
-        prompt: 'consent',
+        // 'consent' fuerza re-autorización siempre; solo pedir cuando no hay refresh_token
+        prompt: localStorage.getItem('drive_refresh_token') ? 'select_account' : 'consent',
       },
     }
   });
