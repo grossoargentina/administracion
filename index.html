@@ -1228,11 +1228,24 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-body" style="text-align:center;padding:24px 20px">
       <div style="font-size:14px;color:var(--text-2);margin-bottom:4px">Pago a</div>
       <div id="pago-metodo-nombre" style="font-size:18px;font-weight:700;margin-bottom:4px"></div>
-      <div id="pago-metodo-total" style="font-size:22px;font-weight:700;color:var(--gold);margin-bottom:24px"></div>
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:2px">Base</div>
+      <div id="pago-metodo-total" style="font-size:20px;font-weight:700;color:var(--gold);margin-bottom:16px"></div>
       <input type="hidden" id="pago-metodo-persId">
       <input type="hidden" id="pago-metodo-desde">
       <input type="hidden" id="pago-metodo-hasta">
       <input type="hidden" id="pago-metodo-total-val">
+      <!-- Extras -->
+      <div style="text-align:left;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em">Extras / Descuentos</span>
+          <button class="btn btn-ghost btn-sm" onclick="agregarExtraPago()">+ Agregar</button>
+        </div>
+        <div id="pago-extras-list"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);margin-bottom:16px">
+        <span style="font-size:13px;font-weight:600">Total a pagar</span>
+        <span id="pago-total-final" style="font-size:20px;font-weight:700;color:var(--gold)"></span>
+      </div>
       <div style="display:flex;gap:12px;justify-content:center">
         <button class="btn btn-ghost" style="flex:1;padding:16px;font-size:15px" onclick="confirmarPagoPersona('transferencia')">🏦 Transferencia</button>
         <button class="btn btn-primary" style="flex:1;padding:16px;font-size:15px" onclick="confirmarPagoPersona('efectivo')">💵 Efectivo</button>
@@ -3610,13 +3623,8 @@ async function guardarAgregarArmado() {
       });
       await sbPost('jornadas', jornadas);
     } else {
-      await sbPost('jornadas', [{
-        codigo: `${codigoBase}-0`,
-        logistica_id: logId,
-        tipo,
-        fecha: fecha || null,
-        pagado: false,
-      }]);
+      toast('Seleccioná al menos una persona', 'err');
+      return;
     }
 
     closeModal('modal-agregar-armado');
@@ -4208,7 +4216,7 @@ function renderEditorLogistica() {
     html += `<div style="margin-bottom:20px">
       <div style="font-weight:600;color:var(--gold);font-size:13px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">${label}</div>`;
 
-    porFecha[fecha].forEach(j => {
+    porFecha[fecha].filter(j => j.personal_id).forEach(j => {
       const jid = `log-j-${j.id}`;
       const transporteInfo = j.transporte === 'Camioneta propia' ? '🚛 Camioneta propia'
         : j.transporte === 'Flete' ? `🚛 Flete${j.flete_personal ? ` — ${j.flete_personal}` : ''}${j.flete_monto ? ` (${fmtARS(j.flete_monto)})` : ''}`
@@ -4670,23 +4678,68 @@ function marcarPagadoPersona(persId, desde, hasta, nombre, total) {
   document.getElementById('pago-metodo-desde').value = desde;
   document.getElementById('pago-metodo-hasta').value = hasta;
   document.getElementById('pago-metodo-total-val').value = total;
+  document.getElementById('pago-extras-list').innerHTML = '';
+  recalcularTotalPago();
   openModal('modal-pago-metodo');
+}
+
+function agregarExtraPago() {
+  const list = document.getElementById('pago-extras-list');
+  const idx = list.children.length;
+  const row = document.createElement('div');
+  row.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
+  row.innerHTML = `
+    <input class="inp" placeholder="Descripción" style="flex:2;font-size:12px" oninput="recalcularTotalPago()">
+    <input class="inp" type="number" placeholder="Monto" style="flex:1;font-size:12px" oninput="recalcularTotalPago()">
+    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove();recalcularTotalPago()">✕</button>`;
+  list.appendChild(row);
+}
+
+function recalcularTotalPago() {
+  const base = parseFloat(document.getElementById('pago-metodo-total-val').value) || 0;
+  const rows = document.getElementById('pago-extras-list').children;
+  let extras = 0;
+  for (const row of rows) {
+    const monto = parseFloat(row.querySelectorAll('input')[1].value) || 0;
+    extras += monto;
+  }
+  const total = base + extras;
+  document.getElementById('pago-total-final').textContent = fmtARS(total);
+  document.getElementById('pago-total-final').style.color = total < 0 ? 'var(--red)' : 'var(--gold)';
+}
+
+function getExtrasDescripcion() {
+  const rows = document.getElementById('pago-extras-list').children;
+  const items = [];
+  for (const row of rows) {
+    const desc  = row.querySelectorAll('input')[0].value.trim();
+    const monto = parseFloat(row.querySelectorAll('input')[1].value) || 0;
+    if (monto !== 0) items.push({ desc, monto });
+  }
+  return items;
 }
 
 async function confirmarPagoPersona(metodo) {
   const persId = document.getElementById('pago-metodo-persId').value;
   const desde  = document.getElementById('pago-metodo-desde').value;
   const hasta  = document.getElementById('pago-metodo-hasta').value;
-  const total  = parseFloat(document.getElementById('pago-metodo-total-val').value);
+  const base   = parseFloat(document.getElementById('pago-metodo-total-val').value);
   const nombre = document.getElementById('pago-metodo-nombre').textContent;
+  const extras = getExtrasDescripcion();
+  const totalExtras = extras.reduce((s, e) => s + e.monto, 0);
+  const total = base + totalExtras;
   closeModal('modal-pago-metodo');
   const hoy = new Date().toISOString().split('T')[0];
   try {
     const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 });
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
-    // Siempre registrar en caja para que Finanzas tenga el monto correcto
-    if (total > 0) {
-      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo });
+    if (base !== 0) {
+      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: base, fecha: hoy, metodo_pago: metodo });
+    }
+    for (const ex of extras) {
+      if (ex.monto === 0) continue;
+      const tipo = ex.monto > 0 ? 'egreso' : 'ingreso';
+      await sbInsert('caja', { tipo, descripcion: ex.desc || `Extra — ${nombre}`, monto: Math.abs(ex.monto), fecha: hoy, metodo_pago: metodo });
     }
     toast(`✅ Pago registrado`);
     loadPagos();
