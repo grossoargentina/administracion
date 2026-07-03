@@ -425,7 +425,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <span class="nav-icon">💸</span> Pagos
       </div>
       <div class="nav-item" onclick="goTo('caja')">
-        <span class="nav-icon">🏦</span> Caja
+        <span class="nav-icon">🏢</span> Gastos oficina
       </div>
       <div class="nav-item" onclick="goTo('gastos')">
         <span class="nav-icon">🧾</span> Gastos personales
@@ -568,30 +568,51 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div id="log-lista-wrap"></div>
     </div>
 
-    <!-- CAJA -->
+    <!-- GASTOS OFICINA -->
     <div class="page" id="p-caja">
       <div class="page-header">
         <div>
-          <div class="page-title">Caja de oficina</div>
-          <div class="page-sub">Efectivo e ingresos / egresos</div>
+          <div class="page-title">Gastos oficina</div>
+          <div class="page-sub">Gastos operativos del negocio</div>
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" onclick="abrirModalCaja('egreso')">− Egreso</button>
-          <button class="btn btn-primary" onclick="abrirModalCaja('ingreso')">+ Ingreso</button>
+        <button class="btn btn-primary" onclick="abrirModalGastoOficina()">+ Gasto</button>
+      </div>
+      <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
+        <div class="card" style="padding:20px;min-width:280px;flex:0 0 auto;display:flex;flex-direction:column">
+          <div style="font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.06em;margin-bottom:14px">POR CATEGORÍA</div>
+          <div style="display:flex;gap:20px;align-items:center;flex:1">
+            <svg id="ofic-donut" width="200" height="200" viewBox="0 0 200 200" style="flex-shrink:0"></svg>
+            <div id="ofic-leyenda" style="display:flex;flex-direction:column;gap:6px;font-size:12px"></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;flex:1">
+          <div class="kpi"><div class="kpi-label">Total filtrado</div><div class="kpi-value" id="ofic-total-filtrado">—</div></div>
+          <div class="kpi"><div class="kpi-label">Total este mes</div><div class="kpi-value" id="ofic-mes">—</div></div>
+          <div class="kpi"><div class="kpi-label">Total este año</div><div class="kpi-value" id="ofic-anio">—</div></div>
         </div>
       </div>
-      <!-- KPIs -->
-      <div class="kpi-grid" style="margin-bottom:20px">
-        <div class="kpi"><div class="kpi-label">Saldo actual</div><div class="kpi-value" id="caja-saldo">—</div></div>
-        <div class="kpi"><div class="kpi-label">Total ingresos</div><div class="kpi-value" style="color:var(--green)" id="caja-total-ing">—</div></div>
-        <div class="kpi"><div class="kpi-label">Total egresos</div><div class="kpi-value" style="color:var(--red)" id="caja-total-eg">—</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <select class="inp" id="ofic-filtro-mes" style="width:160px" onchange="renderGastosOficina()">
+          <option value="">Todos los meses</option>
+        </select>
+        <select class="inp" id="ofic-filtro-cat" style="width:180px" onchange="renderGastosOficina()">
+          <option value="">Todas las categorías</option>
+          <option>Alquiler</option>
+          <option>Servicios</option>
+          <option>Materiales</option>
+          <option>Transporte</option>
+          <option>Tecnología</option>
+          <option>Marketing</option>
+          <option>Impuestos</option>
+          <option>Varios</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosOficina()">Limpiar</button>
       </div>
-      <!-- Movimientos -->
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th>Monto</th><th>Saldo</th><th></th></tr></thead>
-            <tbody id="caja-tbody"></tbody>
+            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th><th></th></tr></thead>
+            <tbody id="ofic-tbody"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -864,6 +885,46 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="mobile-nav-item" onclick="goTo('impuestos')"><span class="mn-icon">🗓️</span>Impuestos</div>
     </div>
   </nav>
+</div>
+
+<!-- MODAL GASTO OFICINA -->
+<div class="modal-overlay" id="modal-gasto-oficina">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Registrar gasto de oficina</span>
+      <button class="modal-close" onclick="closeModal('modal-gasto-oficina')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="ofic-desc" placeholder="Ej: Alquiler, Internet, Resmas..."></div>
+        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="ofic-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
+        <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="ofic-fecha"></div>
+        <div class="field" style="grid-column:1/-1"><label class="lbl">Tipo</label>
+          <select class="inp" id="ofic-tipo">
+            <option value="egreso">Egreso</option>
+            <option value="ingreso">Ingreso</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Categoría *</label>
+          <select class="inp" id="ofic-categoria">
+            <option value="Alquiler">Alquiler</option>
+            <option value="Servicios">Servicios</option>
+            <option value="Materiales">Materiales</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Tecnología">Tecnología</option>
+            <option value="Marketing">Marketing</option>
+            <option value="Impuestos">Impuestos</option>
+            <option value="Varios">Varios</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-gasto-oficina')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarGastoOficina()">Guardar</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL GASTO PERSONAL -->
@@ -1228,24 +1289,12 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-body" style="text-align:center;padding:24px 20px">
       <div style="font-size:14px;color:var(--text-2);margin-bottom:4px">Pago a</div>
       <div id="pago-metodo-nombre" style="font-size:18px;font-weight:700;margin-bottom:4px"></div>
-      <div style="font-size:13px;color:var(--text-2);margin-bottom:2px">Base</div>
-      <div id="pago-metodo-total" style="font-size:20px;font-weight:700;color:var(--gold);margin-bottom:16px"></div>
+      <div id="pago-metodo-total" style="font-size:22px;font-weight:700;color:var(--gold);margin-bottom:24px"></div>
       <input type="hidden" id="pago-metodo-persId">
       <input type="hidden" id="pago-metodo-desde">
       <input type="hidden" id="pago-metodo-hasta">
       <input type="hidden" id="pago-metodo-total-val">
-      <!-- Extras -->
-      <div style="text-align:left;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:12px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em">Extras / Descuentos</span>
-          <button class="btn btn-ghost btn-sm" onclick="agregarExtraPago()">+ Agregar</button>
-        </div>
-        <div id="pago-extras-list"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);margin-bottom:16px">
-        <span style="font-size:13px;font-weight:600">Total a pagar</span>
-        <span id="pago-total-final" style="font-size:20px;font-weight:700;color:var(--gold)"></span>
-      </div>
+      <input type="hidden" id="pago-metodo-extras" value="[]">
       <div style="display:flex;gap:12px;justify-content:center">
         <button class="btn btn-ghost" style="flex:1;padding:16px;font-size:15px" onclick="confirmarPagoPersona('transferencia')">🏦 Transferencia</button>
         <button class="btn btn-primary" style="flex:1;padding:16px;font-size:15px" onclick="confirmarPagoPersona('efectivo')">💵 Efectivo</button>
@@ -4538,11 +4587,13 @@ async function loadPagos() {
   content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const [jornadas, jornadasPagadas, personal] = await Promise.all([
+    const [jornadas, jornadasPagadas, personal, extrasDB] = await Promise.all([
       sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`, `personal_id=not.is.null`], limit: 500 }),
       sb('v_jornadas', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`, `personal_id=not.is.null`], limit: 500 }),
       sb('personal', { limit: 200 }),
+      sb('pago_extras', { filters: [`semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`], limit: 200 }),
     ]);
+    window._extrasCache = extrasDB;
 
     // Agrupar jornadas por persona
     const porPersona = {};
@@ -4648,6 +4699,8 @@ async function loadPagos() {
           <td style="padding:4px 8px;text-align:right;font-weight:600">${fmtARS(p.sueldo_fijo)}</td>
         </tr>` : '';
 
+      const extrasPersona = (extrasDB || []).filter(e => e.personal_id == p.id);
+      const totalConExtras = total + extrasPersona.reduce((s, e) => s + Number(e.monto || 0), 0);
       return `<div class="card" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div>
@@ -4655,7 +4708,7 @@ async function loadPagos() {
             <span style="margin-left:8px;font-size:11px;color:${esFijo?'var(--green)':'var(--blue)'}">${p.tipo}</span>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
-            <span style="font-size:18px;font-weight:700;color:var(--gold)">${fmtARS(total)}</span>
+            <span id="pago-total-${p.id}" data-base="${total}" style="font-size:18px;font-weight:700;color:var(--gold)">${fmtARS(totalConExtras)}</span>
             <button class="btn btn-ghost btn-sm" onclick="generarReciboIndividual(${JSON.stringify(p).replace(/"/g,'&quot;')})">📄 Recibo</button>
             ${p.jornadas.every(j => j.confirmada)
               ? `<button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}','${p.apellido} ${p.nombre}',${total})">✓ Pagar</button>`
@@ -4664,82 +4717,119 @@ async function loadPagos() {
         </div>
         <table style="width:100%;border-collapse:collapse">
           ${sueldoRow}${filaJornadas}
+          <tbody id="pago-extras-${p.id}">${extrasPersona.map(ex => `
+            <tr style="font-size:12px;color:var(--text-2)">
+              <td style="padding:4px 8px" colspan="2">
+                <input class="inp" style="font-size:12px;padding:4px 8px" placeholder="Descripción (ej: hora extra)" value="${ex.descripcion||''}"
+                  onchange="actualizarExtraPagos(${ex.id},'descripcion',this.value)">
+              </td>
+              <td style="padding:4px 8px;text-align:right">
+                <input class="inp" type="number" style="font-size:12px;padding:4px 8px;width:110px;text-align:right" placeholder="Monto" value="${ex.monto||''}"
+                  onchange="actualizarExtraPagos(${ex.id},'monto',this.value)">
+              </td>
+              <td style="padding:4px 8px">
+                <button class="btn btn-danger btn-sm" onclick="eliminarExtraPagos(${ex.id})">✕</button>
+              </td>
+            </tr>`).join('')}
+          </tbody>
         </table>
+        <div style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" style="font-size:12px" onclick="agregarExtraPagos(${p.id},'${desde}','${hasta}')">+ Extra / Descuento</button>
+        </div>
       </div>`;
     }).join('') + '</div>' + htmlPagados;
 
   } catch(e) { content.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
 
-function marcarPagadoPersona(persId, desde, hasta, nombre, total) {
+async function agregarExtraPagos(persId, desde, hasta) {
+  try {
+    await sbInsert('pago_extras', { personal_id: persId, semana_desde: desde, semana_hasta: hasta, descripcion: '', monto: 0 });
+    loadPagos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function eliminarExtraPagos(extraId) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/pago_extras?id=eq.${extraId}`, { method: 'DELETE', headers: sbHeaders() });
+    loadPagos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function actualizarExtraPagos(extraId, campo, valor) {
+  const patch = {};
+  patch[campo] = campo === 'monto' ? (parseFloat(valor) || 0) : valor;
+  try {
+    await sbPatch('pago_extras', extraId, patch);
+    // recalcular sin recargar todo
+    const allExtras = window._extrasCache || [];
+    const ex = allExtras.find(e => e.id === extraId);
+    if (ex) { ex[campo] = patch[campo]; recalcularCardTotalDesdeCache(ex.personal_id); }
+  } catch(e) { /* silencioso */ }
+}
+
+function recalcularCardTotalDesdeCache(persId) {
+  const totalEl = document.getElementById(`pago-total-${persId}`);
+  if (!totalEl) return;
+  const base = parseFloat(totalEl.dataset.base || 0);
+  const extras = (window._extrasCache || []).filter(e => e.personal_id == persId).reduce((s, e) => s + Number(e.monto || 0), 0);
+  totalEl.textContent = fmtARS(base + extras);
+}
+
+function renderExtrasPagos(persId, extras) {
+  const container = document.getElementById(`pago-extras-${persId}`);
+  if (!container) return;
+  container.innerHTML = extras.map(ex => `
+    <tr style="font-size:12px;color:var(--text-2)">
+      <td style="padding:4px 8px" colspan="2">
+        <input class="inp" style="font-size:12px;padding:4px 8px" placeholder="Descripción (ej: hora extra)" value="${ex.descripcion||''}"
+          onchange="actualizarExtraPagos(${ex.id},'descripcion',this.value)">
+      </td>
+      <td style="padding:4px 8px;text-align:right">
+        <input class="inp" type="number" style="font-size:12px;padding:4px 8px;width:110px;text-align:right" placeholder="Monto" value="${ex.monto||''}"
+          onchange="actualizarExtraPagos(${ex.id},'monto',this.value)">
+      </td>
+      <td style="padding:4px 8px">
+        <button class="btn btn-danger btn-sm" onclick="eliminarExtraPagos(${ex.id})">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+function marcarPagadoPersona(persId, desde, hasta, nombre, baseTotal) {
+  const extras = (window._extrasCache || []).filter(e => e.personal_id == persId);
+  const totalExtras = extras.reduce((s, e) => s + Number(e.monto || 0), 0);
+  const total = baseTotal + totalExtras;
   document.getElementById('pago-metodo-nombre').textContent = nombre;
   document.getElementById('pago-metodo-total').textContent = fmtARS(total);
   document.getElementById('pago-metodo-persId').value = persId;
   document.getElementById('pago-metodo-desde').value = desde;
   document.getElementById('pago-metodo-hasta').value = hasta;
   document.getElementById('pago-metodo-total-val').value = total;
-  document.getElementById('pago-extras-list').innerHTML = '';
-  recalcularTotalPago();
+  document.getElementById('pago-metodo-extras').value = JSON.stringify(extras);
   openModal('modal-pago-metodo');
-}
-
-function agregarExtraPago() {
-  const list = document.getElementById('pago-extras-list');
-  const idx = list.children.length;
-  const row = document.createElement('div');
-  row.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
-  row.innerHTML = `
-    <input class="inp" placeholder="Descripción" style="flex:2;font-size:12px" oninput="recalcularTotalPago()">
-    <input class="inp" type="number" placeholder="Monto" style="flex:1;font-size:12px" oninput="recalcularTotalPago()">
-    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove();recalcularTotalPago()">✕</button>`;
-  list.appendChild(row);
-}
-
-function recalcularTotalPago() {
-  const base = parseFloat(document.getElementById('pago-metodo-total-val').value) || 0;
-  const rows = document.getElementById('pago-extras-list').children;
-  let extras = 0;
-  for (const row of rows) {
-    const monto = parseFloat(row.querySelectorAll('input')[1].value) || 0;
-    extras += monto;
-  }
-  const total = base + extras;
-  document.getElementById('pago-total-final').textContent = fmtARS(total);
-  document.getElementById('pago-total-final').style.color = total < 0 ? 'var(--red)' : 'var(--gold)';
-}
-
-function getExtrasDescripcion() {
-  const rows = document.getElementById('pago-extras-list').children;
-  const items = [];
-  for (const row of rows) {
-    const desc  = row.querySelectorAll('input')[0].value.trim();
-    const monto = parseFloat(row.querySelectorAll('input')[1].value) || 0;
-    if (monto !== 0) items.push({ desc, monto });
-  }
-  return items;
 }
 
 async function confirmarPagoPersona(metodo) {
   const persId = document.getElementById('pago-metodo-persId').value;
   const desde  = document.getElementById('pago-metodo-desde').value;
   const hasta  = document.getElementById('pago-metodo-hasta').value;
-  const base   = parseFloat(document.getElementById('pago-metodo-total-val').value);
+  const total  = parseFloat(document.getElementById('pago-metodo-total-val').value);
   const nombre = document.getElementById('pago-metodo-nombre').textContent;
-  const extras = getExtrasDescripcion();
-  const totalExtras = extras.reduce((s, e) => s + e.monto, 0);
-  const total = base + totalExtras;
+  const extras = JSON.parse(document.getElementById('pago-metodo-extras').value || '[]');
   closeModal('modal-pago-metodo');
   const hoy = new Date().toISOString().split('T')[0];
   try {
     const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 });
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
-    if (base !== 0) {
-      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: base, fecha: hoy, metodo_pago: metodo });
+    if (total !== 0) {
+      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo });
     }
+    // Borrar extras de la BD y registrar cada uno en caja
     for (const ex of extras) {
-      if (ex.monto === 0) continue;
-      const tipo = ex.monto > 0 ? 'egreso' : 'ingreso';
-      await sbInsert('caja', { tipo, descripcion: ex.desc || `Extra — ${nombre}`, monto: Math.abs(ex.monto), fecha: hoy, metodo_pago: metodo });
+      await fetch(`${SUPABASE_URL}/rest/v1/pago_extras?id=eq.${ex.id}`, { method: 'DELETE', headers: sbHeaders() });
+      if (!ex.monto) continue;
+      const tipo = Number(ex.monto) > 0 ? 'egreso' : 'ingreso';
+      await sbInsert('caja', { tipo, descripcion: ex.descripcion || `Extra — ${nombre}`, monto: Math.abs(Number(ex.monto)), fecha: hoy, metodo_pago: metodo });
     }
     toast(`✅ Pago registrado`);
     loadPagos();
@@ -5245,6 +5335,122 @@ async function eliminarGasto(id) {
     await sbDelete('gastos_personales', id);
     toast('Gasto eliminado');
     loadGastos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ── GASTOS OFICINA ────────────────────────────────────────
+const OFIC_CAT_COLOR = { Alquiler:'var(--orange)', Servicios:'var(--blue)', Materiales:'var(--gold)', Transporte:'var(--green)', Tecnología:'var(--purple)', Marketing:'var(--text-2)', Impuestos:'var(--red)', Varios:'var(--text-3)' };
+const OFIC_CAT_HEX   = { Alquiler:'#f59e42', Servicios:'#4e9af1', Materiales:'#fbbf24', Transporte:'#4ade80', Tecnología:'#a78bfa', Marketing:'#94a3b8', Impuestos:'#f87171', Varios:'#64748b' };
+let _todosGastosOficina = [];
+
+async function loadCaja() {
+  document.getElementById('ofic-tbody').innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
+  try {
+    _todosGastosOficina = await sb('caja', { order: 'fecha.desc,created_at.desc', limit: 500 });
+    const ahora = new Date();
+    let totalMes = 0, totalAnio = 0;
+    _todosGastosOficina.forEach(g => {
+      const f = new Date(g.fecha + 'T12:00:00');
+      if (f.getFullYear() === ahora.getFullYear()) {
+        totalAnio += Number(g.monto);
+        if (f.getMonth() === ahora.getMonth()) totalMes += Number(g.monto);
+      }
+    });
+    document.getElementById('ofic-mes').textContent  = fmtARS(totalMes);
+    document.getElementById('ofic-anio').textContent = fmtARS(totalAnio);
+    const mesesSel = document.getElementById('ofic-filtro-mes');
+    const valActual = mesesSel.value;
+    const mesesVisto = new Set();
+    _todosGastosOficina.forEach(g => { if (g.fecha) mesesVisto.add(g.fecha.slice(0, 7)); });
+    mesesSel.innerHTML = '<option value="">Todos los meses</option>' +
+      [...mesesVisto].sort().reverse().map(m => {
+        const label = new Date(`${m}-15`).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+        return `<option value="${m}" ${m === valActual ? 'selected' : ''}>${label}</option>`;
+      }).join('');
+    renderGastosOficina();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+function renderGastosOficina() {
+  const filtroMes = document.getElementById('ofic-filtro-mes').value;
+  const filtroCat = document.getElementById('ofic-filtro-cat').value;
+  const lista = _todosGastosOficina.filter(g => {
+    if (filtroMes && !g.fecha?.startsWith(filtroMes)) return false;
+    if (filtroCat && g.categoria !== filtroCat) return false;
+    return true;
+  });
+  document.getElementById('ofic-total-filtrado').textContent = fmtARS(lista.reduce((s, g) => s + Number(g.monto), 0));
+  renderDonutOficina(lista);
+  document.getElementById('ofic-tbody').innerHTML = lista.length
+    ? lista.map(g => {
+        const color = g.tipo === 'ingreso' ? 'var(--green)' : 'var(--red)';
+        const signo = g.tipo === 'ingreso' ? '+' : '-';
+        return `<tr>
+          <td>${fmtDate(g.fecha)}</td>
+          <td>${g.descripcion}</td>
+          <td><span style="font-size:11px;font-weight:600;color:${OFIC_CAT_COLOR[g.categoria]||'var(--text-2)'}">${g.categoria||'—'}</span></td>
+          <td style="color:${color};font-weight:600">${signo} ${fmtARS(g.monto)}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="eliminarGastoOficina(${g.id})">✕</button></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="5"><div class="empty"><div class="empty-icon">🏢</div>Sin movimientos para este filtro</div></td></tr>';
+}
+
+function renderDonutOficina(lista) {
+  const totalesCat = {};
+  lista.forEach(g => { totalesCat[g.categoria] = (totalesCat[g.categoria] || 0) + Number(g.monto); });
+  const entradas = Object.entries(totalesCat).sort((a,b) => b[1]-a[1]);
+  const total = entradas.reduce((s,[,v]) => s+v, 0);
+  const svg = document.getElementById('ofic-donut');
+  const ley = document.getElementById('ofic-leyenda');
+  if (!total) { svg.innerHTML = `<circle cx="100" cy="100" r="78" fill="none" stroke="var(--surface-2)" stroke-width="28"/>`; ley.innerHTML = ''; return; }
+  const circ = 2 * Math.PI * 78; let startAngle = -90; let seg = ''; let leyHTML = '';
+  entradas.forEach(([cat, val]) => {
+    const pct = val / total, dash = pct * circ, color = OFIC_CAT_HEX[cat] || '#64748b';
+    seg += `<circle cx="100" cy="100" r="78" fill="none" stroke="${color}" stroke-width="28" stroke-dasharray="${dash.toFixed(2)} ${(circ-dash).toFixed(2)}" transform="rotate(${startAngle.toFixed(2)} 100 100)"/>`;
+    startAngle += pct * 360;
+    leyHTML += `<div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0"></span><span style="color:var(--text-2)">${cat}</span><span style="color:var(--text-3);margin-left:4px">${Math.round(pct*100)}%</span></div>`;
+  });
+  svg.innerHTML = seg + `<circle cx="100" cy="100" r="63" fill="var(--surface-1)"/><text x="100" y="95" text-anchor="middle" font-size="9" fill="var(--text-3)">TOTAL</text><text x="100" y="108" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text-1)">${fmtARS(total).replace('$ ','$')}</text>`;
+  ley.innerHTML = leyHTML;
+}
+
+function limpiarFiltrosOficina() {
+  document.getElementById('ofic-filtro-mes').value = '';
+  document.getElementById('ofic-filtro-cat').value = '';
+  renderGastosOficina();
+}
+
+function abrirModalGastoOficina() {
+  document.getElementById('ofic-desc').value = '';
+  document.getElementById('ofic-monto').value = '';
+  document.getElementById('ofic-fecha').value = today();
+  document.getElementById('ofic-categoria').value = 'Varios';
+  openModal('modal-gasto-oficina');
+}
+
+async function guardarGastoOficina() {
+  const desc = document.getElementById('ofic-desc').value.trim();
+  const monto = parseARSInput(document.getElementById('ofic-monto'));
+  const fecha = document.getElementById('ofic-fecha').value || today();
+  const categoria = document.getElementById('ofic-categoria').value;
+  const tipo = document.getElementById('ofic-tipo').value;
+  if (!desc) { toast('Ingresá una descripción', 'err'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
+  try {
+    await sbInsert('caja', { tipo, descripcion: desc, monto, fecha, categoria });
+    closeModal('modal-gasto-oficina');
+    toast('✅ Movimiento registrado');
+    loadCaja();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function eliminarGastoOficina(id) {
+  if (!confirm('¿Eliminar este movimiento?')) return;
+  try {
+    await sbDelete('caja', id);
+    toast('Movimiento eliminado');
+    loadCaja();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
