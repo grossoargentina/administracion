@@ -405,50 +405,50 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <div class="sidebar-logo-sub">Iluminación · Gestión</div>
     </div>
     <nav class="sidebar-nav">
-      <div class="nav-item active" onclick="goTo('dashboard')">
+      <div class="nav-item active" data-page="dashboard" onclick="goTo('dashboard')">
         <span class="nav-icon">⚡</span> Fechas
       </div>
-      <div class="nav-item" onclick="goTo('eventos')">
+      <div class="nav-item" data-page="eventos" onclick="goTo('eventos')">
         <span class="nav-icon">📋</span> Eventos
       </div>
-      <div class="nav-item" onclick="goTo('cobros')">
+      <div class="nav-item" data-page="cobros" onclick="goTo('cobros')">
         <span class="nav-icon">💰</span> Cobros pendientes
       </div>
 
-      <div class="nav-item" onclick="goTo('logistica')">
+      <div class="nav-item" data-page="logistica" onclick="goTo('logistica')">
         <span class="nav-icon">🗺️</span> Logística
       </div>
-      <div class="nav-item" onclick="goTo('personal')">
+      <div class="nav-item" data-page="personal" onclick="goTo('personal')">
         <span class="nav-icon">👥</span> Personal
       </div>
-      <div class="nav-item" onclick="goTo('pagos')">
+      <div class="nav-item" data-page="pagos" onclick="goTo('pagos')">
         <span class="nav-icon">💸</span> Pagos
       </div>
-      <div class="nav-item" onclick="goTo('caja')">
+      <div class="nav-item" data-page="caja" onclick="goTo('caja')">
         <span class="nav-icon">🏢</span> Gastos oficina
       </div>
-      <div class="nav-item" onclick="goTo('gastos')">
+      <div class="nav-item" data-page="gastos" onclick="goTo('gastos')">
         <span class="nav-icon">🧾</span> Gastos personales
       </div>
-      <div class="nav-item" onclick="goTo('mensajes')">
+      <div class="nav-item" data-page="mensajes" onclick="goTo('mensajes')">
         <span class="nav-icon">💬</span> Mensajes <span id="nav-mensajes-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px"></span>
       </div>
-      <div class="nav-item" onclick="goTo('finanzas')">
+      <div class="nav-item" data-page="finanzas" onclick="goTo('finanzas')">
         <span class="nav-icon">📊</span> Finanzas
       </div>
-      <div class="nav-item" onclick="goTo('impuestos')">
+      <div class="nav-item" data-page="impuestos" onclick="goTo('impuestos')">
         <span class="nav-icon">🗓️</span> Impuestos
       </div>
-      <div class="nav-item" onclick="goTo('presupuestos')">
+      <div class="nav-item" data-page="presupuestos" onclick="goTo('presupuestos')">
         <span class="nav-icon">📄</span> Presupuestos
       </div>
-      <div class="nav-item" onclick="goTo('catalogo')">
+      <div class="nav-item" data-page="catalogo" onclick="goTo('catalogo')">
         <span class="nav-icon">📦</span> Catálogo
       </div>
-      <div class="nav-item" onclick="goTo('salones')">
+      <div class="nav-item" data-page="salones" onclick="goTo('salones')">
         <span class="nav-icon">🏛️</span> Salones
       </div>
-      <div class="nav-item" onclick="goTo('clientes')">
+      <div class="nav-item" data-page="clientes" onclick="goTo('clientes')">
         <span class="nav-icon">👥</span> Clientes
       </div>
     </nav>
@@ -1968,15 +1968,11 @@ function goTo(page) {
 
   document.getElementById(`p-${page}`).classList.add('active');
 
-  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
-  document.querySelectorAll('.nav-item').forEach(n => {
-    const txt = norm(n.textContent.trim().toLowerCase());
-    if (txt.includes(page === 'dashboard' ? 'dashboard' : page))
-      n.classList.add('active');
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => {
+    if (n.dataset.page === page) n.classList.add('active');
   });
-  document.querySelectorAll('.mobile-nav-item').forEach(n => {
-    if (n.textContent.trim().toLowerCase().includes(page === 'dashboard' ? 'inicio' : page))
-      n.classList.add('active');
+  document.querySelectorAll('.mobile-nav-item[data-page]').forEach(n => {
+    if (n.dataset.page === page) n.classList.add('active');
   });
 
   currentPage = page;
