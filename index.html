@@ -1608,7 +1608,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
 
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-presupuesto')">Cancelar</button>
+      <button class="btn btn-ghost" onclick="_presupuestoParaEventoId=null;closeModal('modal-presupuesto')">Cancelar</button>
       <button class="btn btn-primary" onclick="generarPresupuesto()">📄 Generar PDF y guardar</button>
     </div>
   </div>
@@ -2481,7 +2481,8 @@ function renderEventos() {
           <div style="display:flex;gap:6px">
             <button class="btn btn-ghost btn-sm" onclick="editEvento(${e.id})">Editar</button>
             ${e.estado === 'Confirmado' || e.estado === 'En logística'
-              ? `<button class="btn btn-ghost btn-sm" onclick="registrarCobro(${e.id},'${e.cliente_nombre}',${e.sena_cobrada},${e.saldo_cobrado})">Cobro</button>`
+              ? `<button class="btn btn-ghost btn-sm" onclick="registrarCobro(${e.id},'${e.cliente_nombre}',${e.sena_cobrada},${e.saldo_cobrado})">Cobro</button>
+                 <button class="btn btn-ghost btn-sm" onclick="abrirPresupuestoParaEvento(${e.id})">+ Presupuesto</button>`
               : ''}
           </div>
         </td>
@@ -3517,6 +3518,21 @@ function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   const fechaMap = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
   const fecha = fechaMap[tipo];
   if (fecha) document.getElementById('armado-fecha').value = fecha;
+}
+
+let _presupuestoParaEventoId = null;
+
+async function abrirPresupuestoParaEvento(eventoId) {
+  const ev = (evCache || []).find(e => e.id === eventoId);
+  if (!ev) return;
+  _presupuestoParaEventoId = eventoId;
+  await abrirModalPresupuesto();
+  document.querySelector('#modal-presupuesto .modal-title').textContent = `Presupuesto adicional — ${ev.cliente_nombre}`;
+  document.getElementById('pres-cliente').value = ev.cliente_nombre || '';
+  document.getElementById('pres-venue').value   = ev.venue || '';
+  document.getElementById('pres-tipo').value    = ev.tipo_evento || 'Casamiento';
+  const fp = document.getElementById('pres-fechas')._flatpickr;
+  if (fp && ev.fecha_evento) fp.setDate([ev.fecha_evento]);
 }
 
 function abrirAgregarDeposito() {
@@ -6084,6 +6100,14 @@ async function confirmarPresupuestoFinal() {
   closeModal('modal-confirmar-presupuesto');
 
   try {
+    // Si ya tiene evento vinculado, solo actualizar el presupuesto (no crear evento nuevo)
+    if (p.evento_id) {
+      await sbPatch('presupuestos', id, { estado_evento: 'Confirmado' });
+      toast(`✅ Presupuesto adicional confirmado`);
+      loadPresupuestos();
+      return;
+    }
+
     // Generar código de evento
     const evCount = await sb('eventos', { select: 'id' });
     const codigo  = 'EV' + String(evCount.length + 1).padStart(3,'0');
@@ -6978,6 +7002,7 @@ async function generarPresupuesto() {
         pdf_url: pdfUrl,
         nombre_archivo: nombreArchivo,
         estado_evento: 'Pendiente',
+        evento_id: _presupuestoParaEventoId || null,
         version: presVersionInfo ? presVersionInfo.nextVersion : 1,
         grupo_id: presVersionInfo ? presVersionInfo.grupoId : null,
       });
@@ -7002,6 +7027,7 @@ async function generarPresupuesto() {
     closeModal('modal-presupuesto');
     presItems = [];
     presVersionInfo = null;
+    _presupuestoParaEventoId = null;
     loadPresupuestos();
 
   } catch(e) {
