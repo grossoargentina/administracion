@@ -3374,9 +3374,24 @@ async function loadLogisticas() {
       f.tipoLabel = maxPorTipo[key] > 1 ? `${f.tipo} ${f._tipoIdx}` : f.tipo;
     });
 
-    // Filtrar por semana actual
-    const filasSemanales = filas.filter(f => f.fechaSort && f.fechaSort !== '9999-99-99' && f.fechaSort >= desde && f.fechaSort <= hasta);
-    const filasSinFecha  = filas.filter(f => !f.fechaSort || f.fechaSort === '9999-99-99');
+    // Calcular fecha ancla por logística = fecha del Operador (o la más temprana si no hay)
+    const anclaLog = {};
+    rows.forEach(r => {
+      const jors = jornadas.filter(j => j.logistica_id === r.id);
+      const opFechas = jors.filter(j => j.tipo === 'Operador').map(j => j.fecha).filter(Boolean).sort();
+      const todasFechas = jors.map(j => j.fecha).filter(Boolean).sort();
+      // Preferir fecha del evento desde evCache
+      const evId = logToEvId[r.id];
+      const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
+      anclaLog[r.id] = (ev?.fecha_evento) || opFechas[0] || todasFechas[0] || null;
+    });
+
+    // Filtrar: una fila aparece en la semana si su logística tiene ancla en esa semana
+    const filasSemanales = filas.filter(f => {
+      const ancla = anclaLog[f.logId];
+      return ancla && ancla >= desde && ancla <= hasta;
+    });
+    const filasSinFecha = filas.filter(f => !anclaLog[f.logId]);
 
     if (!filasSemanales.length && !filasSinFecha.length) {
       wrap.innerHTML = '<div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas esta semana</div>';
@@ -5396,13 +5411,15 @@ async function renderImpuestos() {
         return (fecha - hoy) <= 7 * 24 * 60 * 60 * 1000;
       })();
 
-      const rowBg = SECCION_BG[sec] || '';
+      const rowBg = i.pagado
+        ? 'color-mix(in srgb, var(--green) 8%, var(--bg-2))'
+        : (SECCION_BG[sec] || '');
 
       const diaColor = vencido      ? 'color:var(--red);font-weight:600'
                      : venceProximo ? 'color:var(--orange);font-weight:600'
                      : '';
 
-      html += `<tr style="background:${rowBg}">
+      html += `<tr style="background:${rowBg};${i.pagado ? 'border-left:3px solid var(--green)' : ''}">
         <td>
           <b>${i.concepto}</b>
           ${i.empresa ? `<div style="font-size:11px;color:var(--text-2)">${i.empresa}</div>` : ''}
