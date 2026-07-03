@@ -4551,6 +4551,14 @@ async function loadPagos() {
           jornadas: [],
         };
       }
+      // Si tarifa_ars es 0/null, usar la tarifa actual del personal según tipo de jornada
+      if (!j.tarifa_ars) {
+        const p = personal.find(x => x.id === j.personal_id) || {};
+        const tarifa = j.tipo === 'Depósito' ? p.tarifa_deposito
+                     : j.tipo === 'Operador' ? p.tarifa_operador
+                     : p.tarifa_armado;
+        j = { ...j, tarifa_ars: tarifa || 0 };
+      }
       porPersona[j.personal_id].jornadas.push(j);
     });
 
