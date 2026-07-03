@@ -4747,7 +4747,7 @@ async function agregarExtraPagos(persId, desde, hasta) {
 
 async function eliminarExtraPagos(extraId) {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/pago_extras?id=eq.${extraId}`, { method: 'DELETE', headers: sbHeaders() });
+    await sbDelete('pago_extras', extraId);
     loadPagos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
