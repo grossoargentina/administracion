@@ -562,6 +562,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <span id="log-semana-label" style="font-size:13px;color:var(--text-2);min-width:180px;text-align:center"></span>
           <button class="btn btn-ghost" onclick="cambiarSemanaLog(1)">Siguiente →</button>
           <button class="btn btn-primary" onclick="abrirAgregarArmado()">+ Agregar días de armado</button>
+          <button class="btn btn-ghost" onclick="abrirAgregarDeposito()">+ Depósito</button>
         </div>
       </div>
       <div id="log-lista-wrap"></div>
@@ -3516,6 +3517,12 @@ function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   const fechaMap = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
   const fecha = fechaMap[tipo];
   if (fecha) document.getElementById('armado-fecha').value = fecha;
+}
+
+function abrirAgregarDeposito() {
+  abrirAgregarArmado();
+  setTipoLog('Deposito');
+  document.getElementById('armado-modal-title').textContent = 'Agregar día — Depósito';
 }
 
 function abrirAgregarArmado() {
