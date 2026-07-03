@@ -4032,11 +4032,16 @@ async function abrirDetLogistica(id, tipo) {
     if (!log) { toast('Logística no encontrada', 'err'); return; }
     if (log.notas) document.getElementById('log-notas').value = log.notas;
     const detRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
-    const ev = detRel[0]?.evento_id ? (evCache || []).find(e => e.id === detRel[0].evento_id) : null;
+    let ev = detRel[0]?.evento_id ? (evCache || []).find(e => e.id === detRel[0].evento_id) : null;
+    if (!ev && detRel[0]?.evento_id) {
+      const evRows = await sb('v_eventos', { filters: [`id=eq.${detRel[0].evento_id}`], limit: 1 });
+      ev = evRows[0] || null;
+    }
     if (ev) {
       document.getElementById('log-titulo').value    = ev.venue || '';
       document.getElementById('log-subtitulo').value = ev.cliente_nombre || '';
       document.getElementById('log-direccion').value = ev.direccion || '';
+      document.getElementById('log-maps').value      = ev.maps_link || '';
       document.getElementById('log-det-title').textContent = `Logística — ${ev.venue || ev.codigo || ev.id}`;
     }
     const filters = [`logistica_id=eq.${id}`];
@@ -4382,8 +4387,9 @@ async function loadPagos() {
   content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const [jornadas, personal] = await Promise.all([
+    const [jornadas, jornadasPagadas, personal] = await Promise.all([
       sb('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`, `personal_id=not.is.null`], limit: 500 }),
+      sb('v_jornadas', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`, `personal_id=not.is.null`], limit: 500 }),
       sb('personal', { limit: 200 }),
     ]);
 
@@ -4421,12 +4427,43 @@ async function loadPagos() {
 
     const filas = Object.values(porPersona).sort((a,b) => a.apellido.localeCompare(b.apellido));
 
+    // Sección pagados
+    const porPersonaPagado = {};
+    jornadasPagadas.forEach(j => {
+      if (!porPersonaPagado[j.personal_id]) {
+        porPersonaPagado[j.personal_id] = { apellido: j.personal_apellido || '', nombre: j.personal_nombre || '', jornadas: [] };
+      }
+      porPersonaPagado[j.personal_id].jornadas.push(j);
+    });
+    const filasPagadas = Object.values(porPersonaPagado).sort((a,b) => a.apellido.localeCompare(b.apellido));
+    const htmlPagados = filasPagadas.length ? `
+      <div style="margin-top:24px;margin-bottom:10px;font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase">✅ Pagados esta semana</div>
+      ${filasPagadas.map(p => {
+        const total = p.jornadas.reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+        const filas2 = p.jornadas.sort((a,b) => a.fecha.localeCompare(b.fecha)).map(j => {
+          const dow = new Date(j.fecha+'T12:00:00').toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'2-digit'});
+          return `<tr style="font-size:12px;color:var(--text-3)">
+            <td style="padding:4px 8px">${dow}</td>
+            <td style="padding:4px 8px">${j.tipo}</td>
+            <td style="padding:4px 8px">${j.venue||j.evento_codigo||'—'}</td>
+            <td style="padding:4px 8px;text-align:right">${fmtARS(j.tarifa_ars)}</td>
+          </tr>`;
+        }).join('');
+        return `<div class="card" style="margin-bottom:10px;opacity:.75">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-weight:600;font-size:14px">${p.apellido} ${p.nombre}</span>
+            <span style="font-size:16px;font-weight:700;color:var(--green)">${fmtARS(total)}</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse">${filas2}</table>
+        </div>`;
+      }).join('')}` : '';
+
     if (!filas.length) {
-      content.innerHTML = '<div class="empty"><div class="empty-icon">💸</div>Sin pagos pendientes esta semana</div>';
+      content.innerHTML = '<div class="empty"><div class="empty-icon">💸</div>Sin pagos pendientes esta semana</div>' + htmlPagados;
       return;
     }
 
-    content.innerHTML = filas.map(p => {
+    content.innerHTML = '<div id="pagos-pendientes-wrap">' + filas.map(p => {
       const esFijo = p.tipo === 'Fijo';
       const incluidas = p.jornadas.filter(j => esFijo && esIncluida(j.tipo, j.fecha));
       const extras    = p.jornadas.filter(j => !esFijo || !esIncluida(j.tipo, j.fecha));
@@ -4469,7 +4506,7 @@ async function loadPagos() {
           ${sueldoRow}${filaJornadas}
         </table>
       </div>`;
-    }).join('');
+    }).join('') + '</div>' + htmlPagados;
 
   } catch(e) { content.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
