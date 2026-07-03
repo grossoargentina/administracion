@@ -6569,20 +6569,20 @@ async function generarPresupuesto() {
     ];
     eventoRows.forEach((row, ri) => {
       fill(ri%2===0 ? GRIS_F : BLANCO);
-      doc.rect(M, y, CW, 8, 'F');
-      font('bold', 8.5); text(GRIS_T);
-      doc.text(row[0], M+2, y+5.5);
-      font('normal', 8.5); text(NEGRO);
-      doc.text(String(row[1]), M+28, y+5.5);
+      doc.rect(M, y, CW, 6, 'F');
+      font('bold', 8); text(GRIS_T);
+      doc.text(row[0], M+2, y+4.2);
+      font('normal', 8); text(NEGRO);
+      doc.text(String(row[1]), M+28, y+4.2);
       if (row[2]) {
-        font('bold', 8.5); text(GRIS_T);
-        doc.text(row[2], M+CW/2+2, y+5.5);
-        font('normal', 8.5); text(NEGRO);
-        doc.text(String(row[3]), M+CW/2+22, y+5.5);
+        font('bold', 8); text(GRIS_T);
+        doc.text(row[2], M+CW/2+2, y+4.2);
+        font('normal', 8); text(NEGRO);
+        doc.text(String(row[3]), M+CW/2+22, y+4.2);
       }
-      y += 8;
+      y += 6;
     });
-    y += 3;
+    y += 2;
 
     // ── DETALLE DE SERVICIOS ──────────────────────────────
     fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
@@ -6707,11 +6707,11 @@ async function generarPresupuesto() {
     }
 
     // ── NOTAS ─────────────────────────────────────────────
-    if (y > PH - 50) { doc.addPage(); y = 15; }
-    y += 2;
-    fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
-    font('bold', 8); text(BLANCO);
-    doc.text('NOTAS Y CONDICIONES GENERALES', M+2, y+4); y += 12;
+    if (y > PH - 40) { doc.addPage(); y = 15; }
+    y += 1;
+    fill(NEGRO); doc.rect(M, y, CW, 5.5, 'F');
+    font('bold', 7.5); text(BLANCO);
+    doc.text('NOTAS Y CONDICIONES GENERALES', M+2, y+3.8); y += 7;
 
     const notas = [
       'Precios expresados en pesos argentinos (ARS).',
@@ -6722,10 +6722,10 @@ async function generarPresupuesto() {
       'Congela valor con pago del 100%.',
       'Se aceptan pagos diferidos (recargo del 5%).',
     ];
-    font('normal', 8.5); text(NEGRO);
+    font('normal', 7); text(NEGRO);
     notas.forEach((n, i) => {
-      if (y > PH - 20) { doc.addPage(); y = 15; }
-      doc.text(`${i+1}. ${n}`, M, y); y += 5;
+      if (y > PH - 18) { doc.addPage(); y = 15; }
+      doc.text(`${i+1}. ${n}`, M, y); y += 3.8;
     });
 
     // ── FOOTER — fijo al pie de la hoja ──────────────────
