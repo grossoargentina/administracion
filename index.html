@@ -557,16 +557,14 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
           <div class="page-title">Logística</div>
           <div class="page-sub">Planificación de personal por evento</div>
         </div>
-        <button class="btn btn-primary" onclick="abrirAgregarArmado()">+ Agregar días de armado</button>
-      </div>
-      <div class="card">
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Evento</th><th>Fecha</th><th>Días</th><th>Personal</th><th>Notas</th><th></th></tr></thead>
-            <tbody id="log-lista-tbody"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
-          </table>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost" onclick="cambiarSemanaLog(-1)">← Anterior</button>
+          <span id="log-semana-label" style="font-size:13px;color:var(--text-2);min-width:180px;text-align:center"></span>
+          <button class="btn btn-ghost" onclick="cambiarSemanaLog(1)">Siguiente →</button>
+          <button class="btn btn-primary" onclick="abrirAgregarArmado()">+ Agregar días de armado</button>
         </div>
       </div>
+      <div id="log-lista-wrap"></div>
     </div>
 
     <!-- CAJA -->
@@ -1933,7 +1931,7 @@ async function loadPage(page) {
     case 'eventos':    loadEventos(); break;
     case 'cobros':     loadCobros(); break;
     case 'jornadas':   loadJornadas(); break;
-    case 'logistica':  loadLogisticas(); break;
+    case 'logistica':  logOffset = 0; loadLogisticas(); break;
     case 'pagos':      loadPagos(); break;
     case 'caja':       loadCaja(); break;
     case 'mensajes':   loadMensajes(); break;
@@ -3255,8 +3253,12 @@ let logEventosDepIds = []; // para tipo Depósito
 let logEditId = null; // null = nueva, number = edición
 
 async function loadLogisticas() {
-  const tbody = document.getElementById('log-lista-tbody');
-  tbody.innerHTML = '<tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>';
+  const { desde, hasta, lunes, domingo } = getSemana(logOffset);
+  const label = `${lunes.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} — ${domingo.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`;
+  document.getElementById('log-semana-label').textContent = label;
+
+  const wrap = document.getElementById('log-lista-wrap');
+  wrap.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
     const rows = await sb('logisticas', { order: 'created_at.desc', limit: 100 });
     if (!rows.length) {
@@ -3372,20 +3374,60 @@ async function loadLogisticas() {
       f.tipoLabel = maxPorTipo[key] > 1 ? `${f.tipo} ${f._tipoIdx}` : f.tipo;
     });
 
-    filas.sort((a,b) => b.logId - a.logId || a.orden - b.orden);
+    // Filtrar por semana actual
+    const filasSemanales = filas.filter(f => f.fechaSort && f.fechaSort !== '9999-99-99' && f.fechaSort >= desde && f.fechaSort <= hasta);
+    const filasSinFecha  = filas.filter(f => !f.fechaSort || f.fechaSort === '9999-99-99');
 
-    tbody.innerHTML = filas.map(f => `<tr>
-      <td><b style="font-size:13px">${f.evLabel}</b></td>
-      <td><span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipoLabel}</span></td>
-      <td style="font-size:12px;color:var(--text-2)">${f.fechaLabel}</td>
-      <td style="font-size:12px">${f.persCount} persona(s)</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-ghost btn-sm" onclick="${f.eliminable ? `editarLogistica(${f.logId},'${f.tipo}',true)` : `abrirAgregarArmadoParaTipo(${f.logId},'${f.tipo}',${f.eventoId})`}">✏️ Editar</button>
-        <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋 Ver</button>
-        ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
-      </td>
-    </tr>`).join('');
-  } catch(e) { toast('Error cargando logísticas: ' + e.message, 'err'); }
+    if (!filasSemanales.length && !filasSinFecha.length) {
+      wrap.innerHTML = '<div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas esta semana</div>';
+      return;
+    }
+
+    filasSemanales.sort((a,b) => (a.fechaSort||'').localeCompare(b.fechaSort||'') || a.orden - b.orden);
+
+    // Agrupar por día
+    const porDia = {};
+    filasSemanales.forEach(f => {
+      if (!porDia[f.fechaSort]) porDia[f.fechaSort] = [];
+      porDia[f.fechaSort].push(f);
+    });
+
+    const renderFila = f => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <div style="flex:2;min-width:0">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.evLabel}</div>
+        </div>
+        <div style="flex:1">
+          <span style="font-size:12px;font-weight:600;color:${TIPO_COLOR[f.tipo]||'var(--text-1)'}">${TIPO_ICON[f.tipo]||''} ${f.tipoLabel}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-2);width:80px;text-align:center">${f.persCount} pers.</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" onclick="${f.eliminable ? `editarLogistica(${f.logId},'${f.tipo}',true)` : `abrirAgregarArmadoParaTipo(${f.logId},'${f.tipo}',${f.eventoId})`}">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋</button>
+          ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
+        </div>
+      </div>`;
+
+    let html = '';
+
+    Object.keys(porDia).sort().forEach(dia => {
+      const d = new Date(dia + 'T12:00:00');
+      const diaLabel = d.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
+      html += `<div style="font-size:12px;font-weight:600;color:var(--gold);letter-spacing:.06em;text-transform:uppercase;padding:10px 0 4px">${diaLabel}</div>
+        <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">
+          ${porDia[dia].map(renderFila).join('')}
+        </div>`;
+    });
+
+    if (filasSinFecha.length) {
+      html += `<div style="font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase;padding:10px 0 4px">Sin fecha asignada</div>
+        <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">
+          ${filasSinFecha.map(renderFila).join('')}
+        </div>`;
+    }
+
+    wrap.innerHTML = html;
+  } catch(e) { wrap.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
 
 let logEditTipo = null; // tipo filtrado en modo edición
@@ -3505,15 +3547,20 @@ async function guardarAgregarArmado() {
 
     const codigoBase = `J${Date.now()}`;
     if (persIds.length > 0) {
-      const jornadas = persIds.map((pid, i) => ({
-        codigo: `${codigoBase}-${i}`,
-        logistica_id: logId,
-        tipo,
-        fecha: fecha || null,
-        hora_inicio: hora || null,
-        personal_id: pid,
-        pagado: false,
-      }));
+      const jornadas = persIds.map((pid, i) => {
+        const p = (persCache || []).find(x => x.id === pid);
+        const tarifa = tipo === 'Depósito' ? p?.tarifa_deposito : tipo === 'Operador' ? p?.tarifa_operador : p?.tarifa_armado;
+        return {
+          codigo: `${codigoBase}-${i}`,
+          logistica_id: logId,
+          tipo,
+          fecha: fecha || null,
+          hora_inicio: hora || null,
+          personal_id: pid,
+          tarifa_ars: tarifa || null,
+          pagado: false,
+        };
+      });
       await sbPost('jornadas', jornadas);
     } else {
       await sbPost('jornadas', [{
@@ -4401,6 +4448,7 @@ async function generarPDFLogistica() {
 
 // ── PAGOS ─────────────────────────────────────────────────
 let pagosOffset = 0; // 0 = semana actual, -1 = anterior, etc.
+let logOffset = 0;
 
 function getSemana(offset) {
   const hoy = new Date();
@@ -4414,6 +4462,11 @@ function getSemana(offset) {
 function cambiarSemanaPagos(dir) {
   pagosOffset += dir;
   loadPagos();
+}
+
+function cambiarSemanaLog(dir) {
+  logOffset += dir;
+  loadLogisticas();
 }
 
 function esIncluida(tipo, fecha) {
