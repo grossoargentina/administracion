@@ -1428,7 +1428,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
         <div class="field"><label class="lbl">Vence día</label><input class="inp" type="number" id="imp-vence" placeholder="22" min="1" max="31"></div>
         <div class="field"><label class="lbl">Monto ARS</label><input class="inp ars-input" type="text" id="imp-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Monto USD</label><input class="inp" type="number" id="imp-monto-usd" placeholder="0"></div>
-        <div class="field full"><label class="lbl">Notas</label><input class="inp" id="imp-notas" placeholder="Opcional"></div>
+        <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="imp-notas" placeholder="Opcional" rows="3" style="resize:vertical;font-family:inherit;font-size:13px"></textarea></div>
         <div class="field full" style="display:flex;align-items:center;gap:10px;padding:6px 0">
           <input type="checkbox" id="imp-por-tarjeta" style="width:16px;height:16px;accent-color:var(--gold)">
           <label for="imp-por-tarjeta" class="lbl" style="margin:0;cursor:pointer">Se paga por tarjeta (no suma al total)</label>
@@ -2813,8 +2813,7 @@ async function loadJornadas() {
       const diff = (hoy - d) / 86400000;
       return diff <= 7;
     });
-    const pendiente = jornadas.filter(j => !j.pagado)
-      .reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+    const pendiente = 0; // tarifa se calcula al momento de pago
 
     document.getElementById('jorn-kpis').innerHTML = `
       <div class="kpi"><div class="kpi-label">Jornadas esta semana</div><div class="kpi-value">${semana.length}</div></div>
@@ -2835,7 +2834,7 @@ async function loadJornadas() {
             </td>
             <td>${j.evento_codigo ? `<span style="font-size:11px;color:var(--text-2)">${j.evento_codigo}</span><br>${j.evento_venue || ''}` : '—'}</td>
             <td>
-              ${fmtARS(j.tarifa_ars)}
+              —
               ${j.flete_monto ? `<div style="font-size:11px;color:var(--orange)">Flete: ${fmtARS(j.flete_monto)}</div>` : ''}
             </td>
             <td>
@@ -2966,7 +2965,6 @@ async function guardarJornadas() {
         personal_id:  persId,
         tipo,
         fecha,
-        tarifa_ars:   tarifa || 0,
         pagado:       false,
         notas,
         transporte:   ['Armado','Desarme'].includes(tipo) ? transporteVal : null,
@@ -3077,7 +3075,7 @@ async function liquidarSemana() {
     const key = j.personal_id;
     if (!porPersona[key]) {
       const p = persData.find(x => x.id === j.personal_id) || {};
-      porPersona[key] = { apellido: j.personal_apellido||'', nombre: j.personal_nombre||'', tipo: p.tipo||'Freelance', sueldo_fijo: p.sueldo_fijo||0, jornadas: [] };
+      porPersona[key] = { apellido: j.personal_apellido||'', nombre: j.personal_nombre||'', tipo: p.tipo||'Freelance', sueldo_fijo: p.sueldo_fijo||0, tarifa_armado: p.tarifa_armado||0, tarifa_operador: p.tarifa_operador||0, tarifa_deposito: p.tarifa_deposito||0, jornadas: [] };
     }
     porPersona[key].jornadas.push(j);
   });
@@ -3181,6 +3179,7 @@ function generarReciboPDF(data, periodo, lunesDate) {
     return false;
   };
 
+  const getTarifa = j => j.tipo === 'Depósito' ? (data.tarifa_deposito||0) : j.tipo === 'Operador' ? (data.tarifa_operador||0) : (data.tarifa_armado||0);
   const jSorted = data.jornadas.sort((a, b) => a.fecha.localeCompare(b.fecha));
   let total = esFijo ? (data.sueldo_fijo || 0) : 0;
 
@@ -3210,8 +3209,8 @@ function generarReciboPDF(data, periodo, lunesDate) {
       doc.text('—', PW - M - 2, y + 5.5, { align: 'right' });
     } else {
       text(NEGRO);
-      doc.text(fmtARS(j.tarifa_ars), PW - M - 2, y + 5.5, { align: 'right' });
-      total += Number(j.tarifa_ars || 0);
+      doc.text(fmtARS(getTarifa(j)), PW - M - 2, y + 5.5, { align: 'right' });
+      total += getTarifa(j);
     }
     y += 8;
   });
@@ -3603,7 +3602,6 @@ async function guardarAgregarArmado() {
           tipo,
           fecha: fecha || null,
           personal_id: pid,
-          tarifa_ars: tarifa || null,
           pagado: false,
         };
       });
@@ -3892,7 +3890,6 @@ async function guardarLogistica() {
             personal_id: persId,
             fecha: d.fecha,
             tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
-            tarifa_ars: tarifa || null,
             pagado: false,
             transporte: ['Armado','Desarme'].includes(d.tipo) ? d.transporte : null,
             flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
@@ -3926,7 +3923,6 @@ async function guardarLogistica() {
             personal_id: persId,
             fecha: d.fecha,
             tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
-            tarifa_ars: tarifa || null,
             pagado: false,
             transporte: ['Armado','Desarme'].includes(d.tipo) ? d.transporte : null,
             flete_personal: d.transporte === 'Flete' ? (d.flete_personal || null) : null,
@@ -4551,14 +4547,12 @@ async function loadPagos() {
           jornadas: [],
         };
       }
-      // Si tarifa_ars es 0/null, usar la tarifa actual del personal según tipo de jornada
-      if (!j.tarifa_ars) {
-        const p = personal.find(x => x.id === j.personal_id) || {};
-        const tarifa = j.tipo === 'Depósito' ? p.tarifa_deposito
-                     : j.tipo === 'Operador' ? p.tarifa_operador
-                     : p.tarifa_armado;
-        j = { ...j, tarifa_ars: tarifa || 0 };
-      }
+      // Siempre usar la tarifa vigente del personal (no la guardada en jornada)
+      const p2 = personal.find(x => x.id === j.personal_id) || {};
+      const tarifaVigente = j.tipo === 'Depósito' ? p2.tarifa_deposito
+                          : j.tipo === 'Operador' ? p2.tarifa_operador
+                          : p2.tarifa_armado;
+      j = { ...j, tarifa_ars: tarifaVigente || 0 };
       porPersona[j.personal_id].jornadas.push(j);
     });
 
@@ -4687,10 +4681,11 @@ async function confirmarPagoPersona(metodo) {
   try {
     const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 });
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
-    if (metodo === 'efectivo' && total > 0) {
-      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy });
+    // Siempre registrar en caja para que Finanzas tenga el monto correcto
+    if (total > 0) {
+      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo });
     }
-    toast(`✅ Pago registrado${metodo === 'efectivo' ? ' — egreso descontado de caja' : ''}`);
+    toast(`✅ Pago registrado`);
     loadPagos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -4703,7 +4698,7 @@ function generarReciboIndividual(p) {
   // Reusar generarReciboPDF con datos de esta persona
   sb('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 })
     .then(jornadas => {
-      const data = { apellido: p.apellido, nombre: p.nombre, tipo: p.tipo, sueldo_fijo: p.sueldo_fijo, jornadas };
+      const data = { apellido: p.apellido, nombre: p.nombre, tipo: p.tipo, sueldo_fijo: p.sueldo_fijo, tarifa_armado: p.tarifa_armado||0, tarifa_operador: p.tarifa_operador||0, tarifa_deposito: p.tarifa_deposito||0, jornadas };
       const blob = generarReciboPDF(data, periodo, lunes);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
@@ -4782,13 +4777,11 @@ async function loadFinanzas() {
     const totalImpuestos = impuestos.reduce((s, i) =>
       s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tcOficial, 0);
 
-    // 3. Pagos personal: jornadas pagadas en el período
-    const jornadas = await sb('jornadas', { select: 'tarifa_ars,fecha_pago', filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`], limit: 1000 });
-    const totalPagos = jornadas.reduce((s, j) => s + Number(j.tarifa_ars || 0), 0);
-
-    // 4. Egresos de caja que NO son pagos al personal
+    // 3. Pagos personal: entradas de caja con "Pago a"
     const egresos = await sb('caja', { filters: [`tipo=eq.egreso`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`], limit: 500 });
+    const pagosPersonal = egresos.filter(e => e.descripcion?.toLowerCase().startsWith('pago a '));
     const egresosFiltrados = egresos.filter(e => !e.descripcion?.toLowerCase().startsWith('pago a '));
+    const totalPagos  = pagosPersonal.reduce((s, e) => s + Number(e.monto || 0), 0);
     const totalEgresos = egresosFiltrados.reduce((s, e) => s + Number(e.monto || 0), 0);
 
     // 5. Capital
@@ -4831,18 +4824,10 @@ async function loadFinanzas() {
         </div>`).join('')
       : '<div style="color:var(--text-3);font-size:13px">Sin ingresos en este período</div>';
 
-    // Detalle egresos
-    const detalleEg = [
-      ...impuestos.map(i => ({ desc: i.concepto || i.descripcion || 'Impuesto', monto: i.monto_ars, cat: 'Impuesto' })),
-      ...jornadas.map(j => ({ desc: 'Pago personal', monto: j.tarifa_ars, cat: 'Personal' })),
-      ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: e.monto, cat: 'Caja' })),
-    ].sort((a, b) => b.monto - a.monto);
-
     // Agrupar personal e impuestos
-    const personalTotal = jornadas.reduce((s, j) => s + Number(j.tarifa_ars || 0), 0);
     const egResumen = [
       ...(totalImpuestos > 0 ? [{ desc: `Gastos fijos (${impuestos.length} ítems)`, monto: totalImpuestos, cat: 'Impuesto' }] : []),
-      ...(personalTotal > 0 ? [{ desc: `Pagos al personal (${jornadas.length} jornadas)`, monto: personalTotal, cat: 'Personal' }] : []),
+      ...(totalPagos > 0 ? [{ desc: `Pagos al personal (${pagosPersonal.length} pagos)`, monto: totalPagos, cat: 'Personal' }] : []),
       ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: Number(e.monto), cat: 'Caja' })),
     ].sort((a, b) => b.monto - a.monto);
 
