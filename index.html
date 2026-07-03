@@ -2154,13 +2154,53 @@ async function generarPDFFechas() {
       checkY(16);
       fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');
       font('bold', 8); text(NEGRO);
-      doc.text('PRODUCTOS', M + 2, y + 4); y += 7;
-      font('normal', 8); text(GRIS_T);
-      const linea = items.map(i => `${i.cantidad > 1 ? i.cantidad + '× ' : ''}${i.producto}`).join('   ·   ');
-      const wrapped = doc.splitTextToSize(linea, CW - 4);
-      checkY(wrapped.length * 5 + 4);
-      doc.text(wrapped, M + 2, y + 4);
-      y += wrapped.length * 5 + 6;
+      doc.text('PRODUCTOS', M + 2, y + 4); y += 8;
+
+      const IMG_W = 28, IMG_H = 28, IMG_GAP = 4, TEXT_X_FOTO = M + IMG_W + IMG_GAP;
+      const TEXT_W_FOTO = CW - IMG_W - IMG_GAP;
+
+      items.forEach((item, idx) => {
+        const nombre = `${item.cantidad > 1 ? item.cantidad + '× ' : ''}${item.producto}`;
+        const desc   = item.descripcion || '';
+        const hasFoto = !!(item.foto_base64);
+
+        const textX = hasFoto ? TEXT_X_FOTO : M + 2;
+        const textW = hasFoto ? TEXT_W_FOTO - 2 : CW - 4;
+
+        font('bold', 8); text(NEGRO);
+        const nombreWrapped = doc.splitTextToSize(nombre, textW);
+        font('normal', 7.5); text(GRIS_T);
+        const descWrapped = desc ? doc.splitTextToSize(desc, textW) : [];
+
+        const textLines = nombreWrapped.length + descWrapped.length;
+        const rowH = Math.max(hasFoto ? IMG_H + 4 : 0, textLines * 4.2 + 8);
+
+        checkY(rowH + 2);
+
+        if (idx > 0) {
+          stroke([220,220,220]); doc.setLineWidth(0.2);
+          doc.line(M, y, M + CW, y);
+        }
+        y += 3;
+
+        if (hasFoto) {
+          try {
+            doc.addImage(item.foto_base64, 'JPEG', M, y, IMG_W, IMG_H);
+          } catch(e) {
+            try { doc.addImage(item.foto_base64, 'PNG', M, y, IMG_W, IMG_H); } catch(e2) {}
+          }
+        }
+
+        font('bold', 8); text(NEGRO);
+        doc.text(nombreWrapped, textX, y + 5);
+        if (descWrapped.length) {
+          font('normal', 7.5); text(GRIS_T);
+          doc.text(descWrapped, textX, y + 5 + nombreWrapped.length * 4.5);
+        }
+
+        y += rowH;
+      });
+      y += 4;
     }
 
     // Logística (personal)
@@ -2253,7 +2293,7 @@ async function loadDashboard() {
     const presIds = presupuestos.map(p => p.id);
     let presItemsAll = [];
     if (presIds.length) {
-      presItemsAll = await sb('presupuesto_items', { filters: [`presupuesto_id=in.(${presIds.join(',')})`], select: 'presupuesto_id,producto,cantidad', limit: 1000 });
+      presItemsAll = await sb('presupuesto_items', { filters: [`presupuesto_id=in.(${presIds.join(',')})`], select: 'presupuesto_id,producto,cantidad,descripcion,foto_base64', limit: 1000 });
     }
 
     // Map evento_id → items
