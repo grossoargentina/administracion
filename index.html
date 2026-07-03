@@ -1252,16 +1252,12 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
     <div class="modal-body">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Evento *</label>
-          <select class="inp" id="armado-evento" onchange="actualizarFechaHoraArmado()"></select>
+          <label class="lbl">Evento</label>
+          <div id="armado-evento" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
         </div>
         <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Tipo *</label>
-          <select class="inp" id="armado-tipo" onchange="actualizarFechaHoraArmado()">
-            <option value="Armado">Armado</option>
-            <option value="Operador">Operador</option>
-            <option value="Desarme">Desarme</option>
-          </select>
+          <label class="lbl">Tipo</label>
+          <div id="armado-tipo" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
         </div>
         <div class="field">
           <label class="lbl">Fecha</label>
@@ -2233,7 +2229,7 @@ async function generarPDFFechas() {
         checkY(10);
         const fLabel = new Date(g.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
         font('bold', 8); text(NEGRO);
-        doc.text(`${g.tipo}  —  ${fLabel}${g.hora ? '  🕐 ' + g.hora : ''}`, M + 2, y + 4);
+        doc.text(`${g.tipo}  —  ${fLabel}${g.hora ? '  ' + g.hora : ''}`, M + 2, y + 4);
         font('normal', 8); text(GRIS_T);
         doc.text(g.personas.join(', ') || 'Sin personal', M + 2, y + 9);
         y += 13;
@@ -3509,10 +3505,14 @@ async function editarLogistica(id, tipo, esExtra = false) {
   } catch(e) { toast('Error cargando logística: ' + e.message, 'err'); }
 }
 
-function actualizarFechaHoraArmado() {
-  const evId = parseInt(document.getElementById('armado-evento').value);
-  const tipo  = document.getElementById('armado-tipo').value;
-  const ev    = evId ? (evCache||[]).find(e => e.id === evId) : null;
+function setArmadoEvento(evId, tipo) {
+  const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
+  const evEl   = document.getElementById('armado-evento');
+  const tipoEl = document.getElementById('armado-tipo');
+  evEl.textContent    = ev ? `${ev.codigo} · ${ev.cliente_nombre}${ev.venue ? ' · ' + ev.venue : ''}` : '—';
+  evEl.dataset.value  = evId || '';
+  tipoEl.textContent   = tipo || '—';
+  tipoEl.dataset.value = tipo || '';
   const fechaMap = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
   const horaMap  = { Armado: ev?.hora_armado,  Operador: ev?.horario,      Desarme: ev?.hora_desarme };
   const fecha = fechaMap[tipo] || '';
@@ -3528,9 +3528,7 @@ function actualizarFechaHoraArmado() {
 function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   abrirAgregarArmado();
   document.getElementById('armado-modal-title').textContent = `Agregar día — ${tipo}`;
-  if (evId) document.getElementById('armado-evento').value = evId;
-  document.getElementById('armado-tipo').value = tipo;
-  actualizarFechaHoraArmado();
+  setArmadoEvento(evId, tipo);
 }
 
 let _presupuestoParaEventoId = null;
@@ -3555,12 +3553,10 @@ function abrirAgregarDeposito() {
 }
 
 function abrirAgregarArmado() {
-  // Poblar eventos
-  const evSel = document.getElementById('armado-evento');
-  const evRelevantes = (evCache || []).filter(e => ['Confirmado','Realizado'].includes(e.estado));
-  evSel.innerHTML = evRelevantes.map(e => `<option value="${e.id}">${e.codigo} · ${e.cliente_nombre} · ${e.venue || ''}</option>`).join('');
-  // Hora
-  const _ah = document.getElementById('armado-hora'); _ah.textContent = '—'; _ah.dataset.value = '';
+  // Resetear campos de solo lectura
+  ['armado-evento','armado-tipo','armado-fecha','armado-hora'].forEach(id => {
+    const el = document.getElementById(id); el.textContent = '—'; el.dataset.value = '';
+  });
   // Personal checkboxes
   const persDiv = document.getElementById('armado-personal');
   persDiv.innerHTML = (persCache || []).map(p =>
@@ -3569,20 +3565,16 @@ function abrirAgregarArmado() {
       ${p.apellido} ${p.nombre}
     </label>`
   ).join('');
-  // Resetear título y tipo
   document.getElementById('armado-modal-title').textContent = 'Agregar día de armado';
-  document.getElementById('armado-tipo').value = 'Armado';
-  // Fecha hoy
-  const _af = document.getElementById('armado-fecha'); _af.textContent = '—'; _af.dataset.value = '';
   openModal('modal-agregar-armado');
 }
 
 async function guardarAgregarArmado() {
-  const evId = parseInt(document.getElementById('armado-evento').value);
+  const evId = parseInt(document.getElementById('armado-evento').dataset.value);
+  const tipo  = document.getElementById('armado-tipo').dataset.value  || 'Armado';
   const fecha = document.getElementById('armado-fecha').dataset.value || '';
   const hora  = document.getElementById('armado-hora').dataset.value  || '';
-  const tipo = document.getElementById('armado-tipo').value || 'Armado';
-  if (!evId || !fecha) { toast('Elegí un evento — la fecha se carga desde el evento', 'err'); return; }
+  if (!evId || !fecha) { toast('Abrí el modal desde un evento para cargar la fecha', 'err'); return; }
 
   const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
