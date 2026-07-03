@@ -2212,9 +2212,10 @@ async function generarPDFFechas() {
 
       // Agrupar por tipo y fecha
       const grupos = {};
+      const horaFallback = { Armado: ev.hora_armado, Operador: ev.horario, Desarme: ev.hora_desarme };
       jornadasEv.forEach(j => {
         const key = `${j.tipo}||${j.fecha}`;
-        if (!grupos[key]) grupos[key] = { tipo: j.tipo, fecha: j.fecha, hora: j.hora_inicio, personas: [] };
+        if (!grupos[key]) grupos[key] = { tipo: j.tipo, fecha: j.fecha, hora: horaFallback[j.tipo] || '', personas: [] };
         const nombre = `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim();
         if (nombre && !grupos[key].personas.includes(nombre)) grupos[key].personas.push(nombre);
       });
@@ -2333,7 +2334,8 @@ async function loadDashboard() {
 
       function renderColumna(titulo, jorns) {
         const fecha = new Date(jorns[0].fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
-        const hora  = jorns[0].hora_inicio || '';
+        const horaEvMap = { 'Armado': ev.hora_armado, 'Operador': ev.horario, 'Desarme': ev.hora_desarme, 'Depósito': '' };
+        const hora  = horaEvMap[titulo] || '';
         const pers  = [...new Map(jorns.map(j => [j.personal_id, `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim()])).values()].filter(Boolean);
         return `<div style="flex:1;min-width:160px;background:var(--bg-2);border-radius:8px;padding:10px 12px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:6px">${titulo}</div>
@@ -2570,10 +2572,12 @@ async function editEvento(id) {
       const logRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 50 });
       const logIds = logRels.map(r => r.logistica_id);
       const jorns = logIds.length
-        ? await sb('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha,hora_inicio', order: 'fecha', limit: 100 })
+        ? await sb('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha', order: 'fecha', limit: 100 })
         : [];
       const fechas   = jorns.map(j => j.fecha).filter(Boolean);
-      const horarios = jorns.map(j => j.hora_inicio);
+      let horarios = [];
+      try { horarios = ev.horarios_evento ? (Array.isArray(ev.horarios_evento) ? ev.horarios_evento : JSON.parse(ev.horarios_evento)) : []; } catch(e) {}
+      if (!horarios.length && ev.horario) horarios = fechas.map(() => ev.horario);
       if (fechas.length) {
         fpFecha.setDate(fechas);
         renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horarios);
@@ -2646,12 +2650,12 @@ async function guardarEvento() {
       for (let i = 0; i < jornadasOp.length; i++) {
         const fecha = fechasEv[i] || fechasEv[0] || null;
         const hora  = horariosEv[i] || horariosEv[0] || null;
-        if (fecha) await sbPatch('jornadas', jornadasOp[i].id, { fecha, ...(hora ? { hora_inicio: hora } : {}) });
+        if (fecha) await sbPatch('jornadas', jornadasOp[i].id, { fecha });
       }
       for (const j of jornadasEv.filter(j => j.tipo !== 'Operador')) {
         const jPatch = {};
-        if (j.tipo === 'Armado'  && data.fecha_armado)  { jPatch.fecha = data.fecha_armado;  if (data.hora_armado)  jPatch.hora_inicio = data.hora_armado; }
-        if (j.tipo === 'Desarme' && data.fecha_desarme)  { jPatch.fecha = data.fecha_desarme; if (data.hora_desarme) jPatch.hora_inicio = data.hora_desarme; }
+        if (j.tipo === 'Armado'  && data.fecha_armado)  jPatch.fecha = data.fecha_armado;
+        if (j.tipo === 'Desarme' && data.fecha_desarme)  jPatch.fecha = data.fecha_desarme;
         if (Object.keys(jPatch).length) await sbPatch('jornadas', j.id, jPatch);
       }
       toast('Evento actualizado');
@@ -3598,7 +3602,6 @@ async function guardarAgregarArmado() {
           logistica_id: logId,
           tipo,
           fecha: fecha || null,
-          hora_inicio: hora || null,
           personal_id: pid,
           tarifa_ars: tarifa || null,
           pagado: false,
@@ -3611,7 +3614,6 @@ async function guardarAgregarArmado() {
         logistica_id: logId,
         tipo,
         fecha: fecha || null,
-        hora_inicio: hora || null,
         pagado: false,
       }]);
     }
@@ -3889,7 +3891,6 @@ async function guardarLogistica() {
             codigo: `${codigoPrefix}-${seq++}`,
             personal_id: persId,
             fecha: d.fecha,
-            hora_inicio: d.hora_inicio || null,
             tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
             tarifa_ars: tarifa || null,
             pagado: false,
@@ -3924,7 +3925,6 @@ async function guardarLogistica() {
             codigo: `${codigoPrefix}-${seq++}`,
             personal_id: persId,
             fecha: d.fecha,
-            hora_inicio: d.hora_inicio || null,
             tipo: d.tipo === 'Depósito' ? 'Depósito' : d.tipo,
             tarifa_ars: tarifa || null,
             pagado: false,
@@ -6187,7 +6187,6 @@ async function confirmarPresupuestoFinal() {
           logistica_id: logId,
           tipo: 'Operador',
           fecha: f || null,
-          hora_inicio: null,
           pagado: false,
         }));
         if (jornadasOp.length) await sbPost('jornadas', jornadasOp);
