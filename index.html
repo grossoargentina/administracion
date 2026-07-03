@@ -5915,6 +5915,7 @@ async function confirmarPresupuestoFinal() {
   let fechasEvento = [];
   try { fechasEvento = p.fechas_evento ? (Array.isArray(p.fechas_evento) ? p.fechas_evento : JSON.parse(p.fechas_evento)) : []; } catch(e) {}
 
+  
   closeModal('modal-confirmar-presupuesto');
 
   try {
