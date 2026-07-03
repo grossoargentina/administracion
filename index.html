@@ -3419,7 +3419,7 @@ async function loadLogisticas() {
         <div style="font-size:12px;color:var(--text-2);width:80px;text-align:center">${f.persCount} pers.</div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
           ${f.todasConfirmadas
-            ? `<span style="font-size:11px;font-weight:600;color:var(--green);background:rgba(46,204,113,.12);padding:3px 8px;border-radius:20px">✓ Confirmado</span>`
+            ? `<span style="font-size:11px;font-weight:600;color:var(--text-3);background:var(--bg-3);padding:3px 8px;border-radius:20px">✓ Confirmado</span>`
             : `<button class="btn btn-ghost btn-sm" onclick="confirmarJornadas(${f.logId},'${f.tipo}')" style="color:var(--green);border-color:rgba(46,204,113,.3)">✓ Confirmar</button>`}
           <button class="btn btn-ghost btn-sm" onclick="${f.eliminable ? `editarLogistica(${f.logId},'${f.tipo}',true)` : `abrirAgregarArmadoParaTipo(${f.logId},'${f.tipo}',${f.eventoId})`}">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋</button>
