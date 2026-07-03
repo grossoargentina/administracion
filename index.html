@@ -1347,7 +1347,7 @@ span.flatpickr-weekday { color: #c9a84c !important; font-weight: 600; background
       <button class="btn btn-ghost" onclick="closeModal('modal-log-det')">Cerrar</button>
       <button class="btn btn-ghost" onclick="generarWhatsappLogistica()">💬 WhatsApp por persona</button>
       <button class="btn btn-ghost" onclick="generarPDFLogistica()">📄 PDF y guardar en Drive</button>
-      <button class="btn btn-primary" onclick="confirmarPagosLogistica()">💰 Confirmar pagos</button>
+      <button class="btn btn-primary" onclick="confirmarPagosLogistica()">✓ Confirmar jornadas</button>
     </div>
   </div>
 </div>
@@ -4054,14 +4054,13 @@ async function eliminarLogistica(id) {
 }
 
 async function confirmarPagosLogistica() {
-  const pendientes = (logJornadas || []).filter(j => !j.pagado);
-  if (!pendientes.length) { toast('No hay jornadas pendientes de pago', 'err'); return; }
-  if (!confirm(`¿Confirmar pago de ${pendientes.length} jornada(s)?`)) return;
-  const hoy = today();
+  const pendientes = (logJornadas || []).filter(j => !j.confirmada);
+  if (!pendientes.length) { toast('Todas las jornadas ya están confirmadas', 'err'); return; }
+  if (!confirm(`¿Confirmar ${pendientes.length} jornada(s)? Aparecerán en Pagos para liquidar.`)) return;
   try {
-    for (const j of pendientes) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
-    logJornadas = logJornadas.map(j => pendientes.some(p => p.id === j.id) ? { ...j, pagado: true, fecha_pago: hoy } : j);
-    toast(`✅ ${pendientes.length} jornada(s) marcadas como pagadas`);
+    for (const j of pendientes) await sbPatch('jornadas', j.id, { confirmada: true });
+    logJornadas = logJornadas.map(j => pendientes.some(p => p.id === j.id) ? { ...j, confirmada: true } : j);
+    toast(`✅ ${pendientes.length} jornada(s) confirmadas — aparecen en Pagos`);
     closeModal('modal-log-det');
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
