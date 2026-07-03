@@ -2293,7 +2293,16 @@ async function loadDashboard() {
     const presIds = presupuestos.map(p => p.id);
     let presItemsAll = [];
     if (presIds.length) {
-      presItemsAll = await sb('presupuesto_items', { filters: [`presupuesto_id=in.(${presIds.join(',')})`], select: 'presupuesto_id,producto,cantidad,descripcion,foto_base64', limit: 1000 });
+      presItemsAll = await sb('presupuesto_items', { filters: [`presupuesto_id=in.(${presIds.join(',')})`], select: 'presupuesto_id,producto,cantidad,descripcion,foto_base64,catalogo_id', limit: 1000 });
+      // Cargar fotos del catálogo para items sin foto propia
+      const catIds = [...new Set(presItemsAll.filter(i => !i.foto_base64 && i.catalogo_id).map(i => i.catalogo_id))];
+      if (catIds.length) {
+        const catFotos = await sb('catalogo', { filters: [`id=in.(${catIds.join(',')})`], select: 'id,foto_base64', limit: catIds.length });
+        const fotosByCatId = {};
+        catFotos.forEach(c => { if (c.foto_base64) fotosByCatId[c.id] = c.foto_base64; });
+        presItemsAll = presItemsAll.map(i => (!i.foto_base64 && i.catalogo_id && fotosByCatId[i.catalogo_id])
+          ? { ...i, foto_base64: fotosByCatId[i.catalogo_id] } : i);
+      }
     }
 
     // Map evento_id → items
