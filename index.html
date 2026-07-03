@@ -4550,9 +4550,12 @@ async function loadPagos() {
             <td style="padding:4px 8px;text-align:right">${fmtARS(j.tarifa_ars)}</td>
           </tr>`;
         }).join('');
-        return `<div class="card" style="margin-bottom:10px;opacity:.75">
+        return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--green);background:color-mix(in srgb, var(--green) 6%, var(--bg-2))">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span style="font-weight:600;font-size:14px">${p.apellido} ${p.nombre}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:var(--green);font-size:14px">✅</span>
+              <span style="font-weight:600;font-size:14px">${p.apellido} ${p.nombre}</span>
+            </div>
             <span style="font-size:16px;font-weight:700;color:var(--green)">${fmtARS(total)}</span>
           </div>
           <table style="width:100%;border-collapse:collapse">${filas2}</table>
