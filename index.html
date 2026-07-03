@@ -3530,17 +3530,7 @@ function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   document.getElementById('armado-modal-title').textContent = `Agregar día — ${tipo}`;
   if (evId) document.getElementById('armado-evento').value = evId;
   document.getElementById('armado-tipo').value = tipo;
-  const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
-  const fechaMap = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
-  const horaMap  = { Armado: ev?.hora_armado,  Operador: ev?.horario,      Desarme: ev?.hora_desarme };
-  const fecha = fechaMap[tipo];
-  const hora  = horaMap[tipo];
-  const fechaEl = document.getElementById('armado-fecha');
-  const horaEl  = document.getElementById('armado-hora');
-  fechaEl.textContent = fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
-  fechaEl.dataset.value = fecha || '';
-  horaEl.textContent = hora || '—';
-  horaEl.dataset.value = hora || '';
+  actualizarFechaHoraArmado();
 }
 
 let _presupuestoParaEventoId = null;
