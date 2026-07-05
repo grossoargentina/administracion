@@ -2,6 +2,7 @@ import { state } from '../state';
 import { jsPDF } from 'jspdf';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 let dashOffset = 0;
 let _dashData = null;
@@ -193,16 +194,16 @@ export async function loadDashboard() {
 
   try {
     const [eventos, logisticas, logEvs] = await Promise.all([
-      sb('v_eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
-      sb('logisticas', { limit: 200 }),
-      sb('logistica_eventos', { limit: 500 }),
+      sbCached('v_eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
+      sbCached('logisticas', { limit: 200 }),
+      sbCached('logistica_eventos', { limit: 500 }),
     ]);
 
     // Buscar jornadas por evento_id, no por fecha de jornada
     let jornadas = [];
     if (eventos.length) {
       const evIds = eventos.map(e => e.id);
-      jornadas = await sb('v_jornadas', { filters: [`evento_id=in.(${evIds.join(',')})`], select: 'id,evento_id,logistica_id,tipo,fecha,hora_inicio,personal_id,personal_nombre,personal_apellido', limit: 500 });
+      jornadas = await sbCached('v_jornadas', { filters: [`evento_id=in.(${evIds.join(',')})`], select: 'id,evento_id,logistica_id,tipo,fecha,hora_inicio,personal_id,personal_nombre,personal_apellido', limit: 500 });
     }
 
     if (!eventos.length) {
@@ -213,15 +214,15 @@ export async function loadDashboard() {
 
     // Buscar presupuestos vinculados a estos eventos
     const evIds = eventos.map(e => e.id);
-    const presupuestos = await sb('presupuestos', { filters: [`evento_id=in.(${evIds.join(',')})`], select: 'id,evento_id', limit: 200 });
+    const presupuestos = await sbCached('presupuestos', { filters: [`evento_id=in.(${evIds.join(',')})`], select: 'id,evento_id', limit: 200 });
     const presIds = presupuestos.map(p => p.id);
     let presItemsAll = [];
     if (presIds.length) {
-      presItemsAll = await sb('presupuesto_items', { filters: [`presupuesto_id=in.(${presIds.join(',')})`], select: 'presupuesto_id,producto,cantidad,descripcion,foto_base64,catalogo_id', limit: 1000 });
+      presItemsAll = await sbCached('presupuesto_items', { filters: [`presupuesto_id=in.(${presIds.join(',')})`], select: 'presupuesto_id,producto,cantidad,descripcion,foto_base64,catalogo_id', limit: 1000 });
       // Cargar fotos del catálogo para items sin foto propia
       const catIds = [...new Set(presItemsAll.filter(i => !i.foto_base64 && i.catalogo_id).map(i => i.catalogo_id))];
       if (catIds.length) {
-        const catFotos = await sb('catalogo', { filters: [`id=in.(${catIds.join(',')})`], select: 'id,foto_base64', limit: catIds.length });
+        const catFotos = await sbCached('catalogo', { filters: [`id=in.(${catIds.join(',')})`], select: 'id,foto_base64', limit: catIds.length });
         const fotosByCatId = {};
         catFotos.forEach(c => { if (c.foto_base64) fotosByCatId[c.id] = c.foto_base64; });
         presItemsAll = presItemsAll.map(i => (!i.foto_base64 && i.catalogo_id && fotosByCatId[i.catalogo_id])

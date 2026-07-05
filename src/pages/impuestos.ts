@@ -1,6 +1,7 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── IMPUESTOS ─────────────────────────────────────────────
 const MESES_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -20,7 +21,7 @@ let impAnio   = new Date().getFullYear();
 
 export async function loadImpuestos() {
   try {
-    todosImpuestos = await sb('costos_fijos', { order: 'anio.asc,id.asc' });
+    todosImpuestos = await sbCached('costos_fijos', { order: 'anio.asc,id.asc' });
     renderImpuestos();
     document.getElementById('imp-mes').value = MESES_NAMES[impMesIdx];
     actualizarCatImp();
@@ -163,6 +164,7 @@ export async function toggleTarjeta(id, valor) {
   const patch = { paga_por_tarjeta: valor };
   if (valor) { patch.pagado = true; patch.fecha_pago = today(); }
   await sbPatch('costos_fijos', id, patch);
+  invalidateCache('costos_fijos');
   const item = todosImpuestos.find(x => x.id === id);
   if (item) Object.assign(item, patch);
   renderImpuestos();
@@ -170,6 +172,7 @@ export async function toggleTarjeta(id, valor) {
 
 export async function marcarPagadoImp(id) {
   await sbPatch('costos_fijos', id, { pagado: true, fecha_pago: today() });
+  invalidateCache('costos_fijos');
   toast('Marcado como pagado');
   loadImpuestos();
 }
@@ -177,6 +180,7 @@ export async function marcarPagadoImp(id) {
 export async function desmarcarPagadoImp(id) {
   if (!confirm('¿Marcar como no pagado?')) return;
   await sbPatch('costos_fijos', id, { pagado: false, fecha_pago: null });
+  invalidateCache('costos_fijos');
   toast('Desmarcado');
   loadImpuestos();
 }
@@ -184,6 +188,7 @@ export async function desmarcarPagadoImp(id) {
 export async function eliminarImpuesto(id) {
   if (!confirm('¿Eliminar este concepto?')) return;
   await sbDelete('costos_fijos', id);
+  invalidateCache('costos_fijos');
   toast('Concepto eliminado');
   loadImpuestos();
 }
@@ -244,9 +249,11 @@ export async function guardarImpuesto() {
   try {
     if (id) {
       await sbPatch('costos_fijos', parseInt(id), data);
+      invalidateCache('costos_fijos');
       toast('Concepto actualizado');
     } else {
       await sbPost('costos_fijos', data);
+      invalidateCache('costos_fijos');
       toast('Concepto agregado');
     }
     closeModal('modal-impuesto');
@@ -298,6 +305,7 @@ export async function confirmarMesNuevo() {
         notas:     item.notas,
       });
     }
+    invalidateCache('costos_fijos');
     toast(`✅ ${mesDestino} ${anioDestino} generado — ${delMes.length} conceptos`);
     closeModal('modal-mes-nuevo');
     impMesIdx = MESES_NAMES.indexOf(mesDestino);

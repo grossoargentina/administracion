@@ -1,6 +1,7 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── FINANZAS ──────────────────────────────────────────────
 const MESES_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -51,10 +52,10 @@ export async function loadFinanzas() {
 
   try {
     // 1. Ingresos: pagos de eventos cuya fecha_evento cae en el período
-    const eventosDelPeriodo = await sb('v_eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], limit: 200 });
+    const eventosDelPeriodo = await sbCached('v_eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], limit: 200 });
     const eventoIds = eventosDelPeriodo.map(e => e.id);
     const cobros = eventoIds.length
-      ? await sb('pagos', { filters: [`evento_id=in.(${eventoIds.join(',')})`], limit: 500 })
+      ? await sbCached('pagos', { filters: [`evento_id=in.(${eventoIds.join(',')})`], limit: 500 })
       : [];
     const totalIngresos = cobros.reduce((s, c) => s + Number(c.monto_ars || 0), 0);
 
@@ -66,7 +67,7 @@ export async function loadFinanzas() {
       : MESES_NAMES.map(m => ({ mes: m, anio: anioDesde }));
     const aniosFiltro = [...new Set(mesesPeriodo.map(m => m.anio))];
     const [impuestosAnio, tcOficial] = await Promise.all([
-      sb('costos_fijos', { filters: [`anio=in.(${aniosFiltro.join(',')})`], limit: 1000 }),
+      sbCached('costos_fijos', { filters: [`anio=in.(${aniosFiltro.join(',')})`], limit: 1000 }),
       fetchTipoCambioOficial(),
     ]);
     const impuestos = impuestosAnio.filter(i =>
@@ -76,14 +77,14 @@ export async function loadFinanzas() {
       s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tcOficial, 0);
 
     // 3. Pagos personal: entradas de caja con "Pago a"
-    const egresos = await sb('caja', { filters: [`tipo=eq.egreso`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`], limit: 500 });
+    const egresos = await sbCached('caja', { filters: [`tipo=eq.egreso`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`], limit: 500 });
     const pagosPersonal = egresos.filter(e => e.descripcion?.toLowerCase().startsWith('pago a '));
     const egresosFiltrados = egresos.filter(e => !e.descripcion?.toLowerCase().startsWith('pago a '));
     const totalPagos  = pagosPersonal.reduce((s, e) => s + Number(e.monto || 0), 0);
     const totalEgresos = egresosFiltrados.reduce((s, e) => s + Number(e.monto || 0), 0);
 
     // 5. Capital
-    const capitalMovs = await sb('capital', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], order: 'fecha.desc', limit: 500 });
+    const capitalMovs = await sbCached('capital', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], order: 'fecha.desc', limit: 500 });
     const capitalIng = capitalMovs.filter(c => c.tipo === 'ingreso').reduce((s, c) => s + Number(c.monto || 0), 0);
     const capitalEg  = capitalMovs.filter(c => c.tipo === 'egreso').reduce((s, c) => s + Number(c.monto || 0), 0);
     const capitalNeto = capitalIng - capitalEg;
@@ -99,9 +100,9 @@ export async function loadFinanzas() {
     resEl.style.color = resultado >= 0 ? 'var(--green)' : 'var(--red)';
 
     // KPIs adicionales: pendientes de cobro y jornadas sin pagar (estado actual, no atado al período)
-    const cobrosPendientes = await sb('v_cobros_pendientes');
+    const cobrosPendientes = await sbCached('v_cobros_pendientes');
     document.getElementById('fin-pendientes-cobro').textContent = cobrosPendientes.length;
-    const jornadasSinPagar = await sb('jornadas', { select: 'id', filters: ['pagado=eq.false'], limit: 1000 });
+    const jornadasSinPagar = await sbCached('jornadas', { select: 'id', filters: ['pagado=eq.false'], limit: 1000 });
     document.getElementById('fin-jornadas-sin-pagar').textContent = jornadasSinPagar.length;
 
     // Detalle ingresos por evento
@@ -204,6 +205,7 @@ export async function guardarCapital() {
     }
     await sbInsert('capital', { tipo, descripcion: desc, monto, monto_usd: montoUSD, fecha });
     closeModal('modal-capital');
+    invalidateCache('capital');
     toast('✅ Movimiento de capital registrado');
     loadFinanzas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -213,6 +215,7 @@ export async function eliminarCapital(id) {
   if (!confirm('¿Eliminar este movimiento?')) return;
   try {
     await sbDelete('capital', id);
+    invalidateCache('capital');
     toast('Eliminado');
     loadFinanzas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }

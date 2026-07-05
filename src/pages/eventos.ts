@@ -1,6 +1,7 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── EVENTOS ───────────────────────────────────────────────
 let todosEventos = [];
@@ -35,7 +36,7 @@ export function sortClasses(tabla, campo) {
 export async function loadEventos() {
   document.getElementById('ev-tbody').innerHTML = '<tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr>';
   try {
-    todosEventos = await sb('v_pipeline', { limit: 200 });
+    todosEventos = await sbCached('v_pipeline', { limit: 200 });
     renderEventos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -160,10 +161,10 @@ export async function editEvento(id) {
     fpFecha.clear();
     renderHorariosEv([]);
     try {
-      const logRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 50 });
+      const logRels = await sbCached('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 50 });
       const logIds = logRels.map(r => r.logistica_id);
       const jorns = logIds.length
-        ? await sb('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha', order: 'fecha', limit: 100 })
+        ? await sbCached('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha', order: 'fecha', limit: 100 })
         : [];
       const fechas   = jorns.map(j => j.fecha).filter(Boolean);
       let horarios = [];
@@ -249,6 +250,8 @@ export async function guardarEvento() {
         if (j.tipo === 'Desarme' && data.fecha_desarme)  jPatch.fecha = data.fecha_desarme;
         if (Object.keys(jPatch).length) await sbPatch('jornadas', j.id, jPatch);
       }
+      invalidateCache('eventos');
+      invalidateCache('v_pipeline');
       toast('Evento actualizado');
     } else {
       // Generar código único
@@ -262,6 +265,8 @@ export async function guardarEvento() {
         const newLogId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
         if (newLogId) await sbPost('logistica_eventos', { logistica_id: newLogId, evento_id: newEvId });
       }
+      invalidateCache('eventos');
+      invalidateCache('v_pipeline');
       toast('Evento creado');
     }
     closeModal('modal-evento');
@@ -351,6 +356,9 @@ export async function confirmarCobro() {
     if (Object.keys(patch).length) await sbPatch('eventos', id, patch);
 
     closeModal('modal-cobro');
+    invalidateCache('pagos');
+    invalidateCache('eventos');
+    invalidateCache('v_pipeline');
     toast(`Cobro registrado para ${cliente}`);
     loadEventos();
     if (currentPage === 'dashboard') loadDashboard();
@@ -361,7 +369,7 @@ export async function confirmarCobro() {
 // ── COBROS ────────────────────────────────────────────────
 export async function loadCobros() {
   try {
-    const cobros = await sb('v_cobros_pendientes');
+    const cobros = await sbCached('v_cobros_pendientes');
     const total = cobros.reduce((s,c) => s + Number(c.pendiente_ars||0), 0);
     const eventos = cobros.length;
 

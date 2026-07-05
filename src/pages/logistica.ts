@@ -2,11 +2,12 @@ import { state } from '../state';
 import { jsPDF } from 'jspdf';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── JORNADAS ──────────────────────────────────────────────
 export async function loadJornadas() {
   try {
-    const jornadas = await sb('v_jornadas', { limit: 100 });
+    const jornadas = await sbCached('v_jornadas', { limit: 100 });
     const semana = jornadas.filter(j => {
       const d = new Date(j.fecha);
       const hoy = new Date();
@@ -153,6 +154,7 @@ export async function guardarJornadas() {
       await sbPost('jornadas', row);
     }
 
+    invalidateCache('jornadas');
     toast(`✅ ${checks.length} jornada${checks.length > 1 ? 's' : ''} registrada${checks.length > 1 ? 's' : ''}`);
     closeModal('modal-jornada');
     loadJornadas();
@@ -161,6 +163,7 @@ export async function guardarJornadas() {
 
 export async function marcarPagada(id) {
   await sbPatch('jornadas', id, { pagado: true, fecha_pago: today() });
+  invalidateCache('jornadas');
   toast('Jornada marcada como pagada');
   loadJornadas();
 }
@@ -168,6 +171,7 @@ export async function marcarPagada(id) {
 export async function eliminarJornada(id) {
   if (!confirm('¿Eliminar esta jornada?')) return;
   await sbDelete('jornadas', id);
+  invalidateCache('jornadas');
   toast('Jornada eliminada');
   loadJornadas();
 }
@@ -434,15 +438,15 @@ export async function loadLogisticas() {
   const wrap = document.getElementById('log-lista-wrap');
   wrap.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
-    const rows = await sb('logisticas', { order: 'created_at.desc', limit: 100 });
+    const rows = await sbCached('logisticas', { order: 'created_at.desc', limit: 100 });
     if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas cargadas</div></td></tr>';
       return;
     }
     const ids = rows.map(r => r.id);
     const [jornadas, logEvRels] = await Promise.all([
-      sb('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,tipo,fecha,personal_id,confirmada,pagado', limit: 2000 }),
-      sb('logistica_eventos', { filters: [`logistica_id=in.(${ids.join(',')})`], limit: 500 }),
+      sbCached('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,tipo,fecha,personal_id,confirmada,pagado', limit: 2000 }),
+      sbCached('logistica_eventos', { filters: [`logistica_id=in.(${ids.join(',')})`], limit: 500 }),
     ]);
 
     // Mapa logistica_id → evento_id (desde logistica_eventos, sin depender de logisticas.evento_id)
@@ -650,8 +654,8 @@ export async function editarLogistica(id, tipo, esExtra = false) {
 
   try {
     const [logRows, todasJornadas] = await Promise.all([
-      sb('logisticas', { filters: [`id=eq.${id}`], limit: 1 }),
-      sb('v_jornadas', { filters: [`logistica_id=eq.${id}`], order: 'fecha,tipo', limit: 500 }),
+      sbCached('logisticas', { filters: [`id=eq.${id}`], limit: 1 }),
+      sbCached('v_jornadas', { filters: [`logistica_id=eq.${id}`], order: 'fecha,tipo', limit: 500 }),
     ]);
     const log = logRows[0];
     if (!log) { toast('Logística no encontrada', 'err'); return; }
@@ -659,7 +663,7 @@ export async function editarLogistica(id, tipo, esExtra = false) {
     if (log.notas) document.getElementById('nlg-notas').value = log.notas;
     setTipoLog(log.tipo === 'Deposito' ? 'Deposito' : 'Evento');
     if (log.tipo !== 'Deposito') {
-      const evRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
+      const evRel = await sbCached('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
       if (evRel[0]?.evento_id) document.getElementById('nlg-evento').value = evRel[0].evento_id;
     }
 
@@ -786,6 +790,9 @@ export async function guardarAgregarArmado() {
     }
 
     closeModal('modal-agregar-armado');
+    invalidateCache('jornadas');
+    invalidateCache('logisticas');
+    invalidateCache('logistica_eventos');
     toast('Día agregado');
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -795,6 +802,7 @@ export async function confirmarJornadasPersona(persId, desde, hasta) {
   try {
     const jors = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.false`], select: 'id', limit: 200 });
     for (const j of jors) await sbPatch('jornadas', j.id, { confirmada: true });
+    invalidateCache('jornadas');
     toast(`✅ ${jors.length} jornada(s) confirmadas`);
     loadPagos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -805,6 +813,7 @@ export async function confirmarJornadas(logId, tipo) {
     const jors = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, `confirmada=eq.false`], select: 'id', limit: 200 });
     if (!jors.length) { toast('Ya están todas confirmadas'); return; }
     for (const j of jors) await sbPatch('jornadas', j.id, { confirmada: true });
+    invalidateCache('jornadas');
     toast(`✅ ${jors.length} jornada(s) confirmadas — aparecen en Pagos`);
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -1106,6 +1115,9 @@ export async function guardarLogistica() {
     const wasEdit = !!logEditId;
     logEditId = null;
     logEditTipo = null;
+    invalidateCache('logisticas');
+    invalidateCache('jornadas');
+    invalidateCache('logistica_eventos');
     toast(wasEdit ? `✅ Logística actualizada` : `✅ Logística creada con ${jornadasToInsert?.length ?? 0} jornadas`);
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -1193,6 +1205,7 @@ export async function enviarMailSeguroEvento(eventoId, evLabel) {
     const data = await res.json();
     if (res.ok && data.ok) {
       await sbPatch('eventos', eventoId, { seguro_enviado: true });
+      invalidateCache('eventos');
       const ev = (state.evCache || []).find(e => e.id === eventoId);
       if (ev) ev.seguro_enviado = true;
       toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
@@ -1303,6 +1316,9 @@ export async function eliminarLogistica(id) {
       headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
     });
     await sbDelete('logisticas', id);
+    invalidateCache('logisticas');
+    invalidateCache('jornadas');
+    invalidateCache('logistica_eventos');
     toast('Logística eliminada');
     loadLogisticas();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -1315,6 +1331,7 @@ export async function confirmarPagosLogistica() {
   try {
     for (const j of pendientes) await sbPatch('jornadas', j.id, { confirmada: true });
     logJornadas = logJornadas.map(j => pendientes.some(p => p.id === j.id) ? { ...j, confirmada: true } : j);
+    invalidateCache('jornadas');
     toast(`✅ ${pendientes.length} jornada(s) confirmadas — aparecen en Pagos`);
     closeModal('modal-log-det');
     loadLogisticas();
@@ -1330,14 +1347,14 @@ export async function abrirDetLogistica(id, tipo) {
   document.getElementById('log-notas').value     = '';
   openModal('modal-log-det');
   try {
-    const logRows = await sb('logisticas', { filters: [`id=eq.${id}`] });
+    const logRows = await sbCached('logisticas', { filters: [`id=eq.${id}`] });
     const log = logRows[0];
     if (!log) { toast('Logística no encontrada', 'err'); return; }
     if (log.notas) document.getElementById('log-notas').value = log.notas;
-    const detRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
+    const detRel = await sbCached('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
     let ev = detRel[0]?.evento_id ? (state.evCache || []).find(e => e.id === detRel[0].evento_id) : null;
     if (!ev && detRel[0]?.evento_id) {
-      const evRows = await sb('v_eventos', { filters: [`id=eq.${detRel[0].evento_id}`], limit: 1 });
+      const evRows = await sbCached('v_eventos', { filters: [`id=eq.${detRel[0].evento_id}`], limit: 1 });
       ev = evRows[0] || null;
     }
     if (ev) {
@@ -1349,7 +1366,7 @@ export async function abrirDetLogistica(id, tipo) {
     }
     const filters = [`logistica_id=eq.${id}`];
     if (tipo) filters.push(`tipo=eq.${tipo}`);
-    logJornadas = await sb('v_jornadas', { filters, order: 'fecha,personal_apellido', limit: 500 });
+    logJornadas = await sbCached('v_jornadas', { filters, order: 'fecha,personal_apellido', limit: 500 });
     if (tipo) document.getElementById('log-det-title').textContent += ` — ${tipo}`;
     if (!logJornadas.length) {
       document.getElementById('log-editor').innerHTML = '<div style="color:var(--text-2);font-size:13px">Sin jornadas en esta logística.</div>';

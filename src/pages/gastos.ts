@@ -1,6 +1,7 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── GASTOS PERSONALES ─────────────────────────────────────
 const GASTOS_CAT_COLOR = { Comida:'var(--orange)', Transporte:'var(--blue)', Salud:'var(--green)', Ropa:'var(--purple)', Entretenimiento:'var(--gold)', Hogar:'var(--text-2)', Educación:'var(--green)', Varios:'var(--text-3)' };
@@ -9,7 +10,7 @@ let _todosGastos = [];
 export async function loadGastos() {
   document.getElementById('gastos-tbody').innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
   try {
-    _todosGastos = await sb('gastos_personales', { order: 'fecha.desc,created_at.desc', limit: 500 });
+    _todosGastos = await sbCached('gastos_personales', { order: 'fecha.desc,created_at.desc', limit: 500 });
 
     // KPIs globales (mes y año actuales, sin filtro)
     const ahora = new Date();
@@ -137,6 +138,7 @@ export async function guardarGasto() {
   try {
     await sbInsert('gastos_personales', { descripcion: desc, monto, fecha, categoria });
     closeModal('modal-gasto');
+    invalidateCache('gastos_personales');
     toast('✅ Gasto registrado');
     loadGastos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -146,6 +148,7 @@ export async function eliminarGasto(id) {
   if (!confirm('¿Eliminar este gasto?')) return;
   try {
     await sbDelete('gastos_personales', id);
+    invalidateCache('gastos_personales');
     toast('Gasto eliminado');
     loadGastos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -159,7 +162,7 @@ let _todosGastosOficina = [];
 export async function loadCaja() {
   document.getElementById('ofic-tbody').innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
   try {
-    _todosGastosOficina = await sb('caja', { order: 'fecha.desc,created_at.desc', limit: 500 });
+    _todosGastosOficina = await sbCached('caja', { order: 'fecha.desc,created_at.desc', limit: 500 });
     const ahora = new Date();
     let totalMes = 0, totalAnio = 0;
     _todosGastosOficina.forEach(g => {
@@ -253,6 +256,7 @@ export async function guardarGastoOficina() {
   try {
     await sbInsert('caja', { tipo, descripcion: desc, monto, fecha, categoria });
     closeModal('modal-gasto-oficina');
+    invalidateCache('caja');
     toast('✅ Movimiento registrado');
     loadCaja();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -262,6 +266,7 @@ export async function eliminarGastoOficina(id) {
   if (!confirm('¿Eliminar este movimiento?')) return;
   try {
     await sbDelete('caja', id);
+    invalidateCache('caja');
     toast('Movimiento eliminado');
     loadCaja();
   } catch(e) { toast('Error: ' + e.message, 'err'); }

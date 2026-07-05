@@ -1,6 +1,7 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── PERSONAL ──────────────────────────────────────────────
 let personalBusqueda = '';
@@ -8,7 +9,7 @@ let personalBusqueda = '';
 export async function loadPersonal() {
   document.getElementById('pers-tbody').innerHTML = '<tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr>';
   try {
-    window._personalLista = await sb('personal', { order: 'nombre' });
+    window._personalLista = await sbCached('personal', { order: 'nombre' });
     renderPersonal();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -72,7 +73,7 @@ export function abrirModalPersonal() {
 }
 
 export function editarPersonal(id) {
-  sb('personal', { filters: [`id=eq.${id}`] }).then(rows => {
+  sbCached('personal', { filters: [`id=eq.${id}`] }).then(rows => {
     const p = rows[0]; if (!p) return;
     document.getElementById('pers-id').value       = p.id;
     document.getElementById('pers-modal-title').textContent = 'Editar personal';
@@ -118,11 +119,13 @@ export async function guardarPersonal() {
   try {
     if (id) {
       await sbPatch('personal', parseInt(id), data);
+      invalidateCache('personal');
       toast('Personal actualizado');
     } else {
       const count = await sb('personal', { select: 'id' });
       data.codigo = 'P' + String(count.length + 1).padStart(3, '0');
       await sbPost('personal', data);
+      invalidateCache('personal');
       toast('Personal agregado');
     }
     closeModal('modal-personal');
@@ -133,6 +136,7 @@ export async function guardarPersonal() {
 
 export async function togglePersonal(id, activo) {
   await sbPatch('personal', id, { activo: !activo });
+  invalidateCache('personal');
   toast(activo ? 'Personal dado de baja' : 'Personal reactivado');
   loadPersonal();
 }

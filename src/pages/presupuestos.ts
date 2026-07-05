@@ -2,6 +2,7 @@ import { state } from '../state';
 import { jsPDF } from 'jspdf';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── CATÁLOGO ──────────────────────────────────────────────
 // ── CLIENTES ────────────────────────────────────────────
@@ -12,8 +13,8 @@ export async function loadClientes() {
   tbody.innerHTML = '<tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr>';
   try {
     const [clientes, eventos] = await Promise.all([
-      sb('clientes', { order: 'nombre', limit: 500 }),
-      sb('eventos', { select: 'cliente_id', filters: ['cliente_id=not.is.null'], limit: 500 }),
+      sbCached('clientes', { order: 'nombre', limit: 500 }),
+      sbCached('eventos', { select: 'cliente_id', filters: ['cliente_id=not.is.null'], limit: 500 }),
     ]);
     const countMap = {};
     eventos.forEach(e => { countMap[e.cliente_id] = (countMap[e.cliente_id] || 0) + 1; });
@@ -34,7 +35,7 @@ export async function loadClientes() {
 export async function editarCliente(id) {
   clienteEditId = id;
   try {
-    const rows = await sb('clientes', { filters: [`id=eq.${id}`], limit: 1 });
+    const rows = await sbCached('clientes', { filters: [`id=eq.${id}`], limit: 1 });
     const c = rows[0]; if (!c) return;
     document.getElementById('cliente-modal-title').textContent = c.nombre;
     document.getElementById('cliente-nombre').value  = c.nombre || '';
@@ -51,6 +52,7 @@ export async function guardarCliente() {
   try {
     await sbPatch('clientes', clienteEditId, { nombre, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
     closeModal('modal-cliente');
+    invalidateCache('clientes');
     toast('Cliente actualizado');
     loadClientes();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -58,13 +60,13 @@ export async function guardarCliente() {
 
 export async function verSegurosEvento(eventoId) {
   try {
-    const rows = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,cliente_nombre,venue', limit: 1 });
+    const rows = await sbCached('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,cliente_nombre,venue', limit: 1 });
     const ev = rows[0]; if (!ev) return;
 
     const fetches = [];
-    if (ev.cliente_id) fetches.push(sb('clientes', { filters: [`id=eq.${ev.cliente_id}`], select: 'nombre,seguro_info', limit: 1 }));
+    if (ev.cliente_id) fetches.push(sbCached('clientes', { filters: [`id=eq.${ev.cliente_id}`], select: 'nombre,seguro_info', limit: 1 }));
     else fetches.push(Promise.resolve([]));
-    if (ev.salon_id) fetches.push(sb('salones', { filters: [`id=eq.${ev.salon_id}`], select: 'nombre,seguro_info', limit: 1 }));
+    if (ev.salon_id) fetches.push(sbCached('salones', { filters: [`id=eq.${ev.salon_id}`], select: 'nombre,seguro_info', limit: 1 }));
     else fetches.push(Promise.resolve([]));
 
     const [clRows, slRows] = await Promise.all(fetches);
@@ -99,8 +101,8 @@ export async function loadSalones() {
   tbody.innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
   try {
     const [salones, eventos] = await Promise.all([
-      sb('salones', { order: 'nombre', limit: 200 }),
-      sb('eventos', { select: 'salon_id', filters: ['salon_id=not.is.null'], limit: 500 }),
+      sbCached('salones', { order: 'nombre', limit: 200 }),
+      sbCached('eventos', { select: 'salon_id', filters: ['salon_id=not.is.null'], limit: 500 }),
     ]);
     const countMap = {};
     eventos.forEach(e => { countMap[e.salon_id] = (countMap[e.salon_id] || 0) + 1; });
@@ -122,7 +124,7 @@ export async function loadSalones() {
 export async function editarSalon(id) {
   salonEditId = id;
   try {
-    const rows = await sb('salones', { filters: [`id=eq.${id}`], limit: 1 });
+    const rows = await sbCached('salones', { filters: [`id=eq.${id}`], limit: 1 });
     const s = rows[0];
     if (!s) return;
     document.getElementById('salon-modal-title').textContent = s.nombre;
@@ -141,6 +143,7 @@ export async function guardarSalon() {
   const benefs = state.salonBeneficiarios.filter(b => b.nombre || b.cuit);
   try {
     await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
+    invalidateCache('salones');
     closeModal('modal-salon');
     toast('Salón actualizado');
     loadSalones();
@@ -176,7 +179,7 @@ export async function upsertClienteYSalon(clienteNombre, salonNombre) {
 export async function loadCatalogo() {
   document.getElementById('cat-tbody').innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>';
   try {
-    const lista = await sb('catalogo', { select: 'id,codigo,categoria,producto,descripcion,precio_ars,activo,tiene_foto', filters:['activo=eq.true'], order:'categoria,codigo' });
+    const lista = await sbCached('catalogo', { select: 'id,codigo,categoria,producto,descripcion,precio_ars,activo,tiene_foto', filters:['activo=eq.true'], order:'categoria,codigo' });
     const cats = [...new Set(lista.map(i => i.categoria))];
 
     // Botones de filtro por categoría
@@ -194,7 +197,7 @@ export async function abrirModalProductoById(id) {
   // Cargar foto_base64 solo ahora, bajo demanda
   let item = base ? { ...base } : { id };
   try {
-    const rows = await sb('catalogo', { select: 'foto_base64', filters: [`id=eq.${id}`], limit: 1 });
+    const rows = await sbCached('catalogo', { select: 'foto_base64', filters: [`id=eq.${id}`], limit: 1 });
     if (rows[0]?.foto_base64) item.foto_base64 = rows[0].foto_base64;
   } catch(e) { /* sin foto */ }
   abrirModalProducto(item);
@@ -324,6 +327,7 @@ export async function guardarProducto() {
     }
     closeModal('modal-producto');
     catalogoCache = [];
+    invalidateCache('catalogo');
     toast(id ? '✅ Producto actualizado' : '✅ Producto agregado');
     loadCatalogo();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -334,6 +338,7 @@ export async function eliminarProducto(id) {
   try {
     await sbPatch('catalogo', id, { activo: false });
     catalogoCache = [];
+    invalidateCache('catalogo');
     toast('Producto eliminado');
     loadCatalogo();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -365,7 +370,7 @@ export function initThumbObserver() {
       el.dataset.loaded = '1';
       window._thumbObserver.unobserve(el);
       try {
-        const rows = await sb('catalogo', { select: 'foto_base64', filters: [`id=eq.${id}`], limit: 1 });
+        const rows = await sbCached('catalogo', { select: 'foto_base64', filters: [`id=eq.${id}`], limit: 1 });
         if (rows[0]?.foto_base64) {
           el.innerHTML = '';
           const img = document.createElement('img');
@@ -427,7 +432,7 @@ let catalogoCache = [];   // catálogo completo
 let _confirmarPresupuestoCtx = null; // { id, p } — presupuesto pendiente de confirmar en el modal
 
 export async function confirmarPresupuesto(id) {
-  const rows = await sb('presupuestos', { filters: [`id=eq.${id}`], limit: 1 });
+  const rows = await sbCached('presupuestos', { filters: [`id=eq.${id}`], limit: 1 });
   const p = rows[0];
   if (!p) { toast('No se encontró el presupuesto', 'err'); return; }
   _confirmarPresupuestoCtx = { id, p };
@@ -555,6 +560,9 @@ export async function confirmarPresupuestoFinal() {
       }
     }
 
+    invalidateCache('presupuestos');
+    invalidateCache('eventos');
+    invalidateCache('jornadas');
     toast(`✅ Evento ${codigo} creado como Confirmado`);
     loadPresupuestos();
     // Actualizar caché de eventos
@@ -601,6 +609,8 @@ export async function perderPresupuesto(id, cliente) {
       estado_evento: 'Perdido',
     });
 
+    invalidateCache('presupuestos');
+    invalidateCache('eventos');
     toast(`Presupuesto marcado como perdido — ${motivoTexto}`);
     loadPresupuestos();
   } catch(e) {
@@ -614,7 +624,7 @@ export function grupoRootId(p) { return p.grupo_id || p.id; }
 export async function loadPresupuestos() {
   document.getElementById('presup-tbody').innerHTML = '<tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr>';
   try {
-    const lista = await sb('presupuestos', { order: 'created_at.desc', limit: 100 });
+    const lista = await sbCached('presupuestos', { order: 'created_at.desc', limit: 100 });
     window._presupLista = lista;
 
     // Ordenar grupos: por sort state si aplica, sino más reciente primero
@@ -695,7 +705,7 @@ export async function abrirModalPresupuesto() {
 
   // Cargar catálogo si no está en cache
   if (!catalogoCache.length) {
-    catalogoCache = await sb('catalogo', { filters:['activo=eq.true'], order:'categoria,codigo' });
+    catalogoCache = await sbCached('catalogo', { filters:['activo=eq.true'], order:'categoria,codigo' });
   }
 
   // Llenar filtro de categorías
@@ -743,8 +753,8 @@ export async function abrirModalPresupuesto() {
   // Poblar autocomplete de cliente y venue
   try {
     const [clientes, salones] = await Promise.all([
-      sb('clientes', { select: 'nombre', order: 'nombre', limit: 500 }),
-      sb('salones',  { select: 'nombre', order: 'nombre', limit: 500 }),
+      sbCached('clientes', { select: 'nombre', order: 'nombre', limit: 500 }),
+      sbCached('salones',  { select: 'nombre', order: 'nombre', limit: 500 }),
     ]);
     state._acData['pres-cliente'] = clientes.map(c => c.nombre);
     state._acData['pres-venue']   = salones.map(s => s.nombre);
@@ -790,7 +800,7 @@ export async function nuevaVersionPresupuesto(id) {
   document.getElementById('pres-sena').value = presSenaMonto > 0 ? presSenaMonto.toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
 
   try {
-    const items = await sb('presupuesto_items', { filters: [`presupuesto_id=eq.${id}`], limit: 200 });
+    const items = await sbCached('presupuesto_items', { filters: [`presupuesto_id=eq.${id}`], limit: 200 });
     presItems = items.map(it => ({
       id: it.catalogo_id || ('C' + it.id),
       producto: it.producto,
@@ -965,6 +975,7 @@ export async function guardarItemEnCatalogo(i) {
     await sbPatch('catalogo', item.id, { descripcion: item.descripcion || null, precio_ars: item.precio });
     const cacheItem = catalogoCache.find(c => String(c.id) === String(item.id));
     if (cacheItem) { cacheItem.descripcion = item.descripcion || ''; cacheItem.precio_ars = item.precio; }
+    invalidateCache('catalogo');
     toast('✅ Producto actualizado en el catálogo');
   } catch(e) {
     toast('Error actualizando catálogo: ' + e.message, 'err');
@@ -1388,6 +1399,8 @@ export async function generarPresupuesto() {
       }
     } catch(e) { console.error('Error guardando presupuesto:', e); }
 
+    invalidateCache('presupuestos');
+    invalidateCache('presupuesto_items');
     toast(pdfUrl ? '✅ PDF generado y guardado en Drive' : '✅ PDF generado');
     closeModal('modal-presupuesto');
     presItems = [];

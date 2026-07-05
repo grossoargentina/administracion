@@ -1,11 +1,12 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { sbCached, invalidateCache } from '../query-cache';
 
 // ── MENSAJES WHATSAPP ─────────────────────────────────────
 export async function loadMensajes() {
   try {
-    const lista = await sb('whatsapp_mensajes', { order: 'timestamp.desc', limit: 200 });
+    const lista = await sbCached('whatsapp_mensajes', { order: 'timestamp.desc', limit: 200 });
     const noLeidos = lista.filter(m => !m.leido).length;
     const badge = document.getElementById('nav-mensajes-badge');
     if (noLeidos > 0) { badge.textContent = noLeidos; badge.style.display = 'inline'; }
@@ -31,23 +32,25 @@ export async function loadMensajes() {
 
 export async function marcarLeido(id) {
   await sbPatch('whatsapp_mensajes', id, { leido: true });
+  invalidateCache('whatsapp_mensajes');
   loadMensajes();
 }
 
 export async function marcarTodosLeidos() {
   const lista = await sb('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 200 });
   for (const m of lista) await sbPatch('whatsapp_mensajes', m.id, { leido: true });
+  invalidateCache('whatsapp_mensajes');
   toast('✅ Todos marcados como leídos');
   loadMensajes();
 }
 
 export async function checkMensajesNuevos() {
   try {
-    const lista = await sb('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 1 });
+    const lista = await sbCached('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 1 });
     const badge = document.getElementById('nav-mensajes-badge');
     if (!badge) return;
     if (lista.length > 0) {
-      const total = await sb('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 99 });
+      const total = await sbCached('whatsapp_mensajes', { filters: ['leido=eq.false'], limit: 99 });
       badge.textContent = total.length;
       badge.style.display = 'inline';
     } else {
