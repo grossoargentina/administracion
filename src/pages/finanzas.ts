@@ -3,6 +3,7 @@ import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calc
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
 
 // ── FINANZAS ──────────────────────────────────────────────
+const MESES_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let finanzasOffset = 0; // 0 = período actual, -1 = anterior, etc.
 let _tipoCambioCache = null;
 export async function fetchTipoCambioOficial() {
