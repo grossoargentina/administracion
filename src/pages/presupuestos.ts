@@ -38,7 +38,7 @@ export async function editarCliente(id) {
     const c = rows[0]; if (!c) return;
     document.getElementById('cliente-modal-title').textContent = c.nombre;
     document.getElementById('cliente-nombre').value  = c.nombre || '';
-    try { clienteBeneficiarios = c.seguro_info ? JSON.parse(c.seguro_info) : []; } catch(e) { clienteBeneficiarios = []; }
+    try { state.clienteBeneficiarios = c.seguro_info ? JSON.parse(c.seguro_info) : []; } catch(e) { state.clienteBeneficiarios = []; }
     renderClienteBenef();
     openModal('modal-cliente');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -47,7 +47,7 @@ export async function editarCliente(id) {
 export async function guardarCliente() {
   const nombre = document.getElementById('cliente-nombre').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
-  const benefs = clienteBeneficiarios.filter(b => b.nombre || b.cuit);
+  const benefs = state.clienteBeneficiarios.filter(b => b.nombre || b.cuit);
   try {
     await sbPatch('clientes', clienteEditId, { nombre, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
     closeModal('modal-cliente');
@@ -128,7 +128,7 @@ export async function editarSalon(id) {
     document.getElementById('salon-modal-title').textContent = s.nombre;
     document.getElementById('salon-nombre').value    = s.nombre || '';
     document.getElementById('salon-direccion').value = s.direccion || '';
-    try { salonBeneficiarios = s.seguro_info ? JSON.parse(s.seguro_info) : []; } catch(e) { salonBeneficiarios = []; }
+    try { state.salonBeneficiarios = s.seguro_info ? JSON.parse(s.seguro_info) : []; } catch(e) { state.salonBeneficiarios = []; }
     renderSalonBenef();
     openModal('modal-salon');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -138,7 +138,7 @@ export async function guardarSalon() {
   const nombre   = document.getElementById('salon-nombre').value.trim();
   const direccion = document.getElementById('salon-direccion').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
-  const benefs = salonBeneficiarios.filter(b => b.nombre || b.cuit);
+  const benefs = state.salonBeneficiarios.filter(b => b.nombre || b.cuit);
   try {
     await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
     closeModal('modal-salon');
@@ -624,7 +624,7 @@ export async function loadPresupuestos() {
       if (!grupos[root]) grupos[root] = [];
       grupos[root].push(p);
     });
-    const s = _sortState['pres'];
+    const s = state._sortState['pres'];
     const rootsOrdenados = Object.keys(grupos).sort((a, b) => {
       const pa = grupos[a][0], pb = grupos[b][0];
       if (s) {
@@ -746,8 +746,8 @@ export async function abrirModalPresupuesto() {
       sb('clientes', { select: 'nombre', order: 'nombre', limit: 500 }),
       sb('salones',  { select: 'nombre', order: 'nombre', limit: 500 }),
     ]);
-    _acData['pres-cliente'] = clientes.map(c => c.nombre);
-    _acData['pres-venue']   = salones.map(s => s.nombre);
+    state._acData['pres-cliente'] = clientes.map(c => c.nombre);
+    state._acData['pres-venue']   = salones.map(s => s.nombre);
   } catch(e) { /* no bloquear si falla */ }
 
   openModal('modal-presupuesto');
@@ -1367,7 +1367,7 @@ export async function generarPresupuesto() {
         pdf_url: pdfUrl,
         nombre_archivo: nombreArchivo,
         estado_evento: 'Pendiente',
-        evento_id: _presupuestoParaEventoId || null,
+        evento_id: state._presupuestoParaEventoId || null,
         version: presVersionInfo ? presVersionInfo.nextVersion : 1,
         grupo_id: presVersionInfo ? presVersionInfo.grupoId : null,
       });
@@ -1392,7 +1392,7 @@ export async function generarPresupuesto() {
     closeModal('modal-presupuesto');
     presItems = [];
     presVersionInfo = null;
-    _presupuestoParaEventoId = null;
+    state._presupuestoParaEventoId = null;
     loadPresupuestos();
 
   } catch(e) {

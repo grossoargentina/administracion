@@ -8,17 +8,16 @@ let filtroEvento = 'todos';
 let busquedaEvento = '';
 
 // ── SORT SYSTEM ───────────────────────────────────────────
-const _sortState = {};
 export function toggleSort(tabla, campo, renderFn) {
-  if (_sortState[tabla]?.campo === campo) {
-    _sortState[tabla].dir = _sortState[tabla].dir === 'asc' ? 'desc' : 'asc';
+  if (state._sortState[tabla]?.campo === campo) {
+    state._sortState[tabla].dir = state._sortState[tabla].dir === 'asc' ? 'desc' : 'asc';
   } else {
-    _sortState[tabla] = { campo, dir: 'asc' };
+    state._sortState[tabla] = { campo, dir: 'asc' };
   }
   renderFn();
 }
 export function applySort(tabla, lista) {
-  const s = _sortState[tabla];
+  const s = state._sortState[tabla];
   if (!s) return lista;
   return [...lista].sort((a, b) => {
     let va = a[s.campo] ?? '';
@@ -28,7 +27,7 @@ export function applySort(tabla, lista) {
   });
 }
 export function sortClasses(tabla, campo) {
-  const s = _sortState[tabla];
+  const s = state._sortState[tabla];
   if (s?.campo !== campo) return 'sortable';
   return s.dir === 'asc' ? 'sortable sort-asc' : 'sortable sort-desc';
 }
@@ -98,10 +97,9 @@ export function buscarEventos(valor) {
 
 let editingEventoId = null;
 // ── AUTOCOMPLETE CUSTOM ──────────────────────────────────
-const _acData = {};
 export function acFilter(inputId, dropId) {
   const q = (document.getElementById(inputId).value || '').toLowerCase();
-  const opts = _acData[inputId] || [];
+  const opts = state._acData[inputId] || [];
   const matches = opts.filter(o => !q || o.toLowerCase().includes(q)).slice(0, 10);
   const drop = document.getElementById(dropId);
   if (!drop) return;
@@ -123,32 +121,30 @@ export function acSelect(inputId, dropId, el) {
 }
 
 // ── BENEFICIARIOS CLIENTE ────────────────────────────────
-let clienteBeneficiarios = [];
 export function renderClienteBenef() {
-  document.getElementById('cliente-benef-lista').innerHTML = clienteBeneficiarios.map((b, i) => `
+  document.getElementById('cliente-benef-lista').innerHTML = state.clienteBeneficiarios.map((b, i) => `
     <div style="display:flex;gap:8px;align-items:center">
       <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="state.clienteBeneficiarios[${i}].nombre=this.value">
       <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);state.clienteBeneficiarios[${i}].cuit=this.value">
-      <button type="button" class="btn btn-danger btn-sm" onclick="clienteBeneficiarios.splice(${i},1);renderClienteBenef()">✕</button>
+      <button type="button" class="btn btn-danger btn-sm" onclick="state.clienteBeneficiarios.splice(${i},1);renderClienteBenef()">✕</button>
     </div>`).join('');
 }
 export function agregarBenefCliente() {
-  clienteBeneficiarios.push({ nombre: '', cuit: '' });
+  state.clienteBeneficiarios.push({ nombre: '', cuit: '' });
   renderClienteBenef();
 }
 
 // ── BENEFICIARIOS SALON ──────────────────────────────────
-let salonBeneficiarios = [];
 export function renderSalonBenef() {
-  document.getElementById('salon-benef-lista').innerHTML = salonBeneficiarios.map((b, i) => `
+  document.getElementById('salon-benef-lista').innerHTML = state.salonBeneficiarios.map((b, i) => `
     <div style="display:flex;gap:8px;align-items:center">
       <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="state.salonBeneficiarios[${i}].nombre=this.value">
       <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);state.salonBeneficiarios[${i}].cuit=this.value">
-      <button type="button" class="btn btn-danger btn-sm" onclick="salonBeneficiarios.splice(${i},1);renderSalonBenef()">✕</button>
+      <button type="button" class="btn btn-danger btn-sm" onclick="state.salonBeneficiarios.splice(${i},1);renderSalonBenef()">✕</button>
     </div>`).join('');
 }
 export function agregarBenefSalon() {
-  salonBeneficiarios.push({ nombre: '', cuit: '' });
+  state.salonBeneficiarios.push({ nombre: '', cuit: '' });
   renderSalonBenef();
 }
 
