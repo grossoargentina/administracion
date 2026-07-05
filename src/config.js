@@ -1,0 +1,9 @@
+export const SB_URL = 'https://mitosihorpjmrosdxqbt.supabase.co';
+export const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pdG9zaWhvcnBqbXJvc2R4cWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2ODA5NjQsImV4cCI6MjA5ODI1Njk2NH0._YP5PhtHrjFbE2a11gBd9Stq4J4BhrwrS2xnHHcUYgI';
+export const ALLOWED_EMAILS = ['administracion@grossoarg.com'];
+export const FOLDER_LOGISTICAS = '1djtd-hvSoQLgv0r4b4b-NiFM3f4So0-A';
+export const WA_EDGE_URL    = 'https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/send-whatsapp';
+export const EMAIL_EDGE_URL = 'https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/send-email';
+export const EMAIL_SEGURO   = 'ignacioarnesen@hotmail.com';
+export const DRIVE_FOLDER_ID   = '1ZEOYg7oRAygkwjhOq7h4ZHKIiiiT5wzR';
+export const FOTOS_FOLDER_ID   = '1Fyukpnk-aKBp0Y1IKEe0L9hrgbY4FvYy';
