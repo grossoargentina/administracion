@@ -1,5 +1,6 @@
+import { state } from '../state.js';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, evCache, persCache, setEvCache, setPersCache } from '../helpers.js';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers.js';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config.js';
 
 // ── JORNADAS ──────────────────────────────────────────────
@@ -82,11 +83,11 @@ export async function abrirModalJornada() {
 export function renderListaPersonal() {
   const tipo  = document.getElementById('jorn-tipo').value;
   const lista = document.getElementById('jorn-personal-lista');
-  if (!persCache.length) {
+  if (!state.persCache.length) {
     lista.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">No hay personal cargado. Agregá personal primero.</div>';
     return;
   }
-  lista.innerHTML = persCache.map((p, i) => {
+  lista.innerHTML = state.persCache.map((p, i) => {
     const tarifa = tipo === 'Depósito'         ? p.tarifa_deposito
                  : ['Armado','Desarme'].includes(tipo) ? p.tarifa_armado
                  : tipo === 'Operador'          ? p.tarifa_operador
@@ -173,7 +174,7 @@ export async function eliminarJornada(id) {
 
 // ── LIQUIDACIÓN SEMANAL ────────────────────────────────────
 export async function refreshDriveToken() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
   const refresh = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
   if (!refresh) return null;
   try {
@@ -191,7 +192,7 @@ export async function refreshDriveToken() {
 }
 
 export async function getDriveToken() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
   return session?.provider_token || localStorage.getItem('drive_token') || await refreshDriveToken();
 }
 
@@ -426,7 +427,7 @@ let logEventosDepIds = []; // para tipo Depósito
 let logEditId = null; // null = nueva, number = edición
 
 export async function loadLogisticas() {
-  const { desde, hasta, lunes, domingo } = getSemana(logOffset);
+  const { desde, hasta, lunes, domingo } = getSemana(state.logOffset);
   const label = `${lunes.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} — ${domingo.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}`;
   document.getElementById('log-semana-label').textContent = label;
 
@@ -469,11 +470,11 @@ export async function loadLogisticas() {
       let evLabel;
       if (esDeposito) {
         const evIds = logEvRels.filter(x => x.logistica_id === r.id).map(x => x.evento_id);
-        const names = evIds.map(eid => { const e = (evCache||[]).find(x=>x.id===eid); return e ? (e.venue||e.codigo||e.id) : `#${eid}`; });
+        const names = evIds.map(eid => { const e = (state.evCache||[]).find(x=>x.id===eid); return e ? (e.venue||e.codigo||e.id) : `#${eid}`; });
         evLabel = names.length ? names.join(', ') : '—';
       } else {
         const _evId = logToEvId[r.id];
-        const ev = _evId ? (evCache||[]).find(e => e.id === _evId) : null;
+        const ev = _evId ? (state.evCache||[]).find(e => e.id === _evId) : null;
         evLabel = ev ? (ev.venue || ev.codigo || ev.id) : (_evId ? `#${_evId}` : '—');
       }
 
@@ -486,7 +487,7 @@ export async function loadLogisticas() {
         const fechaLabel = dias.length ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
         filas.push({ logId: r.id, tipo: 'Depósito', evLabel, fechaLabel, persCount: persIds.length, orden: 3, eliminable: true });
       } else {
-        const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
+        const ev = evId ? (state.evCache||[]).find(e => e.id === evId) : null;
         const fechaFallback = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
         const tiposBase = ['Armado', 'Operador', 'Desarme'];
         const tiposExtra = [...new Set(jors.map(j => j.tipo))].filter(t => !tiposBase.includes(t));
@@ -553,9 +554,9 @@ export async function loadLogisticas() {
       const jors = jornadas.filter(j => j.logistica_id === r.id);
       const opFechas = jors.filter(j => j.tipo === 'Operador').map(j => j.fecha).filter(Boolean).sort();
       const todasFechas = jors.map(j => j.fecha).filter(Boolean).sort();
-      // Preferir fecha del evento desde evCache
+      // Preferir fecha del evento desde state.evCache
       const evId = logToEvId[r.id];
-      const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
+      const ev = evId ? (state.evCache||[]).find(e => e.id === evId) : null;
       anclaLog[r.id] = (ev?.fecha_evento) || opFechas[0] || todasFechas[0] || null;
     });
 
@@ -634,7 +635,7 @@ export async function editarLogistica(id, tipo, esExtra = false) {
 
   const sel = document.getElementById('nlg-evento');
   sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
-  const evRelevantes = (evCache || [])
+  const evRelevantes = (state.evCache || [])
     .filter(e => ['Confirmado','Realizado','Cobrado'].includes(e.estado))
     .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
   evRelevantes.forEach(e => {
@@ -684,7 +685,7 @@ export async function editarLogistica(id, tipo, esExtra = false) {
 }
 
 export function setArmadoEvento(evId, tipo) {
-  const ev = evId ? (evCache||[]).find(e => e.id === evId) : null;
+  const ev = evId ? (state.evCache||[]).find(e => e.id === evId) : null;
   const evEl   = document.getElementById('armado-evento');
   const tipoEl = document.getElementById('armado-tipo');
   evEl.textContent    = ev ? `${ev.codigo} · ${ev.cliente_nombre}${ev.venue ? ' · ' + ev.venue : ''}` : '—';
@@ -709,12 +710,10 @@ export function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   setArmadoEvento(evId, tipo);
 }
 
-let _presupuestoParaEventoId = null;
-
 export async function abrirPresupuestoParaEvento(eventoId) {
-  const ev = (evCache || []).find(e => e.id === eventoId);
+  const ev = (state.evCache || []).find(e => e.id === eventoId);
   if (!ev) return;
-  _presupuestoParaEventoId = eventoId;
+  state._presupuestoParaEventoId = eventoId;
   await abrirModalPresupuesto();
   document.querySelector('#modal-presupuesto .modal-title').textContent = `Presupuesto adicional — ${ev.cliente_nombre}`;
   document.getElementById('pres-cliente').value = ev.cliente_nombre || '';
@@ -737,7 +736,7 @@ export function abrirAgregarArmado() {
   });
   // Personal checkboxes
   const persDiv = document.getElementById('armado-personal');
-  persDiv.innerHTML = (persCache || []).map(p =>
+  persDiv.innerHTML = (state.persCache || []).map(p =>
     `<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
       <input type="checkbox" value="${p.id}" style="width:15px;height:15px;cursor:pointer">
       ${p.apellido} ${p.nombre}
@@ -760,7 +759,7 @@ export async function guardarAgregarArmado() {
     const armRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${evId}`], select: 'logistica_id', limit: 1 });
     let logId = armRels[0]?.logistica_id;
     if (!logId) {
-      const ev = (evCache || []).find(e => e.id === evId);
+      const ev = (state.evCache || []).find(e => e.id === evId);
       const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
       logId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
       await sbPost('logistica_eventos', { logistica_id: logId, evento_id: evId });
@@ -769,7 +768,7 @@ export async function guardarAgregarArmado() {
     const codigoBase = `J${Date.now()}`;
     if (persIds.length > 0) {
       const jornadas = persIds.map((pid, i) => {
-        const p = (persCache || []).find(x => x.id === pid);
+        const p = (state.persCache || []).find(x => x.id === pid);
         const tarifa = tipo === 'Depósito' ? p?.tarifa_deposito : tipo === 'Operador' ? p?.tarifa_operador : p?.tarifa_armado;
         return {
           codigo: `${codigoBase}-${i}`,
@@ -819,7 +818,7 @@ export function abrirNuevaLogistica() {
   // Poblar evento single select
   const sel = document.getElementById('nlg-evento');
   sel.innerHTML = '<option value="">— Seleccioná un evento —</option>';
-  const evRelevantes = (evCache || [])
+  const evRelevantes = (state.evCache || [])
     .filter(e => ['Confirmado','Realizado','Cobrado'].includes(e.estado))
     .sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
   evRelevantes.forEach(e => {
@@ -869,7 +868,7 @@ export function toggleEvDep(evId) {
 
 export function onCambioEventoLog() {
   const evId = parseInt(document.getElementById('nlg-evento').value);
-  const ev = (evCache || []).find(e => e.id === evId);
+  const ev = (state.evCache || []).find(e => e.id === evId);
   if (!ev) return;
   let fechasOp = [];
   try { fechasOp = ev.fechas_evento ? (Array.isArray(ev.fechas_evento) ? ev.fechas_evento : JSON.parse(ev.fechas_evento)) : []; } catch(e) {}
@@ -913,7 +912,7 @@ export function updateDiaLog(id, field, value) {
   if (field === 'tipo') {
     if (value === 'Operador') {
       const evId = parseInt(document.getElementById('nlg-evento').value);
-      const ev = (evCache || []).find(e => e.id === evId);
+      const ev = (state.evCache || []).find(e => e.id === evId);
       if (ev) {
         let fOp = [];
         try { fOp = ev.fechas_evento ? (Array.isArray(ev.fechas_evento) ? ev.fechas_evento : JSON.parse(ev.fechas_evento)) : []; } catch(e) {}
@@ -945,7 +944,7 @@ export function togglePersonalDia(diaId, persId) {
 }
 
 export function renderDiasLog() {
-  const personal = (persCache || []).filter(p => p.activo !== false);
+  const personal = (state.persCache || []).filter(p => p.activo !== false);
   const container = document.getElementById('nlg-dias');
   if (!logDias.length) {
     container.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px 0">No hay días. Hacé clic en "Agregar día".</div>';
@@ -976,7 +975,7 @@ export function renderDiasLog() {
       </div>`;
     }
 
-    const choferes = (persCache || []).filter(p => p.activo !== false);
+    const choferes = (state.persCache || []).filter(p => p.activo !== false);
     const choferOpts = `<option value="">— Chofer —</option>` + choferes.map(p => `<option value="${p.apellido} ${p.nombre}" ${d.flete_personal === p.apellido+' '+p.nombre ? 'selected' : ''}>${p.apellido} ${p.nombre}</option>`).join('') + `<option value="__otro__" ${d.flete_personal && !choferes.some(p=>p.apellido+' '+p.nombre===d.flete_personal)?'selected':''}>Otro...</option>`;
     const fleteExtra = d.transporte === 'Flete' ? `
       <select class="inp" style="width:160px" onchange="onFleteChofer(${d.id},this.value)">${choferOpts}</select>
@@ -1052,7 +1051,7 @@ export async function guardarLogistica() {
         const currentIds  = d.personal;
         // Personal nuevo → insertar
         currentIds.filter(id => !originalIds.includes(id)).forEach(persId => {
-          const p = (persCache || []).find(x => x.id === persId);
+          const p = (state.persCache || []).find(x => x.id === persId);
           if (!p) return;
           const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito : d.tipo === 'Operador' ? p.tarifa_operador : p.tarifa_armado;
           toInsert.push({
@@ -1085,7 +1084,7 @@ export async function guardarLogistica() {
       const jornadasToInsert = [];
       logDias.forEach(d => {
         d.personal.forEach(persId => {
-          const p = (persCache || []).find(x => x.id === persId);
+          const p = (state.persCache || []).find(x => x.id === persId);
           if (!p) return;
           const tarifa = d.tipo === 'Depósito' ? p.tarifa_deposito : d.tipo === 'Operador' ? p.tarifa_operador : p.tarifa_armado;
           jornadasToInsert.push({
@@ -1194,7 +1193,7 @@ export async function enviarMailSeguroEvento(eventoId, evLabel) {
     const data = await res.json();
     if (res.ok && data.ok) {
       await sbPatch('eventos', eventoId, { seguro_enviado: true });
-      const ev = (evCache || []).find(e => e.id === eventoId);
+      const ev = (state.evCache || []).find(e => e.id === eventoId);
       if (ev) ev.seguro_enviado = true;
       toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
       loadDashboard();
@@ -1225,7 +1224,7 @@ export async function enviarMailSeguro(logId) {
 
     // Traer info del evento para el asunto
     const mailRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${logId}`], select: 'evento_id', limit: 1 });
-    const ev = mailRel[0]?.evento_id ? (evCache||[]).find(e => e.id === mailRel[0].evento_id) : null;
+    const ev = mailRel[0]?.evento_id ? (state.evCache||[]).find(e => e.id === mailRel[0].evento_id) : null;
     const evLabel = ev ? (ev.venue || ev.codigo || `Evento #${ev.id}`) : `Logística #${logId}`;
 
     const filas = personal.map(p => {
@@ -1336,7 +1335,7 @@ export async function abrirDetLogistica(id, tipo) {
     if (!log) { toast('Logística no encontrada', 'err'); return; }
     if (log.notas) document.getElementById('log-notas').value = log.notas;
     const detRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
-    let ev = detRel[0]?.evento_id ? (evCache || []).find(e => e.id === detRel[0].evento_id) : null;
+    let ev = detRel[0]?.evento_id ? (state.evCache || []).find(e => e.id === detRel[0].evento_id) : null;
     if (!ev && detRel[0]?.evento_id) {
       const evRows = await sb('v_eventos', { filters: [`id=eq.${detRel[0].evento_id}`], limit: 1 });
       ev = evRows[0] || null;
@@ -1442,7 +1441,7 @@ export function generarWhatsappLogistica() {
   waMensajesPendientes = [];
   let html = '';
   Object.values(porPersona).forEach(p => {
-    const persData = persCache.find(x => x.nombre === p.nombre && x.apellido === p.apellido);
+    const persData = state.persCache.find(x => x.nombre === p.nombre && x.apellido === p.apellido);
     const telefono = persData?.telefono || null;
     let texto = `${p.apellido.toUpperCase()}\n\n`;
     p.dias.forEach(dia => {

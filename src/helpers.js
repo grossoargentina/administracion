@@ -3,12 +3,7 @@ import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import 'flatpickr/dist/l10n/es.js';
 import { SB_URL, SB_KEY } from './config.js';
-
-// ── SHARED STATE ─────────────────────────────────────────
-export let evCache = [];
-export let persCache = [];
-export function setEvCache(v) { evCache = v; }
-export function setPersCache(v) { persCache = v; }
+import { state } from './state.js';
 
 export async function sb(table, opts = {}) {
   const { method = 'GET', body, select = '*', filters = [], order, limit } = opts;
@@ -174,7 +169,7 @@ export function llenarSelectEventos() {
   const sel = document.getElementById('jorn-evento');
   if (!sel) return;
   sel.innerHTML = '<option value="">— Sin evento (jornada de depósito suelta) —</option>' +
-    evCache.map(e => `<option value="${e.id}">${e.codigo} · ${e.cliente_nombre} · ${e.venue || ''}</option>`).join('');
+    state.evCache.map(e => `<option value="${e.id}">${e.codigo} · ${e.cliente_nombre} · ${e.venue || ''}</option>`).join('');
 }
 
 

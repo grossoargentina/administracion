@@ -1,11 +1,10 @@
+import { state } from '../state.js';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, evCache, persCache, setEvCache, setPersCache } from '../helpers.js';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers.js';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config.js';
 
 // ── PAGOS ─────────────────────────────────────────────────
 let pagosOffset = 0; // 0 = semana actual, -1 = anterior, etc.
-export let logOffset = 0;
-window.logOffset = logOffset;
 
 export function getSemana(offset) {
   const hoy = new Date();
@@ -22,8 +21,7 @@ export function cambiarSemanaPagos(dir) {
 }
 
 export function cambiarSemanaLog(dir) {
-  logOffset += dir;
-  window.logOffset = logOffset;
+  state.logOffset += dir;
   window.loadLogisticas();
 }
 

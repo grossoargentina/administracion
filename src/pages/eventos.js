@@ -1,4 +1,5 @@
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, evCache, persCache, setEvCache, setPersCache } from '../helpers.js';
+import { state } from '../state.js';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers.js';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config.js';
 
 // ── EVENTOS ───────────────────────────────────────────────
@@ -126,8 +127,8 @@ let clienteBeneficiarios = [];
 export function renderClienteBenef() {
   document.getElementById('cliente-benef-lista').innerHTML = clienteBeneficiarios.map((b, i) => `
     <div style="display:flex;gap:8px;align-items:center">
-      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="clienteBeneficiarios[${i}].nombre=this.value">
-      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);clienteBeneficiarios[${i}].cuit=this.value">
+      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="state.clienteBeneficiarios[${i}].nombre=this.value">
+      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);state.clienteBeneficiarios[${i}].cuit=this.value">
       <button type="button" class="btn btn-danger btn-sm" onclick="clienteBeneficiarios.splice(${i},1);renderClienteBenef()">✕</button>
     </div>`).join('');
 }
@@ -141,8 +142,8 @@ let salonBeneficiarios = [];
 export function renderSalonBenef() {
   document.getElementById('salon-benef-lista').innerHTML = salonBeneficiarios.map((b, i) => `
     <div style="display:flex;gap:8px;align-items:center">
-      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="salonBeneficiarios[${i}].nombre=this.value">
-      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);salonBeneficiarios[${i}].cuit=this.value">
+      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${b.nombre}" oninput="state.salonBeneficiarios[${i}].nombre=this.value">
+      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);state.salonBeneficiarios[${i}].cuit=this.value">
       <button type="button" class="btn btn-danger btn-sm" onclick="salonBeneficiarios.splice(${i},1);renderSalonBenef()">✕</button>
     </div>`).join('');
 }
@@ -271,7 +272,7 @@ export async function guardarEvento() {
     editingEventoId = null;
     document.getElementById('modal-evento-title').textContent = 'Nuevo evento';
     loadEventos();
-    setEvCache(await sb('v_eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' }));
+    state.evCache = (await sb('v_eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' }));
     llenarSelectEventos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }

@@ -1,15 +1,14 @@
 import { SB_URL, SB_KEY, ALLOWED_EMAILS } from './config.js';
-import { sb, setEvCache, setPersCache, llenarSelectEventos, buildTimeOpts, initDatePickers } from './helpers.js';
+import { sb, llenarSelectEventos, buildTimeOpts, initDatePickers } from './helpers.js';
+import { state } from './state.js';
 
 // ── AUTH SUPABASE + GOOGLE ────────────────────────────────
-let AUTH = false;
 
 // Inicializar cliente Supabase Auth via CDN
 const { createClient } = supabase;
-export const supabaseClient = createClient(SB_URL, SB_KEY, {
+state.supabaseClient = createClient(SB_URL, SB_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
-window.supabaseClient = supabaseClient;
 
 const isAllowedEmail = email => ALLOWED_EMAILS.includes(email);
 let _appInitialized = false;
@@ -17,12 +16,12 @@ let _appInitialized = false;
 export async function initAuth() {
   const hasOAuthHash = window.location.hash.includes('access_token');
 
-  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+  state.supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth event:', event, session?.user?.email);
 
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
       if (isAllowedEmail(session?.user?.email)) {
-        AUTH = true;
+        state.AUTH = true;
         if (session.provider_token)
           localStorage.setItem('drive_token', session.provider_token);
         if (session.provider_refresh_token)
@@ -35,12 +34,12 @@ export async function initAuth() {
           showApp();
         }
       } else if (session?.user?.email) {
-        await supabaseClient.auth.signOut();
+        await state.supabaseClient.auth.signOut();
         showError('Cuenta no autorizada: ' + session.user.email);
         renderGoogleBtn();
       }
     } else if (event === 'SIGNED_OUT') {
-      AUTH = false;
+      state.AUTH = false;
       _appInitialized = false;
       document.getElementById('app').classList.remove('visible');
       document.getElementById('login-screen').style.display = 'flex';
@@ -49,9 +48,9 @@ export async function initAuth() {
   });
 
   // Verificar sesión existente al cargar
-  const { data: { session } } = await supabaseClient.auth.getSession();
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
   if (isAllowedEmail(session?.user?.email)) {
-    AUTH = true;
+    state.AUTH = true;
     if (!_appInitialized) {
       _appInitialized = true;
       showApp();
@@ -60,7 +59,7 @@ export async function initAuth() {
   }
 
   if (hasOAuthHash) {
-    setTimeout(() => { if (!AUTH) renderGoogleBtn(); }, 3000);
+    setTimeout(() => { if (!state.AUTH) renderGoogleBtn(); }, 3000);
     return;
   }
 
@@ -69,19 +68,19 @@ export async function initAuth() {
 
 // Re-chequear sesión cuando el usuario vuelve a la pestaña
 document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState !== 'visible' || AUTH) return;
-  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (document.visibilityState !== 'visible' || state.AUTH) return;
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
   if (isAllowedEmail(session?.user?.email)) {
-    AUTH = true;
+    state.AUTH = true;
     if (!_appInitialized) { _appInitialized = true; showApp(); }
   }
 });
 
 // Refrescar el token de Google cada 50 minutos (expira al hora)
 setInterval(async () => {
-  if (!AUTH) return;
+  if (!state.AUTH) return;
   try {
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { session } } = await state.supabaseClient.auth.getSession();
     if (session?.provider_refresh_token) {
       localStorage.setItem('drive_refresh_token', session.provider_refresh_token);
     }
@@ -102,7 +101,7 @@ export function renderGoogleBtn() {
 }
 
 export async function loginConGoogle() {
-  const { error } = await supabaseClient.auth.signInWithOAuth({
+  const { error } = await state.supabaseClient.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: window.location.href,
@@ -128,8 +127,8 @@ export function showError(msg) {
 }
 
 export async function logout() {
-  await supabaseClient.auth.signOut();
-  AUTH = false;
+  await state.supabaseClient.auth.signOut();
+  state.AUTH = false;
   document.getElementById('app').classList.remove('visible');
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('l-err').textContent = '';
@@ -137,7 +136,6 @@ export async function logout() {
 
 
 // ── NAVEGACIÓN ────────────────────────────────────────────
-export let currentPage = 'dashboard';
 
 export function goTo(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -153,7 +151,7 @@ export function goTo(page) {
     if (n.dataset.page === page) n.classList.add('active');
   });
 
-  currentPage = page;
+  state.currentPage = page;
   localStorage.setItem('lastPage', page);
   loadPage(page);
 }
@@ -164,7 +162,7 @@ export async function loadPage(page) {
     case 'eventos':    window.loadEventos(); break;
     case 'cobros':     window.loadCobros(); break;
     case 'jornadas':   window.loadJornadas(); break;
-    case 'logistica':  window.logOffset = 0; window.loadLogisticas(); break;
+    case 'logistica':  state.logOffset = 0; window.loadLogisticas(); break;
     case 'pagos':      window.loadPagos(); break;
     case 'caja':       window.loadCaja(); break;
     case 'mensajes':   window.loadMensajes(); break;
@@ -187,8 +185,8 @@ export async function initApp() {
   try {
     const _pc = await sb('personal', { filters:['activo=eq.true'], order:'nombre' });
     const _ec = await sb('v_eventos', { filters:['estado=in.(Confirmado,Realizado,Cobrado)'], order:'fecha_evento' });
-    setPersCache(_pc);
-    setEvCache(_ec);
+    state.persCache = _pc;
+    state.evCache = _ec;
     llenarSelectEventos();
     ['ev-hora-armado','ev-hora-desarme'].forEach(id => {
       const el = document.getElementById(id);
@@ -205,7 +203,7 @@ export async function initApp() {
 }
 
 export function initRealtime() {
-  const canalesActivos = supabaseClient.getChannels();
+  const canalesActivos = state.supabaseClient.getChannels();
   if (canalesActivos.some(c => c.topic === 'realtime:realtime-cambios')) return;
   const tablaAPagina = {
     eventos:    ['dashboard', 'eventos', 'cobros'],
@@ -220,12 +218,12 @@ export function initRealtime() {
   let reloadTimer = null;
   const reloadSiCorresponde = (tabla) => {
     const paginas = tablaAPagina[tabla] || [];
-    if (!paginas.includes(currentPage)) return;
+    if (!paginas.includes(state.currentPage)) return;
     clearTimeout(reloadTimer);
-    reloadTimer = setTimeout(() => loadPage(currentPage), 600);
+    reloadTimer = setTimeout(() => loadPage(state.currentPage), 600);
   };
 
-  supabaseClient
+  state.supabaseClient
     .channel('realtime-cambios')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'eventos' },    () => reloadSiCorresponde('eventos'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas' },   () => reloadSiCorresponde('jornadas'))
@@ -236,7 +234,7 @@ export function initRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'presupuestos'},() => reloadSiCorresponde('presupuestos'))
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_mensajes'}, () => {
       window.checkMensajesNuevos();
-      if (currentPage === 'mensajes') window.loadMensajes();
+      if (state.currentPage === 'mensajes') window.loadMensajes();
     })
     .subscribe();
 }
