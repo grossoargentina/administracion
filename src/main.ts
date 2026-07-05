@@ -1,5 +1,5 @@
 // Entry point - imports all modules which self-register via window assignments
-import { state } from './state.js';
+import { state } from './state';
 window.state = state; // expose for inline HTML handlers (e.g. state.clienteBeneficiarios[i].nombre)
 import './auth.js';
 import './pages/dashboard.js';

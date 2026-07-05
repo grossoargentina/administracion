@@ -2,8 +2,8 @@ import { jsPDF } from 'jspdf';
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import 'flatpickr/dist/l10n/es.js';
-import { SB_URL, SB_KEY } from './config.js';
-import { state } from './state.js';
+import { SB_URL, SB_KEY } from './config';
+import { state } from './state';
 
 export async function sb(table, opts = {}) {
   const { method = 'GET', body, select = '*', filters = [], order, limit } = opts;

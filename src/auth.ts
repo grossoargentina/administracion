@@ -1,6 +1,6 @@
-import { SB_URL, SB_KEY, ALLOWED_EMAILS } from './config.js';
-import { sb, llenarSelectEventos, buildTimeOpts, initDatePickers } from './helpers.js';
-import { state } from './state.js';
+import { SB_URL, SB_KEY, ALLOWED_EMAILS } from './config';
+import { sb, llenarSelectEventos, buildTimeOpts, initDatePickers } from './helpers';
+import { state } from './state';
 
 // ── AUTH SUPABASE + GOOGLE ────────────────────────────────
 
