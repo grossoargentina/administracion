@@ -4,6 +4,7 @@ import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calc
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config.js';
 
 let dashOffset = 0;
+let _dashData = null;
 
 export function cambiarSemana(dir) { dashOffset += dir; loadDashboard(); }
 
