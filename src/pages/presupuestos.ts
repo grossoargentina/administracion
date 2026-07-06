@@ -432,8 +432,7 @@ let catalogoCache = [];   // catálogo completo
 let _confirmarPresupuestoCtx = null; // { id, p } — presupuesto pendiente de confirmar en el modal
 
 export async function confirmarPresupuesto(id) {
-  const rows = await sbCached('presupuestos', { filters: [`id=eq.${id}`], limit: 1 });
-  const p = rows[0];
+  const p = (window._presupLista || []).find(p => p.id === id);
   if (!p) { toast('No se encontró el presupuesto', 'err'); return; }
   _confirmarPresupuestoCtx = { id, p };
   document.getElementById('confirmar-pres-cliente').textContent = p.cliente || '';
@@ -441,6 +440,15 @@ export async function confirmarPresupuesto(id) {
   document.getElementById('confirmar-pago-diferido').checked = false;
   actualizarTotalConfirmarPresupuesto();
   openModal('modal-confirmar-presupuesto');
+  // Inicializar flatpickr con las fechas ya guardadas en el presupuesto
+  setTimeout(() => {
+    let fechasIniciales = [];
+    try { fechasIniciales = p.fechas_evento ? (Array.isArray(p.fechas_evento) ? p.fechas_evento : JSON.parse(p.fechas_evento)) : []; } catch(e) {}
+    if (!fechasIniciales.length && p.fecha_evento) fechasIniciales = [p.fecha_evento];
+    initDatePickers(document.getElementById('modal-confirmar-presupuesto'));
+    const fp = document.getElementById('confirmar-fechas')._flatpickr;
+    if (fp && fechasIniciales.length) fp.setDate(fechasIniciales);
+  }, 50);
 }
 
 export function actualizarTotalConfirmarPresupuesto() {
@@ -458,15 +466,19 @@ export async function confirmarPresupuestoFinal() {
   const cliente      = p.cliente || '';
   const tipo         = p.tipo_evento || '';
   const venue        = p.venue || '';
-  const fecha        = p.fecha_evento || null;
   const montoBase    = p.total_ars || 0;
   const modalidad    = p.modalidad || 'Pago total al finalizar';
   const senaMonto    = p.sena_monto || 0;
   const incluyeIva   = document.getElementById('confirmar-iva').checked;
   const pagoDiferido = document.getElementById('confirmar-pago-diferido').checked;
   const total        = calcularTotalConRecargos(montoBase, incluyeIva, pagoDiferido);
-  let fechasEvento = [];
-  try { fechasEvento = p.fechas_evento ? (Array.isArray(p.fechas_evento) ? p.fechas_evento : JSON.parse(p.fechas_evento)) : []; } catch(e) {}
+  // Leer fechas desde el flatpickr del modal de confirmación
+  const fpConfirmar = document.getElementById('confirmar-fechas')._flatpickr;
+  let fechasEvento = fpConfirmar ? fpConfirmar.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
+  if (!fechasEvento.length) {
+    try { fechasEvento = p.fechas_evento ? (Array.isArray(p.fechas_evento) ? p.fechas_evento : JSON.parse(p.fechas_evento)) : []; } catch(e) {}
+  }
+  const fecha = fechasEvento[0] || p.fecha_evento || null;
 
   
   closeModal('modal-confirmar-presupuesto');
