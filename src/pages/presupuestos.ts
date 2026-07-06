@@ -1304,7 +1304,7 @@ export async function generarPresupuesto() {
     const pdfBlob = doc.output('blob');
 
     // ── Subir a Google Drive ──────────────────────────────
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { session } } = await state.supabaseClient.auth.getSession();
 
     // provider_token no persiste entre recargas — usar localStorage o refrescar
     let accessToken = session?.provider_token || localStorage.getItem('drive_token');
