@@ -239,10 +239,22 @@ export async function guardarEvento() {
       const logIdsEv = logRels.map(r => r.logistica_id);
       const jornadasEv = logIdsEv.length ? await sb('jornadas', { filters: [`logistica_id=in.(${logIdsEv.join(',')})`], select: 'id,tipo', limit: 100 }) : [];
       const jornadasOp = jornadasEv.filter(j => j.tipo === 'Operador');
-      for (let i = 0; i < jornadasOp.length; i++) {
-        const fecha = fechasEv[i] || fechasEv[0] || null;
-        const hora  = horariosEv[i] || horariosEv[0] || null;
-        if (fecha) await sbPatch('jornadas', jornadasOp[i].id, { fecha });
+      if (jornadasOp.length > 0) {
+        // Actualizar jornadas Operador existentes
+        for (let i = 0; i < jornadasOp.length; i++) {
+          const fecha = fechasEv[i] || fechasEv[0] || null;
+          if (fecha) await sbPatch('jornadas', jornadasOp[i].id, { fecha });
+        }
+      } else if (fechasEv.length > 0 && logIdsEv.length > 0) {
+        // No hay jornadas Operador — crearlas en la primera logística vinculada
+        const jornadasNuevas = fechasEv.map((f, i) => ({
+          codigo: `J${Date.now()}-op${i}`,
+          logistica_id: logIdsEv[0],
+          tipo: 'Operador',
+          fecha: f,
+          pagado: false,
+        }));
+        await sbPost('jornadas', jornadasNuevas);
       }
       for (const j of jornadasEv.filter(j => j.tipo !== 'Operador')) {
         const jPatch = {};
