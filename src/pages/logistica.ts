@@ -495,7 +495,10 @@ export async function loadLogisticas() {
         const fechaFallback = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
         const tiposBase = ['Armado', 'Operador', 'Desarme'];
         const tiposExtra = [...new Set(jors.map(j => j.tipo))].filter(t => !tiposBase.includes(t));
-        [...tiposBase, ...tiposExtra].forEach(tipo => {
+        // Solo mostrar tipos que realmente tienen jornadas; si no hay ninguna, mostrar el tipo de la logística
+        const tiposConJornadas = tiposBase.filter(t => jors.some(j => j.tipo === t)).concat(tiposExtra);
+        const tiposAMostrar = tiposConJornadas.length ? tiposConJornadas : [r.tipo];
+        tiposAMostrar.forEach(tipo => {
           const jorsTipo = jors.filter(j => j.tipo === tipo);
           const dias = [...new Set(jorsTipo.map(j => j.fecha).filter(Boolean))].sort();
           const todasConfirmadas = jorsTipo.length > 0 && jorsTipo.every(j => j.confirmada);
