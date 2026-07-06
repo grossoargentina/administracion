@@ -1,11 +1,16 @@
 // Entry point - imports all modules which self-register via window assignments
 import { state } from './state';
-import { openModal, closeModal, toast } from './helpers';
+import { openModal, closeModal, toast, fmtInputARS, parseARSInput, onTelefonoInput, onDniInput, onCuitInput } from './helpers';
 import { invalidateCache, clearCache } from './query-cache';
 window.state = state; // expose for inline HTML handlers (e.g. state.clienteBeneficiarios[i].nombre)
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.toast = toast;
+window.fmtInputARS = fmtInputARS;
+window.parseARSInput = parseARSInput;
+window.onTelefonoInput = onTelefonoInput;
+window.onDniInput = onDniInput;
+window.onCuitInput = onCuitInput;
 window.invalidateCache = invalidateCache;
 window.clearCache = clearCache;
 
