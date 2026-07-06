@@ -462,6 +462,8 @@ export function actualizarTotalConfirmarPresupuesto() {
 
 export async function confirmarPresupuestoFinal() {
   if (!_confirmarPresupuestoCtx) return;
+  const btn = document.querySelector('#modal-confirmar-presupuesto .btn-primary') as HTMLButtonElement;
+  if (btn) { btn.disabled = true; btn.textContent = 'Confirmando...'; }
   const { id, p } = _confirmarPresupuestoCtx;
   const cliente      = p.cliente || '';
   const tipo         = p.tipo_evento || '';
@@ -603,6 +605,7 @@ export async function confirmarPresupuestoFinal() {
     toast('Error: ' + e.message, 'err');
   } finally {
     _confirmarPresupuestoCtx = null;
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar'; }
   }
 }
 
