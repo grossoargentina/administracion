@@ -462,9 +462,11 @@ export function actualizarTotalConfirmarPresupuesto() {
 
 export async function confirmarPresupuestoFinal() {
   if (!_confirmarPresupuestoCtx) return;
+  const ctx = _confirmarPresupuestoCtx;
+  _confirmarPresupuestoCtx = null; // bloquear re-entradas inmediatamente
   const btn = document.querySelector('#modal-confirmar-presupuesto .btn-primary') as HTMLButtonElement;
   if (btn) { btn.disabled = true; btn.textContent = 'Confirmando...'; }
-  const { id, p } = _confirmarPresupuestoCtx;
+  const { id, p } = ctx;
   const cliente      = p.cliente || '';
   const tipo         = p.tipo_evento || '';
   const venue        = p.venue || '';
@@ -486,10 +488,10 @@ export async function confirmarPresupuestoFinal() {
   closeModal('modal-confirmar-presupuesto');
 
   try {
-    // Si ya tiene evento vinculado, solo actualizar el presupuesto (no crear evento nuevo)
-    if (p.evento_id) {
-      await sbPatch('presupuestos', id, { estado_evento: 'Confirmado' });
-      toast(`✅ Presupuesto adicional confirmado`);
+    // Verificar en DB que no fue confirmado ya (previene duplicados por doble click o lag)
+    const fresh = await sb('presupuestos', { filters: [`id=eq.${id}`], select: 'evento_id,estado_evento', limit: 1 });
+    if (fresh[0]?.evento_id) {
+      toast('Este presupuesto ya fue confirmado');
       loadPresupuestos();
       return;
     }
@@ -604,7 +606,6 @@ export async function confirmarPresupuestoFinal() {
   } catch(e) {
     toast('Error: ' + e.message, 'err');
   } finally {
-    _confirmarPresupuestoCtx = null;
     if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar'; }
   }
 }
