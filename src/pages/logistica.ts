@@ -713,8 +713,11 @@ export function setArmadoEvento(evId, tipo) {
 
 export function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   abrirAgregarArmado();
-  document.getElementById('armado-modal-title').textContent = `Agregar día — ${tipo}`;
+  document.getElementById('armado-modal-title').textContent = `Editar personal — ${tipo}`;
   setArmadoEvento(evId, tipo);
+  // Guardar logId fijo: en modo edición nunca se crea logística nueva
+  const btn = document.getElementById('armado-guardar');
+  btn.dataset.editLogId = logId;
 }
 
 export async function abrirPresupuestoParaEvento(eventoId) {
@@ -750,6 +753,7 @@ export function abrirAgregarArmado() {
     </label>`
   ).join('');
   document.getElementById('armado-modal-title').textContent = 'Agregar día de armado';
+  delete (document.getElementById('armado-guardar') as HTMLElement).dataset.editLogId;
   openModal('modal-agregar-armado');
 }
 
@@ -762,31 +766,48 @@ export async function guardarAgregarArmado() {
 
   const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
+  const editLogId = parseInt((document.getElementById('armado-guardar') as HTMLElement).dataset.editLogId || '');
+  const modoEdicion = !!editLogId;
+
+  // Jornada tipo → logística tipo
+  const JORNADA_TO_LOG_TIPO = { 'Operador': 'Evento', 'Armado': 'Armado', 'Desarme': 'Desarme', 'Depósito': 'Deposito' };
+  const logTipoBuscado = JORNADA_TO_LOG_TIPO[tipo] || tipo;
+
   try {
-    const armRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${evId}`], select: 'logistica_id', limit: 1 });
-    let logId = armRels[0]?.logistica_id;
+    let logId: number | undefined = modoEdicion ? editLogId : undefined;
     if (!logId) {
-      const ev = (state.evCache || []).find(e => e.id === evId);
-      const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
-      logId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
-      await sbPost('logistica_eventos', { logistica_id: logId, evento_id: evId });
+      const armRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${evId}`], select: 'logistica_id', limit: 20 });
+      const logIds = armRels.map(r => r.logistica_id);
+      if (logIds.length) {
+        const logs = await sb('logisticas', { filters: [`id=in.(${logIds.join(',')})`], select: 'id,tipo', limit: 20 });
+        logId = logs.find((l: any) => l.tipo === logTipoBuscado)?.id ?? logs[0]?.id;
+      }
+      if (!logId) {
+        const ev = (state.evCache || []).find(e => e.id === evId);
+        const newLog = await sbPost('logisticas', { tipo: logTipoBuscado, notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
+        logId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
+        await sbPost('logistica_eventos', { logistica_id: logId, evento_id: evId });
+      }
     }
 
     const codigoBase = `J${Date.now()}`;
     if (persIds.length > 0) {
-      const jornadas = persIds.map((pid, i) => {
-        const p = (state.persCache || []).find(x => x.id === pid);
-        const tarifa = tipo === 'Depósito' ? p?.tarifa_deposito : tipo === 'Operador' ? p?.tarifa_operador : p?.tarifa_armado;
-        return {
+      // En modo edición: solo asignar a jornadas existentes sin personal, nunca crear nuevas
+      const sinPersonal = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, `fecha=eq.${fecha}`, `personal_id=is.null`], select: 'id', limit: 100 });
+      for (let i = 0; i < Math.min(persIds.length, sinPersonal.length); i++) {
+        await sbPatch('jornadas', sinPersonal[i].id, { personal_id: persIds[i] });
+      }
+      if (!modoEdicion) {
+        const nuevas = persIds.slice(sinPersonal.length).map((pid, i) => ({
           codigo: `${codigoBase}-${i}`,
           logistica_id: logId,
           tipo,
           fecha: fecha || null,
           personal_id: pid,
           pagado: false,
-        };
-      });
-      await sbPost('jornadas', jornadas);
+        }));
+        if (nuevas.length) await sbPost('jornadas', nuevas);
+      }
     } else {
       toast('Seleccioná al menos una persona', 'err');
       return;
