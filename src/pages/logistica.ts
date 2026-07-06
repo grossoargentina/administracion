@@ -716,8 +716,7 @@ export async function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   document.getElementById('armado-modal-title').textContent = `Editar personal — ${tipo}`;
   setArmadoEvento(evId, tipo);
   // Guardar logId fijo: en modo edición nunca se crea logística nueva
-  const btn = document.getElementById('armado-guardar');
-  btn.dataset.editLogId = logId;
+  (state as any)._editLogId = logId;
   // Pre-marcar personal ya asignado
   const jornTipo = tipo === 'Operador' ? 'Operador' : tipo;
   const asignadas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${jornTipo}`, `personal_id=not.is.null`], select: 'personal_id', limit: 100 });
@@ -760,7 +759,7 @@ export function abrirAgregarArmado() {
     </label>`
   ).join('');
   document.getElementById('armado-modal-title').textContent = 'Agregar día de armado';
-  delete (document.getElementById('armado-guardar') as HTMLElement).dataset.editLogId;
+  delete (state as any)._editLogId;
   openModal('modal-agregar-armado');
 }
 
@@ -773,7 +772,7 @@ export async function guardarAgregarArmado() {
 
   const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
-  const editLogId = parseInt((document.getElementById('armado-guardar') as HTMLElement).dataset.editLogId || '');
+  const editLogId = (state as any)._editLogId || 0;
   const modoEdicion = !!editLogId;
 
   // Jornada tipo → logística tipo
