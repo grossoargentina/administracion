@@ -535,28 +535,47 @@ export async function confirmarPresupuestoFinal() {
       }
     }
 
-    // Crear logística automática
+    // Crear las 3 logísticas automáticas: Armado, Evento, Desarme
     if (eventoId) {
-      const logRow = await sbPost('logisticas', {
-        tipo: 'Evento',
-        notas: `Logística automática — ${venue || cliente}`,
-        created_at: new Date().toISOString(),
-      });
-      const logId = Array.isArray(logRow) ? logRow[0]?.id : logRow?.id;
+      const fechas = fechasEvento.length ? fechasEvento : (fecha ? [fecha] : []);
 
-      if (logId) {
+      const tiposLog = [
+        { tipo: 'Armado',   jornadaTipo: 'Armado',    fecha: fechas[0] || null },
+        { tipo: 'Evento',   jornadaTipo: 'Operador',  fecha: null }, // una jornada por fecha
+        { tipo: 'Desarme',  jornadaTipo: 'Desarme',   fecha: fechas[0] || null },
+      ];
+
+      for (const tl of tiposLog) {
+        const logRow = await sbPost('logisticas', {
+          tipo: tl.tipo,
+          notas: `Logística automática — ${venue || cliente}`,
+          created_at: new Date().toISOString(),
+        });
+        const logId = Array.isArray(logRow) ? logRow[0]?.id : logRow?.id;
+        if (!logId) continue;
+
         await sbPost('logistica_eventos', { logistica_id: logId, evento_id: eventoId });
 
-        // Crear una jornada de Operador por cada fecha seleccionada
-        const fechas = fechasEvento.length ? fechasEvento : (fecha ? [fecha] : []);
-        const jornadasOp = fechas.map((f, i) => ({
-          codigo: `J${Date.now()}-op${i}`,
-          logistica_id: logId,
-          tipo: 'Operador',
-          fecha: f || null,
-          pagado: false,
-        }));
-        if (jornadasOp.length) await sbPost('jornadas', jornadasOp);
+        if (tl.tipo === 'Evento') {
+          // Una jornada Operador por cada fecha del evento
+          const jornadasOp = fechas.map((f, i) => ({
+            codigo: `J${Date.now()}-op${i}`,
+            logistica_id: logId,
+            tipo: 'Operador',
+            fecha: f || null,
+            pagado: false,
+          }));
+          if (jornadasOp.length) await sbPost('jornadas', jornadasOp);
+        } else {
+          // Una jornada de Armado o Desarme
+          await sbPost('jornadas', [{
+            codigo: `J${Date.now()}-${tl.jornadaTipo.toLowerCase()}`,
+            logistica_id: logId,
+            tipo: tl.jornadaTipo,
+            fecha: tl.fecha,
+            pagado: false,
+          }]);
+        }
       }
     }
 

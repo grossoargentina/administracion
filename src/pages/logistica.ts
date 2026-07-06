@@ -440,7 +440,7 @@ export async function loadLogisticas() {
   try {
     const rows = await sbCached('logisticas', { order: 'created_at.desc', limit: 100 });
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas cargadas</div></td></tr>';
+      wrap.innerHTML = '<div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas cargadas</div>';
       return;
     }
     const ids = rows.map(r => r.id);
