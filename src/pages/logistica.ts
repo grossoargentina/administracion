@@ -711,13 +711,20 @@ export function setArmadoEvento(evId, tipo) {
   horaEl.dataset.value = hora;
 }
 
-export function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
+export async function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   abrirAgregarArmado();
   document.getElementById('armado-modal-title').textContent = `Editar personal — ${tipo}`;
   setArmadoEvento(evId, tipo);
   // Guardar logId fijo: en modo edición nunca se crea logística nueva
   const btn = document.getElementById('armado-guardar');
   btn.dataset.editLogId = logId;
+  // Pre-marcar personal ya asignado
+  const jornTipo = tipo === 'Operador' ? 'Operador' : tipo;
+  const asignadas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${jornTipo}`, `personal_id=not.is.null`], select: 'personal_id', limit: 100 });
+  const asignadosIds = new Set(asignadas.map(j => j.personal_id));
+  document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]').forEach((cb: any) => {
+    cb.checked = asignadosIds.has(parseInt(cb.value));
+  });
 }
 
 export async function abrirPresupuestoParaEvento(eventoId) {
