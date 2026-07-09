@@ -237,24 +237,32 @@ export async function guardarEvento() {
       // Sincronizar fechas/horas en jornadas automáticas
       const logRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${editingEventoId}`], select: 'logistica_id', limit: 50 });
       const logIdsEv = logRels.map(r => r.logistica_id);
-      const jornadasEv = logIdsEv.length ? await sb('jornadas', { filters: [`logistica_id=in.(${logIdsEv.join(',')})`], select: 'id,tipo', limit: 100 }) : [];
+      const jornadasEv = logIdsEv.length ? await sb('jornadas', { filters: [`logistica_id=in.(${logIdsEv.join(',')})`], select: 'id,tipo,logistica_id', limit: 100 }) : [];
+      // Sincronizar jornadas Operador con las fechas seleccionadas
       const jornadasOp = jornadasEv.filter(j => j.tipo === 'Operador');
-      if (jornadasOp.length > 0) {
-        // Actualizar jornadas Operador existentes
-        for (let i = 0; i < jornadasOp.length; i++) {
-          const fecha = fechasEv[i] || fechasEv[0] || null;
-          if (fecha) await sbPatch('jornadas', jornadasOp[i].id, { fecha });
+      // Usar la logística tipo 'Evento' para las jornadas Operador
+      const logsData = logIdsEv.length ? await sb('logisticas', { filters: [`id=in.(${logIdsEv.join(',')})`], select: 'id,tipo', limit: 20 }) : [];
+      const logIdEvento = logsData.find(l => l.tipo === 'Evento')?.id ?? logsData.find(l => l.tipo === 'Armado')?.id ?? logIdsEv[0];
+      if (logIdEvento) {
+        // Eliminar jornadas sobrantes (más jornadas que fechas)
+        for (let i = fechasEv.length; i < jornadasOp.length; i++) {
+          await sbDelete('jornadas', jornadasOp[i].id);
         }
-      } else if (fechasEv.length > 0 && logIdsEv.length > 0) {
-        // No hay jornadas Operador — crearlas en la primera logística vinculada
-        const jornadasNuevas = fechasEv.map((f, i) => ({
-          codigo: `J${Date.now()}-op${i}`,
-          logistica_id: logIdsEv[0],
-          tipo: 'Operador',
-          fecha: f,
-          pagado: false,
-        }));
-        await sbPost('jornadas', jornadasNuevas);
+        // Actualizar las que coinciden por posición
+        for (let i = 0; i < Math.min(jornadasOp.length, fechasEv.length); i++) {
+          await sbPatch('jornadas', jornadasOp[i].id, { fecha: fechasEv[i] });
+        }
+        // Crear jornadas nuevas si hay más fechas que jornadas
+        if (fechasEv.length > jornadasOp.length) {
+          const nuevas = fechasEv.slice(jornadasOp.length).map((f, i) => ({
+            codigo: `J${Date.now()}-op${jornadasOp.length + i}`,
+            logistica_id: logIdEvento,
+            tipo: 'Operador',
+            fecha: f,
+            pagado: false,
+          }));
+          await sbPost('jornadas', nuevas);
+        }
       }
       for (const j of jornadasEv.filter(j => j.tipo !== 'Operador')) {
         const jPatch = {};

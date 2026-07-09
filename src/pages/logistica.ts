@@ -438,6 +438,8 @@ export async function loadLogisticas() {
   const wrap = document.getElementById('log-lista-wrap');
   wrap.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
+    // Refrescar evCache para tener fechas/venue actualizados
+    state.evCache = await sb('v_eventos', { filters: ['estado=in.(Confirmado,Realizado,Cobrado)'], order: 'fecha_evento' });
     const rows = await sbCached('logisticas', { order: 'created_at.desc', limit: 100 });
     if (!rows.length) {
       wrap.innerHTML = '<div class="empty"><div class="empty-icon">🗺️</div>Sin logísticas cargadas</div>';
@@ -799,7 +801,8 @@ export async function guardarAgregarArmado() {
     const codigoBase = `J${Date.now()}`;
     if (persIds.length > 0) {
       // En modo edición: solo asignar a jornadas existentes sin personal, nunca crear nuevas
-      const sinPersonal = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, `fecha=eq.${fecha}`, `personal_id=is.null`], select: 'id', limit: 100 });
+      const fechaFiltro = fecha ? `fecha=eq.${fecha}` : `fecha=is.null`;
+      const sinPersonal = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, fechaFiltro, `personal_id=is.null`], select: 'id', limit: 100 });
       for (let i = 0; i < Math.min(persIds.length, sinPersonal.length); i++) {
         await sbPatch('jornadas', sinPersonal[i].id, { personal_id: persIds[i] });
       }

@@ -944,7 +944,7 @@
   <div class="modal" style="max-width:440px">
     <div class="modal-header">
       <span class="modal-title" id="armado-modal-title">Agregar día de armado</span>
-      <button class="modal-close" onclick="closeModal('modal-agregar-armado')">×</button>
+      <button class="modal-close" onclick="delete state._editLogId; closeModal('modal-agregar-armado')">×</button>
     </div>
     <div class="modal-body">
       <div class="form-grid">
@@ -971,7 +971,7 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-agregar-armado')">Cancelar</button>
+      <button class="btn btn-ghost" onclick="delete state._editLogId; closeModal('modal-agregar-armado')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarAgregarArmado()">💾 Guardar</button>
     </div>
   </div>
