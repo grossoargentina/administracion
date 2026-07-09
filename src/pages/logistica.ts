@@ -720,9 +720,11 @@ export async function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   setArmadoEvento(evId, tipo);
   // Guardar logId fijo: en modo edición nunca se crea logística nueva
   (state as any)._editLogId = logId;
-  // Pre-marcar personal ya asignado
+  // Pre-marcar personal ya asignado (solo para la fecha específica)
   const jornTipo = tipo === 'Operador' ? 'Operador' : tipo;
-  const asignadas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${jornTipo}`, `personal_id=not.is.null`], select: 'personal_id', limit: 100 });
+  const fechaVal = document.getElementById('armado-fecha').dataset.value || '';
+  const fechaFiltro = fechaVal ? `fecha=eq.${fechaVal}` : `fecha=is.null`;
+  const asignadas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${jornTipo}`, fechaFiltro, `personal_id=not.is.null`], select: 'personal_id', limit: 100 });
   const asignadosIds = new Set(asignadas.map(j => j.personal_id));
   document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]').forEach((cb: any) => {
     cb.checked = asignadosIds.has(parseInt(cb.value));
@@ -801,22 +803,45 @@ export async function guardarAgregarArmado() {
 
     const codigoBase = `J${Date.now()}`;
     if (persIds.length > 0) {
-      // En modo edición: solo asignar a jornadas existentes sin personal, nunca crear nuevas
       const fechaFiltro = fecha ? `fecha=eq.${fecha}` : `fecha=is.null`;
-      const sinPersonal = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, fechaFiltro, `personal_id=is.null`], select: 'id', limit: 100 });
-      for (let i = 0; i < Math.min(persIds.length, sinPersonal.length); i++) {
-        await sbPatch('jornadas', sinPersonal[i].id, { personal_id: persIds[i] });
+      if (modoEdicion) {
+        // Modo edición: reconciliar — limpiar desmarcados, asignar marcados
+        const todas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, fechaFiltro], select: 'id,personal_id', limit: 100 });
+        const conPersonal = todas.filter(j => j.personal_id !== null);
+        const sinPersonal = todas.filter(j => j.personal_id === null);
+        // Limpiar jornadas de personas que ya no están seleccionadas
+        for (const j of conPersonal) {
+          if (!persIds.includes(j.personal_id)) await sbPatch('jornadas', j.id, { personal_id: null });
+        }
+        // IDs que ya tienen jornada asignada
+        const yaAsignados = new Set(conPersonal.filter(j => persIds.includes(j.personal_id)).map(j => j.personal_id));
+        const aAsignar = persIds.filter(pid => !yaAsignados.has(pid));
+        // Usar slots vacíos para los nuevos
+        let slotIdx = 0;
+        for (const pid of aAsignar) {
+          if (slotIdx < sinPersonal.length) {
+            await sbPatch('jornadas', sinPersonal[slotIdx].id, { personal_id: pid });
+            slotIdx++;
+          } else {
+            await sbPost('jornadas', [{ codigo: `${codigoBase}-${pid}`, logistica_id: logId, tipo, fecha: fecha || null, personal_id: pid, pagado: false }]);
+          }
+        }
+      } else {
+        // Modo creación: llenar slots vacíos y crear nuevos si hacen falta
+        const sinPersonal = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, fechaFiltro, `personal_id=is.null`], select: 'id', limit: 100 });
+        for (let i = 0; i < Math.min(persIds.length, sinPersonal.length); i++) {
+          await sbPatch('jornadas', sinPersonal[i].id, { personal_id: persIds[i] });
+        }
+        const nuevas = persIds.slice(sinPersonal.length).map((pid, i) => ({
+          codigo: `${codigoBase}-${i}`,
+          logistica_id: logId,
+          tipo,
+          fecha: fecha || null,
+          personal_id: pid,
+          pagado: false,
+        }));
+        if (nuevas.length) await sbPost('jornadas', nuevas);
       }
-      // Crear jornadas para personas que exceden los slots vacíos existentes
-      const nuevas = persIds.slice(sinPersonal.length).map((pid, i) => ({
-        codigo: `${codigoBase}-${i}`,
-        logistica_id: logId,
-        tipo,
-        fecha: fecha || null,
-        personal_id: pid,
-        pagado: false,
-      }));
-      if (nuevas.length) await sbPost('jornadas', nuevas);
     } else {
       toast('Seleccioná al menos una persona', 'err');
       return;
