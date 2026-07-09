@@ -564,6 +564,7 @@ export async function confirmarPresupuestoFinal() {
       for (const tl of tiposLog) {
         const logRow = await sbPost('logisticas', {
           tipo: tl.tipo,
+          evento_id: eventoId,
           notas: `Logística automática — ${venue || cliente}`,
           created_at: new Date().toISOString(),
         });

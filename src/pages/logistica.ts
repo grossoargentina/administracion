@@ -451,8 +451,9 @@ export async function loadLogisticas() {
       sbCached('logistica_eventos', { filters: [`logistica_id=in.(${ids.join(',')})`], limit: 500 }),
     ]);
 
-    // Mapa logistica_id → evento_id (desde logistica_eventos, sin depender de logisticas.evento_id)
+    // Mapa logistica_id → evento_id: preferir evento_id directo en logisticas, fallback a logistica_eventos
     const logToEvId = {};
+    rows.forEach(r => { if (r.evento_id) logToEvId[r.id] = r.evento_id; });
     logEvRels.forEach(r => { if (!logToEvId[r.logistica_id]) logToEvId[r.logistica_id] = r.evento_id; });
 
     const TIPO_ORDEN = { 'Armado': 0, 'Operador': 1, 'Desarme': 2, 'Depósito': 3 };
@@ -792,7 +793,7 @@ export async function guardarAgregarArmado() {
       }
       if (!logId) {
         const ev = (state.evCache || []).find(e => e.id === evId);
-        const newLog = await sbPost('logisticas', { tipo: logTipoBuscado, notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
+        const newLog = await sbPost('logisticas', { tipo: logTipoBuscado, evento_id: evId, notas: `Logística — ${ev?.venue || ev?.cliente_nombre || ''}`, created_at: new Date().toISOString() });
         logId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
         await sbPost('logistica_eventos', { logistica_id: logId, evento_id: evId });
       }
@@ -1071,9 +1072,10 @@ export async function guardarLogistica() {
       const logRow = await sbPost('logisticas', {
         tipo: logTipo,
         notas: notas || null,
+        evento_id: (logTipo !== 'Deposito' && eventoId) ? parseInt(eventoId) : null,
       });
       logId = Array.isArray(logRow) ? logRow[0].id : logRow.id;
-      if (logTipo === 'Evento' && eventoId) {
+      if (logTipo !== 'Deposito' && eventoId) {
         await sbPost('logistica_eventos', { logistica_id: logId, evento_id: parseInt(eventoId) });
       } else if (logTipo === 'Deposito' && logEventosDepIds.length) {
         await sbPost('logistica_eventos', logEventosDepIds.map(eid => ({ logistica_id: logId, evento_id: eid })));
@@ -1268,8 +1270,9 @@ export async function enviarMailSeguro(logId) {
     });
 
     // Traer info del evento para el asunto
-    const mailRel = await sb('logistica_eventos', { filters: [`logistica_id=eq.${logId}`], select: 'evento_id', limit: 1 });
-    const ev = mailRel[0]?.evento_id ? (state.evCache||[]).find(e => e.id === mailRel[0].evento_id) : null;
+    const logForMail = (await sb('logisticas', { filters: [`id=eq.${logId}`], select: 'evento_id', limit: 1 }))[0];
+    const mailEvId = logForMail?.evento_id || (await sb('logistica_eventos', { filters: [`logistica_id=eq.${logId}`], select: 'evento_id', limit: 1 }))[0]?.evento_id;
+    const ev = mailEvId ? (state.evCache||[]).find(e => e.id === mailEvId) : null;
     const evLabel = ev ? (ev.venue || ev.codigo || `Evento #${ev.id}`) : `Logística #${logId}`;
 
     const filas = personal.map(p => {
@@ -1383,10 +1386,10 @@ export async function abrirDetLogistica(id, tipo) {
     const log = logRows[0];
     if (!log) { toast('Logística no encontrada', 'err'); return; }
     if (log.notas) document.getElementById('log-notas').value = log.notas;
-    const detRel = await sbCached('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 });
-    let ev = detRel[0]?.evento_id ? (state.evCache || []).find(e => e.id === detRel[0].evento_id) : null;
-    if (!ev && detRel[0]?.evento_id) {
-      const evRows = await sbCached('v_eventos', { filters: [`id=eq.${detRel[0].evento_id}`], limit: 1 });
+    const evId = log.evento_id || (await sbCached('logistica_eventos', { filters: [`logistica_id=eq.${id}`], select: 'evento_id', limit: 1 }))[0]?.evento_id;
+    let ev = evId ? (state.evCache || []).find(e => e.id === evId) : null;
+    if (!ev && evId) {
+      const evRows = await sbCached('v_eventos', { filters: [`id=eq.${evId}`], limit: 1 });
       ev = evRows[0] || null;
     }
     if (ev) {
