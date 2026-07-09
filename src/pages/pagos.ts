@@ -46,7 +46,7 @@ export async function loadPagos() {
 
   try {
     const [jornadas, jornadasPagadas, personal, extrasDB] = await Promise.all([
-      sbCached('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`, `personal_id=not.is.null`], limit: 500 }),
+      sbCached('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `personal_id=not.is.null`], limit: 500 }),
       sbCached('v_jornadas', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`, `personal_id=not.is.null`], limit: 500 }),
       sbCached('personal', { limit: 200 }),
       sbCached('pago_extras', { filters: [`semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`], limit: 200 }),
@@ -168,9 +168,7 @@ export async function loadPagos() {
           <div style="display:flex;align-items:center;gap:12px">
             <span id="pago-total-${p.id}" data-base="${total}" style="font-size:18px;font-weight:700;color:var(--gold)">${fmtARS(totalConExtras)}</span>
             <button class="btn btn-ghost btn-sm" onclick="generarReciboIndividual(${JSON.stringify(p).replace(/"/g,'&quot;')})">📄 Recibo</button>
-            ${p.jornadas.every(j => j.confirmada)
-              ? `<button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}','${p.apellido} ${p.nombre}',${total})">✓ Pagar</button>`
-              : `<button class="btn btn-ghost btn-sm" onclick="confirmarJornadasPersona(${p.id},'${desde}','${hasta}')">✓ Confirmar jornada</button>`}
+            <button class="btn btn-primary btn-sm" onclick="marcarPagadoPersona(${p.id},'${desde}','${hasta}','${p.apellido} ${p.nombre}',${total})">✓ Pagar</button>
           </div>
         </div>
         <table style="width:100%;border-collapse:collapse">
@@ -279,7 +277,7 @@ export async function confirmarPagoPersona(metodo) {
   closeModal('modal-pago-metodo');
   const hoy = new Date().toISOString().split('T')[0];
   try {
-    const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 });
+    const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 });
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
     if (total !== 0) {
       await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo });

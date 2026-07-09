@@ -504,7 +504,6 @@ export async function loadLogisticas() {
         tiposAMostrar.forEach(tipo => {
           const jorsTipo = jors.filter(j => j.tipo === tipo);
           const dias = [...new Set(jorsTipo.map(j => j.fecha).filter(Boolean))].sort();
-          const todasConfirmadas = jorsTipo.length > 0 && jorsTipo.every(j => j.confirmada);
           const todasPagadas = jorsTipo.length > 0 && jorsTipo.every(j => j.pagado);
 
           if (dias.length > 1) {
@@ -513,7 +512,7 @@ export async function loadLogisticas() {
               const jorsDelDia = jorsTipo.filter(j => j.fecha === dia);
               const persIdsDia = [...new Set(jorsDelDia.map(j => j.personal_id).filter(Boolean))];
               const fechaLabel = new Date(dia+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'});
-              filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort: dia, persCount: persIdsDia.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas: jorsDelDia.every(j=>j.confirmada), todasPagadas: jorsDelDia.every(j=>j.pagado) });
+              filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort: dia, persCount: persIdsDia.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasPagadas: jorsDelDia.every(j=>j.pagado) });
             });
           } else {
             const persIds = [...new Set(jorsTipo.map(j => j.personal_id).filter(Boolean))];
@@ -601,9 +600,6 @@ export async function loadLogisticas() {
         </div>
         <div style="font-size:12px;color:var(--text-2);width:80px;text-align:center">${f.persCount} pers.</div>
         <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
-          ${f.todasConfirmadas
-            ? `<span style="font-size:11px;font-weight:600;color:var(--text-3);background:var(--bg-3);padding:3px 8px;border-radius:20px">✓ Confirmado</span>`
-            : `<button class="btn btn-ghost btn-sm" onclick="confirmarJornadas(${f.logId},'${f.tipo}')" style="color:var(--green);border-color:rgba(46,204,113,.3)">✓ Confirmar</button>`}
           <button class="btn btn-ghost btn-sm" onclick="${f.eliminable ? `editarLogistica(${f.logId},'${f.tipo}',true)` : `abrirAgregarArmadoParaTipo(${f.logId},'${f.tipo}',${f.eventoId})`}">✏️</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirDetLogistica(${f.logId},'${f.tipo}')">📋</button>
           ${f.eliminable ? `<button class="btn btn-danger btn-sm" onclick="eliminarLogistica(${f.logId})">✕</button>` : ''}
