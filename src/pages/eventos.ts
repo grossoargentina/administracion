@@ -224,11 +224,12 @@ export async function guardarEvento() {
     sena_monto:     parseARSInput(document.getElementById('ev-sena')),
     estado:         document.getElementById('ev-estado').value,
     notas:          document.getElementById('ev-notas').value,
-    fecha_armado:   document.getElementById('ev-fecha-armado').value || null,
-    hora_armado:    document.getElementById('ev-hora-armado').value || null,
-    fecha_desarme:  document.getElementById('ev-fecha-desarme').value || null,
-    hora_desarme:   document.getElementById('ev-hora-desarme').value || null,
-    updated_at:     new Date().toISOString(),
+    fecha_armado:      document.getElementById('ev-fecha-armado').value || null,
+    hora_armado:       document.getElementById('ev-hora-armado').value || null,
+    fecha_desarme:     document.getElementById('ev-fecha-desarme').value || null,
+    hora_desarme:      document.getElementById('ev-hora-desarme').value || null,
+    horarios_evento:   horariosEv.some(Boolean) ? JSON.stringify(horariosEv) : null,
+    updated_at:        new Date().toISOString(),
   };
 
   try {

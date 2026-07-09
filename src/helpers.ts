@@ -211,7 +211,9 @@ export function initDatePickers(root) {
       altFormat: 'j M Y',
       conjunction: ', ',
       onChange(selectedDates) {
-        renderHorariosEv([...selectedDates].sort((a,b) => a-b));
+        // Preservar horarios ya ingresados al agregar/quitar fechas
+        const existentes = getHorariosEv();
+        renderHorariosEv([...selectedDates].sort((a,b) => a-b), existentes);
       },
     });
   }
