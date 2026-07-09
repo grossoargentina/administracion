@@ -228,7 +228,6 @@ export async function guardarEvento() {
     hora_armado:       document.getElementById('ev-hora-armado').value || null,
     fecha_desarme:     document.getElementById('ev-fecha-desarme').value || null,
     hora_desarme:      document.getElementById('ev-hora-desarme').value || null,
-    horarios_evento:   horariosEv.some(Boolean) ? JSON.stringify(horariosEv) : null,
     updated_at:        new Date().toISOString(),
   };
 
