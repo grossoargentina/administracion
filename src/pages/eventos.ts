@@ -1,5 +1,5 @@
 import { state } from '../state';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, getAdicionalesEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -164,15 +164,14 @@ export async function editEvento(id) {
       const logRels = await sbCached('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 50 });
       const logIds = logRels.map(r => r.logistica_id);
       const jorns = logIds.length
-        ? await sbCached('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha', order: 'fecha', limit: 100 })
+        ? await sbCached('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha,hora_inicio,monto_adicional', order: 'fecha', limit: 100 })
         : [];
-      const fechas   = jorns.map(j => j.fecha).filter(Boolean);
-      let horarios = [];
-      try { horarios = ev.horarios_evento ? (Array.isArray(ev.horarios_evento) ? ev.horarios_evento : JSON.parse(ev.horarios_evento)) : []; } catch(e) {}
-      if (!horarios.length && ev.horario) horarios = fechas.map(() => ev.horario);
+      const fechas     = jorns.map(j => j.fecha).filter(Boolean);
+      const horarios   = jorns.length ? jorns.map(j => j.hora_inicio || '') : (ev.horario ? fechas.map(() => ev.horario) : []);
+      const adicionales = jorns.map(j => j.monto_adicional || 0);
       if (fechas.length) {
         fpFecha.setDate(fechas);
-        renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horarios);
+        renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horarios, adicionales);
       }
     } catch(e) {}
   }
@@ -205,8 +204,10 @@ export async function guardarEvento() {
   if (!cliente) { toast('El cliente es obligatorio', 'err'); return; }
 
   const fpEv = document.getElementById('ev-fecha')._flatpickr;
-  const fechasEv = fpEv ? fpEv.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
-  const horariosEv = getHorariosEv();
+  const fechasEv    = fpEv ? fpEv.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
+  const horariosEv  = getHorariosEv();
+  const adicionalesEv = getAdicionalesEv();
+  const totalAdicionales = adicionalesEv.reduce((s, v) => s + (v || 0), 0);
 
   const evMontoBase    = parseARSInput(document.getElementById('ev-total')) || 0;
   const evIncluyeIva   = document.getElementById('ev-iva').checked;
@@ -219,7 +220,7 @@ export async function guardarEvento() {
     monto_base_ars: evMontoBase,
     incluye_iva:    evIncluyeIva,
     pago_diferido:  evPagoDiferido,
-    total_ars:      calcularTotalConRecargos(evMontoBase, evIncluyeIva, evPagoDiferido),
+    total_ars:      calcularTotalConRecargos(evMontoBase + totalAdicionales, evIncluyeIva, evPagoDiferido),
     modalidad_pago: document.getElementById('ev-modalidad').value,
     sena_monto:     parseARSInput(document.getElementById('ev-sena')),
     estado:         document.getElementById('ev-estado').value,
@@ -253,7 +254,7 @@ export async function guardarEvento() {
         }
         // Actualizar las que coinciden por posición
         for (let i = 0; i < Math.min(jornadasOp.length, fechasEv.length); i++) {
-          await sbPatch('jornadas', jornadasOp[i].id, { fecha: fechasEv[i], hora_inicio: horariosEv[i] || null });
+          await sbPatch('jornadas', jornadasOp[i].id, { fecha: fechasEv[i], hora_inicio: horariosEv[i] || null, monto_adicional: adicionalesEv[i] || 0 });
         }
         // Crear jornadas nuevas si hay más fechas que jornadas
         if (fechasEv.length > jornadasOp.length) {
@@ -263,6 +264,7 @@ export async function guardarEvento() {
             tipo: 'Operador',
             fecha: f,
             hora_inicio: horariosEv[jornadasOp.length + i] || null,
+            monto_adicional: adicionalesEv[jornadasOp.length + i] || 0,
             pagado: false,
           }));
           await sbPost('jornadas', nuevas);

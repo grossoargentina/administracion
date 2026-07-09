@@ -1048,7 +1048,9 @@ export function actualizarTotalFinalEv() {
   const base       = parseARSInput(document.getElementById('ev-total')) || 0;
   const incluyeIva = document.getElementById('ev-iva').checked;
   const diferido   = document.getElementById('ev-pago-diferido').checked;
-  document.getElementById('ev-total-final').textContent = fmtARS(calcularTotalConRecargos(base, incluyeIva, diferido));
+  const adicionales = Array.from(document.querySelectorAll('[data-ev-adicional-idx]'))
+    .reduce((sum: number, el: any) => sum + (parseFloat((el.value || '0').replace(/\./g, '').replace(',', '.')) || 0), 0);
+  document.getElementById('ev-total-final').textContent = fmtARS(calcularTotalConRecargos(base + adicionales, incluyeIva, diferido));
 }
 
 // ── GENERAR PDF Y SUBIR A DRIVE ───────────────────────────
