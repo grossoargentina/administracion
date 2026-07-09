@@ -261,10 +261,10 @@ export async function loadDashboard() {
       const operadors    = jornadasEv.filter(j => j.tipo === 'Operador');
       const depositos    = jornadasEv.filter(j => j.tipo === 'Depósito');
 
-      function renderColumna(titulo, jorns) {
+      function renderColumna(titulo, tipo, jorns) {
         const fecha = new Date(jorns[0].fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
-        const horaEvMap = { 'Armado': ev.hora_armado, 'Operador': ev.horario, 'Desarme': ev.hora_desarme, 'Depósito': '' };
-        const hora  = horaEvMap[titulo] || '';
+        const horaFallback = { 'Armado': ev.hora_armado, 'Operador': ev.horario, 'Desarme': ev.hora_desarme };
+        const hora  = jorns[0].hora_inicio || horaFallback[tipo] || '';
         const pers  = [...new Map(jorns.map(j => [j.personal_id, `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim()])).values()].filter(Boolean);
         return `<div style="flex:1;min-width:160px;background:var(--bg-2);border-radius:8px;padding:10px 12px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:6px">${titulo}</div>
@@ -281,15 +281,19 @@ export async function loadDashboard() {
       const fechasArmado = [...new Set(soloArmados.map(j => j.fecha))].sort();
       fechasArmado.forEach((f, i) => {
         const jorns = soloArmados.filter(j => j.fecha === f);
-        if (jorns.length) cols.push(renderColumna(fechasArmado.length > 1 ? `Armado ${i+1}` : 'Armado', jorns));
+        if (jorns.length) cols.push(renderColumna(fechasArmado.length > 1 ? `Armado ${i+1}` : 'Armado', 'Armado', jorns));
       });
-      if (operadors.length) cols.push(renderColumna('Operador', operadors));
+      const fechasOperador = [...new Set(operadors.map(j => j.fecha))].sort();
+      fechasOperador.forEach((f, i) => {
+        const jorns = operadors.filter(j => j.fecha === f);
+        if (jorns.length) cols.push(renderColumna(fechasOperador.length > 1 ? `Operador ${i+1}` : 'Operador', 'Operador', jorns));
+      });
       const fechasDesarme = [...new Set(soloDesarmes.map(j => j.fecha))].sort();
       fechasDesarme.forEach((f, i) => {
         const jorns = soloDesarmes.filter(j => j.fecha === f);
-        if (jorns.length) cols.push(renderColumna(fechasDesarme.length > 1 ? `Desarme ${i+1}` : 'Desarme', jorns));
+        if (jorns.length) cols.push(renderColumna(fechasDesarme.length > 1 ? `Desarme ${i+1}` : 'Desarme', 'Desarme', jorns));
       });
-      if (depositos.length) cols.push(renderColumna('Depósito', depositos));
+      if (depositos.length) cols.push(renderColumna('Depósito', 'Depósito', depositos));
 
       const columnsHtml = cols.length
         ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">${cols.join('')}</div>`
