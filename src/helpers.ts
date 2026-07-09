@@ -227,8 +227,7 @@ export function renderHorariosEv(dates, horariosGuardados = []) {
     const val   = horariosGuardados[i] || '';
     return `<div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:12px;color:var(--text-2);min-width:180px;text-transform:capitalize">${label}</span>
-      <input type="time" class="inp" data-ev-hora-idx="${i}" value="${val}"
-        style="width:120px;font-size:13px" placeholder="--:--">
+      <select class="inp" data-ev-hora-idx="${i}" style="width:120px;font-size:13px">${buildTimeOpts(val)}</select>
     </div>`;
   }).join('');
 }
@@ -236,8 +235,8 @@ export function renderHorariosEv(dates, horariosGuardados = []) {
 export function getHorariosEv() {
   const wrap = document.getElementById('ev-fechas-horarios');
   if (!wrap) return [];
-  return Array.from(wrap.querySelectorAll('input[data-ev-hora-idx]'))
-    .sort((a,b) => a.dataset.evHoraIdx - b.dataset.evHoraIdx)
-    .map(el => el.value || null);
+  return Array.from(wrap.querySelectorAll('[data-ev-hora-idx]'))
+    .sort((a: any, b: any) => a.dataset.evHoraIdx - b.dataset.evHoraIdx)
+    .map((el: any) => el.value || null);
 }
 
