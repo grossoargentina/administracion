@@ -806,17 +806,16 @@ export async function guardarAgregarArmado() {
       for (let i = 0; i < Math.min(persIds.length, sinPersonal.length); i++) {
         await sbPatch('jornadas', sinPersonal[i].id, { personal_id: persIds[i] });
       }
-      if (!modoEdicion) {
-        const nuevas = persIds.slice(sinPersonal.length).map((pid, i) => ({
-          codigo: `${codigoBase}-${i}`,
-          logistica_id: logId,
-          tipo,
-          fecha: fecha || null,
-          personal_id: pid,
-          pagado: false,
-        }));
-        if (nuevas.length) await sbPost('jornadas', nuevas);
-      }
+      // Crear jornadas para personas que exceden los slots vacíos existentes
+      const nuevas = persIds.slice(sinPersonal.length).map((pid, i) => ({
+        codigo: `${codigoBase}-${i}`,
+        logistica_id: logId,
+        tipo,
+        fecha: fecha || null,
+        personal_id: pid,
+        pagado: false,
+      }));
+      if (nuevas.length) await sbPost('jornadas', nuevas);
     } else {
       toast('Seleccioná al menos una persona', 'err');
       return;
