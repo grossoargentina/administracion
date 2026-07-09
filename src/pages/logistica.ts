@@ -523,7 +523,7 @@ export async function loadLogisticas() {
                 ? `<span style="color:var(--text-3)">${new Date(fechaEfectiva+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span>`
                 : '—';
             const fechaSort = dias.length ? dias[0] : (fechaEfectiva || '9999-99-99');
-            filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasConfirmadas, todasPagadas });
+            filas.push({ logId: r.id, eventoId: evId, tipo, evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: TIPO_ORDEN[tipo]??9, eliminable: false, todasPagadas });
           }
         });
       }
