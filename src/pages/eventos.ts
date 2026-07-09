@@ -253,7 +253,7 @@ export async function guardarEvento() {
         }
         // Actualizar las que coinciden por posición
         for (let i = 0; i < Math.min(jornadasOp.length, fechasEv.length); i++) {
-          await sbPatch('jornadas', jornadasOp[i].id, { fecha: fechasEv[i] });
+          await sbPatch('jornadas', jornadasOp[i].id, { fecha: fechasEv[i], hora_inicio: horariosEv[i] || null });
         }
         // Crear jornadas nuevas si hay más fechas que jornadas
         if (fechasEv.length > jornadasOp.length) {
@@ -262,6 +262,7 @@ export async function guardarEvento() {
             logistica_id: logIdEvento,
             tipo: 'Operador',
             fecha: f,
+            hora_inicio: horariosEv[jornadasOp.length + i] || null,
             pagado: false,
           }));
           await sbPost('jornadas', nuevas);
