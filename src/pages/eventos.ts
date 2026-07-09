@@ -234,6 +234,9 @@ export async function guardarEvento() {
   try {
     if (editingEventoId) {
       await sbPatch('eventos', editingEventoId, data);
+      invalidateCache('eventos');
+      invalidateCache('v_pipeline');
+      invalidateCache('jornadas');
       // Sincronizar fechas/horas en jornadas automáticas
       const logRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${editingEventoId}`], select: 'logistica_id', limit: 50 });
       const logIdsEv = logRels.map(r => r.logistica_id);
