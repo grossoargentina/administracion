@@ -343,14 +343,14 @@ export async function confirmarPagoPersona(metodo) {
 
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
     if (total !== 0) {
-      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo });
+      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo, categoria: 'Pagos' });
     }
     // Borrar extras de la BD y registrar cada uno en caja
     for (const ex of extras) {
       await sbDelete('pago_extras', ex.id);
       if (!ex.monto) continue;
       const tipo = Number(ex.monto) > 0 ? 'egreso' : 'ingreso';
-      await sbInsert('caja', { tipo, descripcion: ex.descripcion || `Extra — ${nombre}`, monto: Math.abs(Number(ex.monto)), fecha: hoy, metodo_pago: metodo });
+      await sbInsert('caja', { tipo, descripcion: ex.descripcion || `Extra — ${nombre}`, monto: Math.abs(Number(ex.monto)), fecha: hoy, metodo_pago: metodo, categoria: 'Pagos' });
     }
     invalidateCache('jornadas');
     invalidateCache('caja');
