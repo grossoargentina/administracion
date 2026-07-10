@@ -126,8 +126,14 @@
         <button class="filter-btn" onclick="filterEventos('Realizado',this)">Realizados</button>
         <button class="filter-btn" onclick="filterEventos('Cobrado',this)">Cobrados</button>
       </div>
-      <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <input class="inp" style="max-width:320px" id="ev-busqueda" placeholder="🔍 Buscar por cliente..." oninput="buscarEventos(this.value)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="navMesEventos(-1)">‹</button>
+          <span id="ev-mes-label" style="font-size:13px;font-weight:600;min-width:110px;text-align:center"></span>
+          <button class="btn btn-ghost btn-sm" onclick="navMesEventos(1)">›</button>
+          <button class="btn btn-ghost btn-sm" onclick="navMesEventos(0)" style="font-size:11px">Todos</button>
+        </div>
       </div>
       <div class="card">
         <div class="tbl-wrap">

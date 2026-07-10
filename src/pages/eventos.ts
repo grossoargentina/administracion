@@ -7,6 +7,35 @@ import { sbCached, invalidateCache } from '../query-cache';
 let todosEventos = [];
 let filtroEvento = 'todos';
 let busquedaEvento = '';
+let _mesFiltro: { year: number; month: number } | null = null; // null = todos
+
+const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+export function navMesEventos(delta: number) {
+  if (delta === 0) {
+    _mesFiltro = null;
+  } else if (_mesFiltro === null) {
+    // Partir del primer mes que tenga eventos, o el mes actual
+    const fechas = todosEventos.map(e => e.fecha_evento).filter(Boolean).sort();
+    const ref = fechas[0] ? new Date(fechas[0] + 'T12:00:00') : new Date();
+    _mesFiltro = { year: ref.getFullYear(), month: ref.getMonth() };
+    if (delta === 1) { /* ya está en el primero */ }
+  } else {
+    let { year, month } = _mesFiltro;
+    month += delta;
+    if (month > 11) { month = 0; year++; }
+    if (month < 0)  { month = 11; year--; }
+    _mesFiltro = { year, month };
+  }
+  _actualizarLabelMes();
+  renderEventos();
+}
+
+function _actualizarLabelMes() {
+  const el = document.getElementById('ev-mes-label');
+  if (!el) return;
+  el.textContent = _mesFiltro ? `${MESES_ES[_mesFiltro.month]} ${_mesFiltro.year}` : 'Todos los meses';
+}
 
 // ── IMÁGENES DE EVENTO ────────────────────────────────────
 let _eventoImagenes: {id: number|null, imagen_base64: string, nombre: string}[] = [];
@@ -95,7 +124,20 @@ export function renderEventos() {
     const q = busquedaEvento.trim().toLowerCase();
     lista = lista.filter(e => (e.cliente_nombre || '').toLowerCase().includes(q));
   }
-  lista = applySort('ev', lista);
+  if (_mesFiltro !== null) {
+    lista = lista.filter(e => {
+      if (!e.fecha_evento) return false;
+      const d = new Date(e.fecha_evento + 'T12:00:00');
+      return d.getFullYear() === _mesFiltro.year && d.getMonth() === _mesFiltro.month;
+    });
+  }
+  // Default sort by fecha_evento asc unless user picked another column
+  if (!state._sortState['ev']) {
+    lista = [...lista].sort((a, b) => (a.fecha_evento || '').localeCompare(b.fecha_evento || ''));
+  } else {
+    lista = applySort('ev', lista);
+  }
+  _actualizarLabelMes();
 
   document.getElementById('ev-tbody').innerHTML = lista.length
     ? lista.map(e => `<tr>
@@ -516,6 +558,7 @@ window.loadEventos = loadEventos;
 window.renderEventos = renderEventos;
 window.filterEventos = filterEventos;
 window.buscarEventos = buscarEventos;
+window.navMesEventos = navMesEventos;
 window.acFilter = acFilter;
 window.acHide = acHide;
 window.acSelect = acSelect;
