@@ -54,10 +54,16 @@ export async function loadFinanzas() {
     // 1. Ingresos: pagos de eventos cuya fecha_evento cae en el período
     const eventosDelPeriodo = await sbCached('v_eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], limit: 200 });
     const eventoIds = eventosDelPeriodo.map(e => e.id);
-    const cobros = eventoIds.length
-      ? await sbCached('pagos', { filters: [`evento_id=in.(${eventoIds.join(',')})`], limit: 500 })
-      : [];
-    const totalIngresos = cobros.reduce((s, c) => s + Number(c.monto_ars || 0), 0);
+    const [cobros, presupuestosEvento] = await Promise.all([
+      eventoIds.length ? sbCached('pagos', { filters: [`evento_id=in.(${eventoIds.join(',')})`], limit: 500 }) : Promise.resolve([]),
+      eventoIds.length ? sbCached('presupuestos', { select: 'evento_id,total_ars,estado_evento', filters: [`evento_id=in.(${eventoIds.join(',')})`, `estado_evento=eq.Confirmado`], limit: 200 }) : Promise.resolve([]),
+    ]);
+    const totalCobros = cobros.reduce((s, c) => s + Number(c.monto_ars || 0), 0);
+    // Eventos sin cobros registrados → usar total_ars del presupuesto confirmado como proyectado
+    const eventosCobrados = new Set(cobros.map(c => c.evento_id));
+    const presSinCobro = presupuestosEvento.filter(p => !eventosCobrados.has(p.evento_id));
+    const totalProyectado = presSinCobro.reduce((s, p) => s + Number(p.total_ars || 0), 0);
+    const totalIngresos = totalCobros + totalProyectado;
 
     // 2. Impuestos: costos_fijos del mes/año del período (igual criterio que la pantalla Impuestos), excluye tarjeta
     const anioDesde = Number(desde.slice(0, 4));
@@ -140,19 +146,28 @@ export async function loadFinanzas() {
     document.getElementById('fin-jornadas-sin-pagar').textContent = jornadasSinPagar.length;
 
     // Detalle ingresos por evento
-    const porEvento = {};
-    cobros.forEach(c => {
-      const key = c.evento_id || 'Sin evento';
-      if (!porEvento[key]) porEvento[key] = { nombre: c.tipo || c.evento_id || 'Sin evento', monto: 0 };
-      porEvento[key].monto += Number(c.monto_ars || 0);
-    });
-    // Usar los eventos ya cargados para armar el mapa de nombres
+    const porEvento: Record<string, { monto: number; proyectado: boolean }> = {};
     const eventosMap = {};
     eventosDelPeriodo.forEach(e => eventosMap[e.id] = `${e.venue || ''} — ${e.cliente_nombre || ''}`);
-    document.getElementById('fin-detalle-ingresos').innerHTML = cobros.length
+    cobros.forEach(c => {
+      const key = c.evento_id || 'Sin evento';
+      if (!porEvento[key]) porEvento[key] = { monto: 0, proyectado: false };
+      porEvento[key].monto += Number(c.monto_ars || 0);
+    });
+    presSinCobro.forEach(p => {
+      const key = p.evento_id;
+      if (!porEvento[key]) porEvento[key] = { monto: 0, proyectado: true };
+      porEvento[key].monto += Number(p.total_ars || 0);
+      porEvento[key].proyectado = true;
+    });
+    const hayIngresos = Object.keys(porEvento).length > 0;
+    document.getElementById('fin-detalle-ingresos').innerHTML = hayIngresos
       ? Object.entries(porEvento).map(([id, v]) => `
-        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <span style="color:var(--text-2)">${eventosMap[id] || v.nombre}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px${v.proyectado ? ';opacity:.75' : ''}">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="color:var(--text-2)">${eventosMap[id] || id}</span>
+            ${v.proyectado ? `<span style="font-size:10px;color:var(--text-3);font-style:italic">(proyectado)</span>` : ''}
+          </div>
           <span style="color:var(--green);font-weight:600">${fmtARS(v.monto)}</span>
         </div>`).join('')
       : '<div style="color:var(--text-3);font-size:13px">Sin ingresos en este período</div>';
