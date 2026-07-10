@@ -107,7 +107,10 @@ export function renderGastos() {
         <td>${g.descripcion}</td>
         <td><span style="font-size:11px;font-weight:600;color:${GASTOS_CAT_COLOR[g.categoria]||'var(--text-2)'}">${g.categoria}</span></td>
         <td>${fmtARS(g.monto)}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="eliminarGasto(${g.id})">✕</button></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="editarGasto(${g.id})">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="eliminarGasto(${g.id})">✕</button>
+        </td>
       </tr>`).join('')
     : '<tr><td colspan="5"><div class="empty"><div class="empty-icon">🧾</div>Sin gastos para este filtro</div></td></tr>';
 }
@@ -128,7 +131,20 @@ export function abrirModalGasto() {
   openModal('modal-gasto');
 }
 
+export function editarGasto(id) {
+  const g = _todosGastos.find(x => x.id === id);
+  if (!g) return;
+  document.getElementById('gasto-id').value = g.id;
+  document.getElementById('gasto-desc').value = g.descripcion;
+  document.getElementById('gasto-monto').value = Number(g.monto).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+  document.getElementById('gasto-fecha').value = g.fecha;
+  document.getElementById('gasto-categoria').value = g.categoria || 'Varios';
+  document.getElementById('gasto-modal-title').textContent = 'Editar gasto';
+  openModal('modal-gasto');
+}
+
 export async function guardarGasto() {
+  const id = document.getElementById('gasto-id').value;
   const desc = document.getElementById('gasto-desc').value.trim();
   const monto = parseARSInput(document.getElementById('gasto-monto'));
   const fecha = document.getElementById('gasto-fecha').value || today();
@@ -136,10 +152,15 @@ export async function guardarGasto() {
   if (!desc) { toast('Ingresá una descripción', 'err'); return; }
   if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
   try {
-    await sbInsert('gastos_personales', { descripcion: desc, monto, fecha, categoria });
+    if (id) {
+      await sbPatch('gastos_personales', id, { descripcion: desc, monto, fecha, categoria });
+      toast('✅ Gasto actualizado');
+    } else {
+      await sbInsert('gastos_personales', { descripcion: desc, monto, fecha, categoria });
+      toast('✅ Gasto registrado');
+    }
     closeModal('modal-gasto');
     invalidateCache('gastos_personales');
-    toast('✅ Gasto registrado');
     loadGastos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -206,7 +227,10 @@ export function renderGastosOficina() {
           <td>${g.descripcion}</td>
           <td><span style="font-size:11px;font-weight:600;color:${OFIC_CAT_COLOR[g.categoria]||'var(--text-2)'}">${g.categoria||'—'}</span></td>
           <td style="color:${color};font-weight:600">${signo} ${fmtARS(g.monto)}</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="eliminarGastoOficina(${g.id})">✕</button></td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="editarGastoOficina(${g.id})">✏️</button>
+            <button class="btn btn-ghost btn-sm" onclick="eliminarGastoOficina(${g.id})">✕</button>
+          </td>
         </tr>`;
       }).join('')
     : '<tr><td colspan="5"><div class="empty"><div class="empty-icon">🏢</div>Sin movimientos para este filtro</div></td></tr>';
@@ -238,14 +262,31 @@ export function limpiarFiltrosOficina() {
 }
 
 export function abrirModalGastoOficina() {
+  document.getElementById('ofic-id').value = '';
   document.getElementById('ofic-desc').value = '';
   document.getElementById('ofic-monto').value = '';
   document.getElementById('ofic-fecha').value = today();
+  document.getElementById('ofic-tipo').value = 'egreso';
   document.getElementById('ofic-categoria').value = 'Varios';
+  document.getElementById('ofic-modal-title').textContent = 'Registrar gasto de oficina';
+  openModal('modal-gasto-oficina');
+}
+
+export function editarGastoOficina(id) {
+  const g = _todosGastosOficina.find(x => x.id === id);
+  if (!g) return;
+  document.getElementById('ofic-id').value = g.id;
+  document.getElementById('ofic-desc').value = g.descripcion;
+  document.getElementById('ofic-monto').value = Number(g.monto).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+  document.getElementById('ofic-fecha').value = g.fecha;
+  document.getElementById('ofic-tipo').value = g.tipo || 'egreso';
+  document.getElementById('ofic-categoria').value = g.categoria || 'Varios';
+  document.getElementById('ofic-modal-title').textContent = 'Editar gasto de oficina';
   openModal('modal-gasto-oficina');
 }
 
 export async function guardarGastoOficina() {
+  const id = document.getElementById('ofic-id').value;
   const desc = document.getElementById('ofic-desc').value.trim();
   const monto = parseARSInput(document.getElementById('ofic-monto'));
   const fecha = document.getElementById('ofic-fecha').value || today();
@@ -254,10 +295,15 @@ export async function guardarGastoOficina() {
   if (!desc) { toast('Ingresá una descripción', 'err'); return; }
   if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'err'); return; }
   try {
-    await sbInsert('caja', { tipo, descripcion: desc, monto, fecha, categoria });
+    if (id) {
+      await sbPatch('caja', id, { tipo, descripcion: desc, monto, fecha, categoria });
+      toast('✅ Movimiento actualizado');
+    } else {
+      await sbInsert('caja', { tipo, descripcion: desc, monto, fecha, categoria });
+      toast('✅ Movimiento registrado');
+    }
     closeModal('modal-gasto-oficina');
     invalidateCache('caja');
-    toast('✅ Movimiento registrado');
     loadCaja();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -279,6 +325,7 @@ window.renderDonutGastos = renderDonutGastos;
 window.renderGastos = renderGastos;
 window.limpiarFiltrosGastos = limpiarFiltrosGastos;
 window.abrirModalGasto = abrirModalGasto;
+window.editarGasto = editarGasto;
 window.guardarGasto = guardarGasto;
 window.eliminarGasto = eliminarGasto;
 window.loadCaja = loadCaja;
@@ -286,5 +333,6 @@ window.renderGastosOficina = renderGastosOficina;
 window.renderDonutOficina = renderDonutOficina;
 window.limpiarFiltrosOficina = limpiarFiltrosOficina;
 window.abrirModalGastoOficina = abrirModalGastoOficina;
+window.editarGastoOficina = editarGastoOficina;
 window.guardarGastoOficina = guardarGastoOficina;
 window.eliminarGastoOficina = eliminarGastoOficina;

@@ -539,10 +539,11 @@
 <div class="modal-overlay" id="modal-gasto-oficina">
   <div class="modal" style="max-width:420px">
     <div class="modal-header">
-      <span class="modal-title">Registrar gasto de oficina</span>
+      <span class="modal-title" id="ofic-modal-title">Registrar gasto de oficina</span>
       <button class="modal-close" onclick="closeModal('modal-gasto-oficina')">×</button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="ofic-id">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="ofic-desc" placeholder="Ej: Alquiler, Internet, Resmas..."></div>
         <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="ofic-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
