@@ -119,11 +119,14 @@ export async function loadPagos() {
             <td style="padding:4px 8px;text-align:right">${fmtARS(j.tarifa_ars)}</td>
           </tr>`;
         }).join('');
+        const fechaPago = p.jornadas[0]?.fecha_pago;
+        const fechaPagoFmt = fechaPago ? new Date(fechaPago + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
         return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--green);background:color-mix(in srgb, var(--green) 6%, var(--bg-2))">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div style="display:flex;align-items:center;gap:8px">
               <span style="color:var(--green);font-size:14px">✅</span>
               <span style="font-weight:600;font-size:14px">${p.apellido} ${p.nombre}</span>
+              ${fechaPagoFmt ? `<span style="font-size:11px;color:var(--green);opacity:.8">Pagado el ${fechaPagoFmt}</span>` : ''}
             </div>
             <span style="font-size:16px;font-weight:700;color:var(--green)">${fmtARS(total)}</span>
           </div>

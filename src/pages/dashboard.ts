@@ -190,7 +190,9 @@ export async function generarPDFFechas() {
     stroke([220,220,220]); doc.setLineWidth(0.3); doc.line(M, y, PW - M, y); y += 8;
   }
 
-  doc.save(`fechas-${today()}.pdf`);
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
 }
 
 export function getSemanaActual() {
