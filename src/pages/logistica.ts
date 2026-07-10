@@ -691,24 +691,31 @@ export async function editarLogistica(id, tipo, esExtra = false) {
 }
 
 export function setArmadoEvento(evId, tipo) {
+  const evSel = document.getElementById('armado-evento') as HTMLSelectElement;
+  const tipoSel = document.getElementById('armado-tipo') as HTMLSelectElement;
+  if (evId) evSel.value = String(evId);
+  if (tipo) tipoSel.value = tipo;
+  _rellenarFechaHoraArmado();
+}
+
+function _rellenarFechaHoraArmado() {
+  const evSel  = document.getElementById('armado-evento') as HTMLSelectElement;
+  const tipoSel = document.getElementById('armado-tipo') as HTMLSelectElement;
+  const fechaEl = document.getElementById('armado-fecha') as HTMLInputElement;
+  const horaEl  = document.getElementById('armado-hora') as HTMLInputElement;
+  const evId = parseInt(evSel.value);
+  const tipo = tipoSel.value;
   const ev = evId ? (state.evCache||[]).find(e => e.id === evId) : null;
-  const evEl   = document.getElementById('armado-evento');
-  const tipoEl = document.getElementById('armado-tipo');
-  evEl.textContent    = ev ? `${ev.codigo} · ${ev.cliente_nombre}${ev.venue ? ' · ' + ev.venue : ''}` : '—';
-  evEl.dataset.value  = evId || '';
-  tipoEl.textContent   = tipo || '—';
-  tipoEl.dataset.value = tipo || '';
-  const fechaMap = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
-  const horaMap  = { Armado: ev?.hora_armado,  Operador: ev?.horario,      Desarme: ev?.hora_desarme };
+  const fechaMap: Record<string,string> = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
+  const horaMap: Record<string,string>  = { Armado: ev?.hora_armado,  Operador: ev?.horario,      Desarme: ev?.hora_desarme };
   const fecha = fechaMap[tipo] || '';
   const hora  = horaMap[tipo]  || '';
-  const fechaEl = document.getElementById('armado-fecha');
-  const horaEl  = document.getElementById('armado-hora');
-  fechaEl.textContent = fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
-  fechaEl.dataset.value = fecha;
-  horaEl.textContent = hora || '—';
-  horaEl.dataset.value = hora;
+  if (fecha && !fechaEl.value) fechaEl.value = fecha;
+  if (hora  && !horaEl.value)  horaEl.value  = hora;
 }
+
+export function onArmadoEventoChange() { _rellenarFechaHoraArmado(); }
+export function onArmadoTipoChange()   { _rellenarFechaHoraArmado(); }
 
 export async function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   abrirAgregarArmado();
@@ -718,7 +725,7 @@ export async function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   (state as any)._editLogId = logId;
   // Pre-marcar personal ya asignado (solo para la fecha específica)
   const jornTipo = tipo === 'Operador' ? 'Operador' : tipo;
-  const fechaVal = document.getElementById('armado-fecha').dataset.value || '';
+  const fechaVal = (document.getElementById('armado-fecha') as HTMLInputElement).value || '';
   const fechaFiltro = fechaVal ? `fecha=eq.${fechaVal}` : `fecha=is.null`;
   const asignadas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${jornTipo}`, fechaFiltro, `personal_id=not.is.null`], select: 'personal_id', limit: 100 });
   const asignadosIds = new Set(asignadas.map(j => j.personal_id));
@@ -742,15 +749,21 @@ export async function abrirPresupuestoParaEvento(eventoId) {
 
 export function abrirAgregarDeposito() {
   abrirAgregarArmado();
-  setTipoLog('Deposito');
+  (document.getElementById('armado-tipo') as HTMLSelectElement).value = 'Depósito';
   document.getElementById('armado-modal-title').textContent = 'Agregar día — Depósito';
 }
 
 export function abrirAgregarArmado() {
-  // Resetear campos de solo lectura
-  ['armado-evento','armado-tipo','armado-fecha','armado-hora'].forEach(id => {
-    const el = document.getElementById(id); el.textContent = '—'; el.dataset.value = '';
-  });
+  // Poblar select de eventos
+  const evSel = document.getElementById('armado-evento') as HTMLSelectElement;
+  evSel.innerHTML = '<option value="">— Seleccionar evento —</option>' +
+    (state.evCache || []).map(ev =>
+      `<option value="${ev.id}">${ev.codigo} · ${ev.cliente_nombre}${ev.venue ? ' · ' + ev.venue : ''}</option>`
+    ).join('');
+  // Resetear tipo, fecha y hora
+  (document.getElementById('armado-tipo') as HTMLSelectElement).value = 'Armado';
+  (document.getElementById('armado-fecha') as HTMLInputElement).value = '';
+  (document.getElementById('armado-hora') as HTMLInputElement).value = '';
   // Personal checkboxes
   const persDiv = document.getElementById('armado-personal');
   persDiv.innerHTML = (state.persCache || []).map(p =>
@@ -765,11 +778,12 @@ export function abrirAgregarArmado() {
 }
 
 export async function guardarAgregarArmado() {
-  const evId = parseInt(document.getElementById('armado-evento').dataset.value);
-  const tipo  = document.getElementById('armado-tipo').dataset.value  || 'Armado';
-  const fecha = document.getElementById('armado-fecha').dataset.value || '';
-  const hora  = document.getElementById('armado-hora').dataset.value  || '';
-  if (!evId || !fecha) { toast('Abrí el modal desde un evento para cargar la fecha', 'err'); return; }
+  const evId = parseInt((document.getElementById('armado-evento') as HTMLSelectElement).value);
+  const tipo  = (document.getElementById('armado-tipo') as HTMLSelectElement).value || 'Armado';
+  const fecha = (document.getElementById('armado-fecha') as HTMLInputElement).value || '';
+  const hora  = (document.getElementById('armado-hora') as HTMLInputElement).value  || '';
+  if (!evId) { toast('Seleccioná un evento', 'err'); return; }
+  if (!fecha) { toast('Ingresá la fecha', 'err'); return; }
 
   const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
@@ -1733,6 +1747,8 @@ window.loadLogisticas = loadLogisticas;
 window.editarLogistica = editarLogistica;
 window.setArmadoEvento = setArmadoEvento;
 window.abrirAgregarArmadoParaTipo = abrirAgregarArmadoParaTipo;
+window.onArmadoEventoChange = onArmadoEventoChange;
+window.onArmadoTipoChange   = onArmadoTipoChange;
 window.abrirPresupuestoParaEvento = abrirPresupuestoParaEvento;
 window.abrirAgregarDeposito = abrirAgregarDeposito;
 window.abrirAgregarArmado = abrirAgregarArmado;

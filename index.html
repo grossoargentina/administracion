@@ -951,20 +951,25 @@
     <div class="modal-body">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Evento</label>
-          <div id="armado-evento" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+          <label class="lbl">Evento *</label>
+          <select class="inp" id="armado-evento" onchange="onArmadoEventoChange()"></select>
         </div>
         <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Tipo</label>
-          <div id="armado-tipo" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+          <label class="lbl">Tipo *</label>
+          <select class="inp" id="armado-tipo" onchange="onArmadoTipoChange()">
+            <option value="Armado">Armado</option>
+            <option value="Operador">Operador</option>
+            <option value="Desarme">Desarme</option>
+            <option value="Depósito">Depósito</option>
+          </select>
         </div>
         <div class="field">
-          <label class="lbl">Fecha</label>
-          <div id="armado-fecha" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+          <label class="lbl">Fecha *</label>
+          <input class="inp" type="text" id="armado-fecha" placeholder="dd/mm/aaaa">
         </div>
         <div class="field">
           <label class="lbl">Hora inicio</label>
-          <div id="armado-hora" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+          <input class="inp" type="time" id="armado-hora">
         </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Personal</label>
