@@ -7,3 +7,4 @@ export const EMAIL_EDGE_URL = 'https://mitosihorpjmrosdxqbt.supabase.co/function
 export const EMAIL_SEGURO   = 'ignacioarnesen@hotmail.com';
 export const DRIVE_FOLDER_ID   = '1ZEOYg7oRAygkwjhOq7h4ZHKIiiiT5wzR';
 export const FOTOS_FOLDER_ID   = '1Fyukpnk-aKBp0Y1IKEe0L9hrgbY4FvYy';
+export const FOLDER_LIQUIDACIONES = '101wBK_cRmy4rnVK-xalX1UKYOVhLNsV6';

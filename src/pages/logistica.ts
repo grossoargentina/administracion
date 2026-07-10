@@ -1,7 +1,7 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
-import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_LIQUIDACIONES } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
 // ── JORNADAS ──────────────────────────────────────────────
@@ -261,7 +261,6 @@ export async function liquidarSemana() {
     porPersona[key].jornadas.push(j);
   });
 
-  const FOLDER_ID = '101wBK_cRmy4rnVK-xalX1UKYOVhLNsV6';
   const fechaHoy = fmt(hoy);
   let ok = 0; let err = 0;
 
@@ -269,7 +268,7 @@ export async function liquidarSemana() {
     try {
       const pdfBlob = generarReciboPDF(data, fmtPeriodo, lunesAnterior);
       const nombreArchivo = `${fechaHoy}-${data.apellido},${data.nombre}.pdf`;
-      const url = await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_ID);
+      const url = await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_LIQUIDACIONES);
       if (url) {
         // Marcar jornadas como pagadas
         for (const j of data.jornadas) {
@@ -565,12 +564,11 @@ export async function loadLogisticas() {
       const jors = jornadas.filter(j => j.logistica_id === r.id);
       const opFechas = jors.filter(j => j.tipo === 'Operador').map(j => j.fecha).filter(Boolean).sort();
       const todasFechas = jors.map(j => j.fecha).filter(Boolean).sort();
-      // Preferir la fecha propia de la logística (Operador, o la más temprana);
-      // la fecha del evento queda de último recurso, para logísticas sin jornadas con fecha
-      // (si no, un Armado o Depósito en otro día que el evento se "ancla" mal a la semana del evento)
+      // Preferir fecha del evento desde state.evCache: todo lo de un evento (armado, depósito, etc.)
+      // se agrupa en la semana del evento, aunque el día real de esa jornada sea otra semana
       const evId = logToEvId[r.id];
       const ev = evId ? (state.evCache||[]).find(e => e.id === evId) : null;
-      anclaLog[r.id] = opFechas[0] || todasFechas[0] || (ev?.fecha_evento) || null;
+      anclaLog[r.id] = (ev?.fecha_evento) || opFechas[0] || todasFechas[0] || null;
     });
 
     // Filtrar: una fila aparece en la semana si su logística tiene ancla en esa semana

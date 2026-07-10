@@ -1,7 +1,7 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
-import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_LIQUIDACIONES } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
 // ── PAGOS ─────────────────────────────────────────────────
@@ -283,6 +283,26 @@ export async function confirmarPagoPersona(metodo) {
   const hoy = new Date().toISOString().split('T')[0];
   try {
     const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 });
+
+    // Generar el PDF de liquidación y subirlo a Drive
+    if (jornadas.length) {
+      const [persRow] = await sb('personal', { filters: [`id=eq.${persId}`], limit: 1 });
+      if (persRow) {
+        const data = {
+          apellido: persRow.apellido, nombre: persRow.nombre, tipo: persRow.tipo,
+          sueldo_fijo: persRow.sueldo_fijo || 0, tarifa_armado: persRow.tarifa_armado || 0,
+          tarifa_operador: persRow.tarifa_operador || 0, tarifa_deposito: persRow.tarifa_deposito || 0,
+          jornadas,
+        };
+        const lunesDate = new Date(desde + 'T12:00:00');
+        const domingoDate = new Date(hasta + 'T12:00:00');
+        const periodo = `${lunesDate.toLocaleDateString('es-AR')} al ${domingoDate.toLocaleDateString('es-AR')}`;
+        const nombreArchivo = `${hoy}-${persRow.apellido},${persRow.nombre}.pdf`;
+        const pdfBlob = generarReciboPDF(data, periodo, lunesDate);
+        await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_LIQUIDACIONES);
+      }
+    }
+
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
     if (total !== 0) {
       await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo });
