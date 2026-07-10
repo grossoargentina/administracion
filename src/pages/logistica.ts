@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, fmtLocalDate, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_LIQUIDACIONES } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -67,7 +67,7 @@ export function toggleFlete() {
 
 export async function abrirModalJornada() {
   document.getElementById('jorn-tipo').value  = '';
-  document.getElementById('jorn-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('jorn-fecha').value = today();
   document.getElementById('jorn-notas').value = '';
   document.getElementById('jorn-transporte-section').style.display = 'none';
   document.getElementById('jorn-flete-fields').style.display       = 'none';
@@ -234,9 +234,8 @@ export async function liquidarSemana() {
   const lunesAnterior = new Date(hoy); lunesAnterior.setDate(hoy.getDate() - diaSemana - 6);
   const domingoAnterior = new Date(lunesAnterior); domingoAnterior.setDate(lunesAnterior.getDate() + 6);
 
-  const fmt = d => d.toISOString().split('T')[0];
-  const desde = fmt(lunesAnterior);
-  const hasta = fmt(domingoAnterior);
+  const desde = fmtLocalDate(lunesAnterior);
+  const hasta = fmtLocalDate(domingoAnterior);
 
   // Traer jornadas no pagadas del período
   const todas = await sb('v_jornadas', { limit: 500 });
@@ -261,7 +260,7 @@ export async function liquidarSemana() {
     porPersona[key].jornadas.push(j);
   });
 
-  const fechaHoy = fmt(hoy);
+  const fechaHoy = fmtLocalDate(hoy);
   let ok = 0; let err = 0;
 
   for (const [persId, data] of Object.entries(porPersona)) {
@@ -394,6 +393,26 @@ export function generarReciboPDF(data, periodo, lunesDate) {
     }
     y += 8;
   });
+
+  // ── Extras / descuentos ───────────────────────────────────
+  if (data.extras && data.extras.length) {
+    y += 3;
+    fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+    font('bold', 8); text(BLANCO);
+    doc.text('EXTRAS / DESCUENTOS', M + 2, y + 4); y += 7;
+
+    data.extras.forEach((ex, idx) => {
+      if (y > PH - 35) { doc.addPage(); y = 15; }
+      const monto = Number(ex.monto) || 0;
+      fill(idx % 2 === 0 ? BLANCO : GRIS_F); doc.rect(M, y, CW, 8, 'F');
+      font('normal', 8); text(NEGRO);
+      doc.text(ex.descripcion || 'Extra', M + 2, y + 5.5);
+      font('bold', 8); text(monto < 0 ? [180, 40, 40] : NEGRO);
+      doc.text(fmtARS(monto), PW - M - 2, y + 5.5, { align: 'right' });
+      total += monto;
+      y += 8;
+    });
+  }
 
   // ── Total ─────────────────────────────────────────────────
   y += 3;
@@ -960,7 +979,7 @@ export function abrirNuevaLogistica() {
 
 export function setTipoLog(tipo) {
   logTipo = tipo;
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = today();
   document.getElementById('nlg-btn-evento').className   = tipo === 'Evento'   ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
   document.getElementById('nlg-btn-deposito').className = tipo === 'Deposito' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
   document.getElementById('nlg-sec-evento').style.display   = tipo === 'Evento'   ? '' : 'none';
@@ -1009,7 +1028,7 @@ export function onCambioEventoLog() {
 }
 
 export function agregarDiaLog() {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = today();
   if (logTipo === 'Deposito') {
     logDias.push({ id: Date.now(), tipo: 'Depósito', fecha: hoy, personal: [], transporte: 'Sin transporte', flete_personal: '', flete_monto: '' });
   } else {
@@ -1762,7 +1781,7 @@ export async function generarPDFLogistica() {
   doc.text(`Logística ${new Date().toLocaleDateString('es-AR')}`, PW - M, footerY + 7, { align: 'right' });
 
   const pdfBlob = doc.output('blob');
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = today();
   const nombreArchivo = `${fechaHoy}-${titulo.replace(/\s+/g,'-')}.pdf`;
   toast('Subiendo a Drive...');
   const url = await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_LOGISTICAS);

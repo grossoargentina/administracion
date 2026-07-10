@@ -1143,7 +1143,7 @@ export async function generarPresupuesto() {
       return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
         .toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'');
     }
-    const fechaHoy = new Date().toISOString().split('T')[0];
+    const fechaHoy = today();
     const versionNum = presVersionInfo ? presVersionInfo.nextVersion : 1;
     const nombreArchivo = `${fechaHoy}-${slugify(venue||'evento')}-${slugify(cliente)}-v${versionNum}.pdf`;
 

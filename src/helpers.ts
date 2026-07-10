@@ -54,7 +54,11 @@ export function calcularTotalConRecargos(base, incluyeIva, pagoDiferido) {
   if (pagoDiferido) t *= 1.05;
   return t;
 }
-export const today = () => new Date().toISOString().split('T')[0];
+// Formatea una fecha como YYYY-MM-DD usando sus componentes LOCALES (no UTC).
+// toISOString() convierte a UTC, lo que corre la fecha un día para adelante
+// en Argentina (UTC-3) entre las 21:00 y las 23:59:59 horario local.
+export const fmtLocalDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export const today = () => fmtLocalDate(new Date());
 
 export function formatTelefono(raw) {
   const digits = String(raw || '').replace(/\D/g, '');

@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, fmtLocalDate, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_LIQUIDACIONES } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -12,8 +12,7 @@ export function getSemana(offset) {
   const dow = hoy.getDay() === 0 ? 7 : hoy.getDay();
   const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - dow + 1 + offset * 7);
   const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
-  const fmt = d => d.toISOString().split('T')[0];
-  return { desde: fmt(lunes), hasta: fmt(domingo), lunes, domingo };
+  return { desde: fmtLocalDate(lunes), hasta: fmtLocalDate(domingo), lunes, domingo };
 }
 
 export function cambiarSemanaPagos(dir) {
@@ -47,7 +46,7 @@ export async function loadPagos() {
   try {
     const [jornadas, jornadasPagadas, personal, extrasDB] = await Promise.all([
       sbCached('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `personal_id=not.is.null`], limit: 500 }),
-      sbCached('v_jornadas', { filters: [`fecha_pago=gte.${desde}`, `fecha_pago=lte.${hasta}`, `pagado=eq.true`, `personal_id=not.is.null`], limit: 500 }),
+      sbCached('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.true`, `personal_id=not.is.null`], limit: 500 }),
       sbCached('personal', { limit: 200 }),
       sbCached('pago_extras', { filters: [`semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`], limit: 200 }),
     ]);
@@ -280,19 +279,19 @@ export async function confirmarPagoPersona(metodo) {
   const nombre = document.getElementById('pago-metodo-nombre').textContent;
   const extras = JSON.parse(document.getElementById('pago-metodo-extras').value || '[]');
   closeModal('modal-pago-metodo');
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = today();
   try {
     const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 });
 
     // Generar el PDF de liquidación y subirlo a Drive
-    if (jornadas.length) {
+    if (jornadas.length || extras.length) {
       const [persRow] = await sb('personal', { filters: [`id=eq.${persId}`], limit: 1 });
       if (persRow) {
         const data = {
           apellido: persRow.apellido, nombre: persRow.nombre, tipo: persRow.tipo,
           sueldo_fijo: persRow.sueldo_fijo || 0, tarifa_armado: persRow.tarifa_armado || 0,
           tarifa_operador: persRow.tarifa_operador || 0, tarifa_deposito: persRow.tarifa_deposito || 0,
-          jornadas,
+          jornadas, extras,
         };
         const lunesDate = new Date(desde + 'T12:00:00');
         const domingoDate = new Date(hasta + 'T12:00:00');
@@ -322,19 +321,27 @@ export async function confirmarPagoPersona(metodo) {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-export function generarReciboIndividual(p) {
+export async function generarReciboIndividual(p) {
   const { desde, hasta } = getSemana(pagosOffset);
   const lunes = new Date(desde + 'T12:00:00');
   const domingo = new Date(hasta + 'T12:00:00');
   const periodo = `${lunes.toLocaleDateString('es-AR')} al ${domingo.toLocaleDateString('es-AR')}`;
-  // Reusar generarReciboPDF con datos de esta persona
-  sbCached('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 })
-    .then(jornadas => {
-      const data = { apellido: p.apellido, nombre: p.nombre, tipo: p.tipo, sueldo_fijo: p.sueldo_fijo, tarifa_armado: p.tarifa_armado||0, tarifa_operador: p.tarifa_operador||0, tarifa_deposito: p.tarifa_deposito||0, jornadas };
-      const blob = generarReciboPDF(data, periodo, lunes);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-    });
+  // Reusar generarReciboPDF con datos de esta persona (traer el registro completo:
+  // el objeto `p` de la lista de pagos no tiene las tarifas, solo nombre/tipo/sueldo)
+  const [persRow, jornadas, extras] = await Promise.all([
+    sbCached('personal', { filters: [`id=eq.${p.id}`], limit: 1 }).then(r => r[0] || p),
+    sbCached('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 }),
+    sbCached('pago_extras', { filters: [`personal_id=eq.${p.id}`, `semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`], limit: 200 }),
+  ]);
+  const data = {
+    apellido: persRow.apellido, nombre: persRow.nombre, tipo: persRow.tipo,
+    sueldo_fijo: persRow.sueldo_fijo || 0, tarifa_armado: persRow.tarifa_armado || 0,
+    tarifa_operador: persRow.tarifa_operador || 0, tarifa_deposito: persRow.tarifa_deposito || 0,
+    jornadas, extras,
+  };
+  const blob = generarReciboPDF(data, periodo, lunes);
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
 }
 
 

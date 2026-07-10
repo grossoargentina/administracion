@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, fmtLocalDate, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -190,7 +190,7 @@ export async function generarPDFFechas() {
     stroke([220,220,220]); doc.setLineWidth(0.3); doc.line(M, y, PW - M, y); y += 8;
   }
 
-  doc.save(`fechas-${new Date().toISOString().split('T')[0]}.pdf`);
+  doc.save(`fechas-${today()}.pdf`);
 }
 
 export function getSemanaActual() {
@@ -198,8 +198,7 @@ export function getSemanaActual() {
   const dow = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1; // lunes=0
   const lunes = new Date(hoy); lunes.setDate(hoy.getDate() - dow + dashOffset * 7);
   const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
-  const fmt = d => d.toISOString().split('T')[0];
-  return { desde: fmt(lunes), hasta: fmt(domingo), lunes, domingo };
+  return { desde: fmtLocalDate(lunes), hasta: fmtLocalDate(domingo), lunes, domingo };
 }
 
 export async function loadDashboard() {

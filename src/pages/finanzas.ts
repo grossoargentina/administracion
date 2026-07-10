@@ -217,7 +217,7 @@ export function abrirModalCapital(tipo) {
   setCapitalMoneda('ARS');
   const fp = document.getElementById('capital-fecha')._flatpickr;
   if (fp) fp.setDate(new Date());
-  else document.getElementById('capital-fecha').value = new Date().toISOString().split('T')[0];
+  else document.getElementById('capital-fecha').value = today();
   openModal('modal-capital');
   setTimeout(() => initDatePickers(document.getElementById('modal-capital')), 50);
 }

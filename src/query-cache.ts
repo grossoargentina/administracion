@@ -35,8 +35,10 @@ export async function sbCached(table: string, opts?: any, staleMs = DEFAULT_STAL
 }
 
 export function invalidateCache(table: string) {
+  // Las vistas de solo lectura (v_jornadas, v_eventos, etc.) se cachean con su propio
+  // nombre, no con el de la tabla base — invalidar "jornadas" debe limpiar también "v_jornadas"
   for (const key of cache.keys()) {
-    if (key.startsWith(table)) cache.delete(key);
+    if (key.startsWith(table) || key.startsWith('v_' + table)) cache.delete(key);
   }
 }
 
