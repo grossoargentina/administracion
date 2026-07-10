@@ -421,11 +421,13 @@ export async function registrarCobro(id, cliente, senaOk, saldoOk) {
   const totalEv = Number(evFresh?.total_ars) || 0;
   const esPagoTotal = evFresh?.modalidad_pago === 'Pago total al finalizar';
   const totalPagado = pagosEv.reduce((s, p) => s + Number(p.monto_ars || 0), 0);
-  const pendienteReal = Math.max(0, totalEv - totalPagado);
   const montosena = Number(evFresh?.sena_monto) || 0;
-  // Derivar senaOk y saldoOk de los pagos reales, no del flag (puede estar desactualizado)
+  // Derivar senaOk de los pagos reales (no del flag que puede estar mal)
   const senaRealOk = pagosEv.some(p => p.tipo === 'Seña');
-  const saldoRealOk = saldoOk && totalPagado >= totalEv;
+  // Si el flag dice que la seña fue cobrada pero no hay pagos registrados, descontarla igual del saldo
+  const senaImplied = (senaOk && !senaRealOk && montosena > 0) ? montosena : 0;
+  const pendienteReal = Math.max(0, totalEv - totalPagado - senaImplied);
+  const saldoRealOk = saldoOk && (totalPagado + senaImplied) >= totalEv;
 
   _cobroCtx = { id, cliente, senaOk: senaRealOk, saldoOk: saldoRealOk, totalEv, esPagoTotal, pendienteReal, montosena };
 
