@@ -852,26 +852,6 @@ export async function guardarAgregarArmado() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-export async function confirmarJornadasPersona(persId, desde, hasta) {
-  try {
-    const jors = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.false`], select: 'id', limit: 200 });
-    for (const j of jors) await sbPatch('jornadas', j.id, { confirmada: true });
-    invalidateCache('jornadas');
-    toast(`✅ ${jors.length} jornada(s) confirmadas`);
-    loadPagos();
-  } catch(e) { toast('Error: ' + e.message, 'err'); }
-}
-
-export async function confirmarJornadas(logId, tipo) {
-  try {
-    const jors = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, `confirmada=eq.false`], select: 'id', limit: 200 });
-    if (!jors.length) { toast('Ya están todas confirmadas'); return; }
-    for (const j of jors) await sbPatch('jornadas', j.id, { confirmada: true });
-    invalidateCache('jornadas');
-    toast(`✅ ${jors.length} jornada(s) confirmadas — aparecen en Pagos`);
-    loadLogisticas();
-  } catch(e) { toast('Error: ' + e.message, 'err'); }
-}
 
 export function abrirNuevaLogistica() {
   logEditId = null;
@@ -1380,19 +1360,6 @@ export async function eliminarLogistica(id) {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
-export async function confirmarPagosLogistica() {
-  const pendientes = (logJornadas || []).filter(j => !j.confirmada);
-  if (!pendientes.length) { toast('Todas las jornadas ya están confirmadas', 'err'); return; }
-  if (!confirm(`¿Confirmar ${pendientes.length} jornada(s)? Aparecerán en Pagos para liquidar.`)) return;
-  try {
-    for (const j of pendientes) await sbPatch('jornadas', j.id, { confirmada: true });
-    logJornadas = logJornadas.map(j => pendientes.some(p => p.id === j.id) ? { ...j, confirmada: true } : j);
-    invalidateCache('jornadas');
-    toast(`✅ ${pendientes.length} jornada(s) confirmadas — aparecen en Pagos`);
-    closeModal('modal-log-det');
-    loadLogisticas();
-  } catch(e) { toast('Error: ' + e.message, 'err'); }
-}
 
 export async function abrirDetLogistica(id, tipo) {
   document.getElementById('log-editor').innerHTML = '<div class="spinner"></div>';
@@ -1750,8 +1717,6 @@ window.abrirPresupuestoParaEvento = abrirPresupuestoParaEvento;
 window.abrirAgregarDeposito = abrirAgregarDeposito;
 window.abrirAgregarArmado = abrirAgregarArmado;
 window.guardarAgregarArmado = guardarAgregarArmado;
-window.confirmarJornadasPersona = confirmarJornadasPersona;
-window.confirmarJornadas = confirmarJornadas;
 window.abrirNuevaLogistica = abrirNuevaLogistica;
 window.setTipoLog = setTipoLog;
 window.toggleEvDep = toggleEvDep;
@@ -1766,7 +1731,6 @@ window.guardarLogistica = guardarLogistica;
 window.enviarMailSeguroEvento = enviarMailSeguroEvento;
 window.enviarMailSeguro = enviarMailSeguro;
 window.eliminarLogistica = eliminarLogistica;
-window.confirmarPagosLogistica = confirmarPagosLogistica;
 window.abrirDetLogistica = abrirDetLogistica;
 window.renderEditorLogistica = renderEditorLogistica;
 window.recolectarDatosLogistica = recolectarDatosLogistica;

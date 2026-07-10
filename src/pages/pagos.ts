@@ -284,7 +284,7 @@ export async function confirmarPagoPersona(metodo) {
     }
     // Borrar extras de la BD y registrar cada uno en caja
     for (const ex of extras) {
-      await fetch(`${SUPABASE_URL}/rest/v1/pago_extras?id=eq.${ex.id}`, { method: 'DELETE', headers: sbHeaders() });
+      await sbDelete('pago_extras', ex.id);
       if (!ex.monto) continue;
       const tipo = Number(ex.monto) > 0 ? 'egreso' : 'ingreso';
       await sbInsert('caja', { tipo, descripcion: ex.descripcion || `Extra — ${nombre}`, monto: Math.abs(Number(ex.monto)), fecha: hoy, metodo_pago: metodo });
@@ -303,7 +303,7 @@ export function generarReciboIndividual(p) {
   const domingo = new Date(hasta + 'T12:00:00');
   const periodo = `${lunes.toLocaleDateString('es-AR')} al ${domingo.toLocaleDateString('es-AR')}`;
   // Reusar generarReciboPDF con datos de esta persona
-  sbCached('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `confirmada=eq.true`], limit: 200 })
+  sbCached('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 })
     .then(jornadas => {
       const data = { apellido: p.apellido, nombre: p.nombre, tipo: p.tipo, sueldo_fijo: p.sueldo_fijo, tarifa_armado: p.tarifa_armado||0, tarifa_operador: p.tarifa_operador||0, tarifa_deposito: p.tarifa_deposito||0, jornadas };
       const blob = generarReciboPDF(data, periodo, lunes);
