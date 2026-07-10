@@ -231,8 +231,8 @@ export function renderHorariosEv(dates, horariosGuardados = [], adicionalesGuard
     return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:12px;color:var(--text-2);min-width:180px;text-transform:capitalize">${label}</span>
       <select class="inp" data-ev-hora-idx="${i}" style="width:120px;font-size:13px">${buildTimeOpts(val)}</select>
-      <input class="inp" type="text" inputmode="numeric" data-ev-adicional-idx="${i}" placeholder="Adicional $" value="${adicional}"
-        style="width:130px;font-size:13px" oninput="fmtInputARS(this);actualizarTotalFinalEv()">
+      ${i > 0 ? `<input class="inp" type="text" inputmode="numeric" data-ev-adicional-idx="${i}" placeholder="Adicional $" value="${adicional}"
+        style="width:130px;font-size:13px" oninput="fmtInputARS(this);actualizarTotalFinalEv()">` : `<input type="hidden" data-ev-adicional-idx="${i}" value="0">`}
     </div>`;
   }).join('');
 }
