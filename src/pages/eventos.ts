@@ -413,7 +413,7 @@ export function onCobroTipoChange() {
 export async function registrarCobro(id, cliente, senaOk, saldoOk) {
   if (senaOk && saldoOk) { toast('Este evento ya está cobrado completo'); return; }
 
-  // Fetch fresco del evento para evitar datos desactualizados en memoria
+  // Fetch fresco del evento y pagos reales para no depender de flags potencialmente incorrectos
   const [[evFresh], pagosEv] = await Promise.all([
     sb('eventos', { filters: [`id=eq.${id}`], select: 'id,total_ars,modalidad_pago,sena_monto', limit: 1 }),
     sb('pagos', { filters: [`evento_id=eq.${id}`], limit: 100 }),
@@ -423,14 +423,17 @@ export async function registrarCobro(id, cliente, senaOk, saldoOk) {
   const totalPagado = pagosEv.reduce((s, p) => s + Number(p.monto_ars || 0), 0);
   const pendienteReal = Math.max(0, totalEv - totalPagado);
   const montosena = Number(evFresh?.sena_monto) || 0;
+  // Derivar senaOk y saldoOk de los pagos reales, no del flag (puede estar desactualizado)
+  const senaRealOk = pagosEv.some(p => p.tipo === 'Seña');
+  const saldoRealOk = saldoOk && totalPagado >= totalEv;
 
-  _cobroCtx = { id, cliente, senaOk, saldoOk, totalEv, esPagoTotal, pendienteReal, montosena };
+  _cobroCtx = { id, cliente, senaOk: senaRealOk, saldoOk: saldoRealOk, totalEv, esPagoTotal, pendienteReal, montosena };
 
   // Armar opciones de tipo
   const sel = document.getElementById('cobro-tipo');
   sel.innerHTML = '';
-  if (!esPagoTotal && !senaOk) sel.innerHTML += '<option value="Seña">Seña</option>';
-  if (!saldoOk) sel.innerHTML += '<option value="Saldo">Saldo</option>';
+  if (!esPagoTotal && !senaRealOk) sel.innerHTML += '<option value="Seña">Seña</option>';
+  if (!saldoRealOk) sel.innerHTML += '<option value="Saldo">Saldo</option>';
   sel.innerHTML += '<option value="Parcial">Parcial</option>';
 
   const getMontoSug = (t) => t === 'Seña' ? montosena : t === 'Saldo' ? pendienteReal : 0;
