@@ -447,7 +447,7 @@ export async function loadLogisticas() {
     }
     const ids = rows.map(r => r.id);
     const [jornadas, logEvRels] = await Promise.all([
-      sbCached('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,tipo,fecha,personal_id,confirmada,pagado', limit: 2000 }),
+      sbCached('jornadas', { filters: [`logistica_id=in.(${ids.join(',')})`], select: 'logistica_id,tipo,fecha,personal_id,pagado', limit: 2000 }),
       sbCached('logistica_eventos', { filters: [`logistica_id=in.(${ids.join(',')})`], limit: 500 }),
     ]);
 

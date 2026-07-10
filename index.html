@@ -766,26 +766,6 @@
 </div>
 
 <!-- MODAL CAJA -->
-<div class="modal-overlay" id="modal-caja">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-header">
-      <span class="modal-title" id="caja-modal-title">Registrar movimiento</span>
-      <button class="modal-close" onclick="closeModal('modal-caja')">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="caja-tipo">
-      <div class="form-grid">
-        <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="caja-desc" placeholder="Ej: Compra materiales, Pago servicio..."></div>
-        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="caja-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
-        <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="caja-fecha"></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-caja')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarMovimientoCaja()">Guardar</button>
-    </div>
-  </div>
-</div>
 
 <!-- MODAL PRODUCTO CATÁLOGO -->
 <div class="modal-overlay" id="modal-cliente">

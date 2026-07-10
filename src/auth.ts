@@ -14,14 +14,7 @@ const isAllowedEmail = email => ALLOWED_EMAILS.includes(email);
 let _appInitialized = false;
 
 export async function initAuth() {
-  // En desarrollo local, salteamos el login
-  if (window.location.hostname === 'localhost') {
-    state.AUTH = true;
-    if (!_appInitialized) { _appInitialized = true; showApp(); }
-    return;
-  }
-
-  const hasOAuthHash = window.location.hash.includes('access_token');
+const hasOAuthHash = window.location.hash.includes('access_token');
 
   state.supabaseClient.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth event:', event, session?.user?.email);
