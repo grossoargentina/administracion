@@ -166,6 +166,27 @@ export async function generarPDFFechas() {
       });
     }
 
+    // Imágenes de referencia del evento
+    const evImgs = (_dashData.imagenesByEvento || {})[ev.id] || [];
+    if (evImgs.length) {
+      checkY(20);
+      fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');
+      font('bold', 8); text(NEGRO);
+      doc.text('IMÁGENES DE REFERENCIA', M + 2, y + 4); y += 9;
+
+      const IMG_W = 42, IMG_H = 42, IMG_GAP = 4;
+      const perRow = Math.floor(CW / (IMG_W + IMG_GAP));
+      evImgs.forEach((img, i) => {
+        const col = i % perRow;
+        if (col === 0 && i > 0) { y += IMG_H + IMG_GAP; checkY(IMG_H + IMG_GAP); }
+        const x = M + col * (IMG_W + IMG_GAP);
+        try { doc.addImage(img.imagen_base64, 'JPEG', x, y, IMG_W, IMG_H); } catch(e) {
+          try { doc.addImage(img.imagen_base64, 'PNG', x, y, IMG_W, IMG_H); } catch(e2) {}
+        }
+      });
+      y += IMG_H + IMG_GAP;
+    }
+
     stroke([220,220,220]); doc.setLineWidth(0.3); doc.line(M, y, PW - M, y); y += 8;
   }
 
@@ -238,8 +259,20 @@ export async function loadDashboard() {
       presByEvento[p.evento_id].push(...items);
     }
 
+    // Cargar imágenes de referencia de los eventos
+    let imagenesByEvento: Record<number, any[]> = {};
+    if (evIds.length) {
+      try {
+        const evImgs = await sbCached('evento_imagenes', { filters: [`evento_id=in.(${evIds.join(',')})`], order: 'orden', limit: 100 });
+        evImgs.forEach(img => {
+          if (!imagenesByEvento[img.evento_id]) imagenesByEvento[img.evento_id] = [];
+          imagenesByEvento[img.evento_id].push(img);
+        });
+      } catch(e) {}
+    }
+
     // Guardar para PDF
-    _dashData = { eventos, jornadas, logisticas, logEvs, presByEvento };
+    _dashData = { eventos, jornadas, logisticas, logEvs, presByEvento, imagenesByEvento };
 
     const estadoColor = { 'Confirmado':'var(--green)', 'Realizado':'var(--purple)', 'Cobrado':'var(--blue)' };
 

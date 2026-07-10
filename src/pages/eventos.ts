@@ -8,6 +8,52 @@ let todosEventos = [];
 let filtroEvento = 'todos';
 let busquedaEvento = '';
 
+// ── IMÁGENES DE EVENTO ────────────────────────────────────
+let _eventoImagenes: {id: number|null, imagen_base64: string, nombre: string}[] = [];
+
+export function renderImagenesEvento() {
+  const grid = document.getElementById('ev-imagenes-grid');
+  if (!grid) return;
+  grid.innerHTML = _eventoImagenes.map((img, i) => `
+    <div style="position:relative;width:76px;height:76px;flex-shrink:0">
+      <img src="${img.imagen_base64}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
+      <button onclick="removeImagenEvento(${i})" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:13px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center">×</button>
+    </div>
+  `).join('');
+}
+
+export function removeImagenEvento(idx) {
+  _eventoImagenes.splice(idx, 1);
+  renderImagenesEvento();
+}
+
+export function agregarImagenesEvento(input) {
+  const files = Array.from(input.files) as File[];
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const b64 = canvas.toDataURL('image/jpeg', 0.85);
+        _eventoImagenes.push({ id: null, imagen_base64: b64, nombre: file.name });
+        renderImagenesEvento();
+      };
+      img.src = e.target.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
 // ── SORT SYSTEM ───────────────────────────────────────────
 export function toggleSort(tabla, campo, renderFn) {
   if (state._sortState[tabla]?.campo === campo) {
@@ -188,6 +234,13 @@ export async function editEvento(id) {
   evSenaEl.value = evSenaMonto > 0 ? evSenaMonto.toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
   document.getElementById('ev-estado').value    = ev.estado;
   document.getElementById('ev-notas').value = ev.notas || '';
+  // Cargar imágenes de referencia
+  _eventoImagenes = [];
+  try {
+    const imgs = await sb('evento_imagenes', { filters: [`evento_id=eq.${id}`], order: 'orden', limit: 30 });
+    _eventoImagenes = imgs.map(img => ({ id: img.id, imagen_base64: img.imagen_base64, nombre: img.nombre || '' }));
+  } catch(e) {}
+  renderImagenesEvento();
   const fpArmado = document.getElementById('ev-fecha-armado')._flatpickr;
   if (fpArmado) { ev.fecha_armado ? fpArmado.setDate(ev.fecha_armado, false, 'Y-m-d') : fpArmado.clear(); }
   else { document.getElementById('ev-fecha-armado').value = ev.fecha_armado || ''; }
@@ -278,6 +331,8 @@ export async function guardarEvento() {
       }
       invalidateCache('eventos');
       invalidateCache('v_pipeline');
+      // Sincronizar imágenes de referencia
+      await _sincronizarImagenesEvento(editingEventoId);
       toast('Evento actualizado');
     } else {
       // Generar código único
@@ -290,6 +345,7 @@ export async function guardarEvento() {
         const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: null });
         const newLogId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
         if (newLogId) await sbPost('logistica_eventos', { logistica_id: newLogId, evento_id: newEvId });
+        await _sincronizarImagenesEvento(newEvId);
       }
       invalidateCache('eventos');
       invalidateCache('v_pipeline');
@@ -429,6 +485,29 @@ export async function loadCobros() {
 }
 
 
+async function _sincronizarImagenesEvento(eventoId: number) {
+  try {
+    // Obtener imágenes actuales en DB
+    const dbImgs = await sb('evento_imagenes', { filters: [`evento_id=eq.${eventoId}`], select: 'id', limit: 30 });
+    const keepIds = new Set(_eventoImagenes.filter(i => i.id).map(i => i.id));
+    // Eliminar las que fueron quitadas
+    for (const dbImg of dbImgs) {
+      if (!keepIds.has(dbImg.id)) await sbDelete('evento_imagenes', dbImg.id);
+    }
+    // Insertar las nuevas
+    const nuevas = _eventoImagenes.filter(i => !i.id);
+    if (nuevas.length) {
+      await sbPost('evento_imagenes', nuevas.map((img, i) => ({
+        evento_id: eventoId,
+        imagen_base64: img.imagen_base64,
+        nombre: img.nombre,
+        orden: _eventoImagenes.filter(x => x.id).length + i,
+      })));
+    }
+    invalidateCache('evento_imagenes');
+  } catch(e) { console.warn('Error sincronizando imágenes:', e); }
+}
+
 // Window assignments
 window.toggleSort = toggleSort;
 window.applySort = applySort;
@@ -446,6 +525,8 @@ window.renderSalonBenef = renderSalonBenef;
 window.agregarBenefSalon = agregarBenefSalon;
 window.editEvento = editEvento;
 window.guardarEvento = guardarEvento;
+window.agregarImagenesEvento = agregarImagenesEvento;
+window.removeImagenEvento = removeImagenEvento;
 window.onCobroTipoChange = onCobroTipoChange;
 window.registrarCobro = registrarCobro;
 window.confirmarCobro = confirmarCobro;

@@ -649,6 +649,14 @@
           <span id="ev-total-final" style="font-size:16px;font-weight:600;color:var(--gold)">$ 0</span>
         </div>
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
+        <div class="field full">
+          <label class="lbl">Imágenes de referencia</label>
+          <div id="ev-imagenes-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+          <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px dashed var(--border);border-radius:8px;margin-top:8px;color:var(--text-2);font-size:12px">
+            + Agregar imagen
+            <input type="file" id="ev-imagen-input" accept="image/*" multiple style="display:none" onchange="agregarImagenesEvento(this)">
+          </label>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -854,6 +862,14 @@
             <img id="producto-foto-preview" src="" alt="" style="display:none;width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
           </div>
           <div id="producto-foto-status" style="font-size:11px;color:var(--text-3);margin-top:4px"></div>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Fotos adicionales</label>
+          <div id="producto-fotos-adicionales-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+          <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px dashed var(--border);border-radius:8px;margin-top:8px;color:var(--text-2);font-size:12px">
+            + Agregar foto
+            <input type="file" id="producto-fotos-adicionales-input" accept="image/*" multiple style="display:none" onchange="agregarFotosAdicionalesProducto(this)">
+          </label>
         </div>
       </div>
     </div>

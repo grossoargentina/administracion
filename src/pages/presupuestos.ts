@@ -197,8 +197,9 @@ export async function abrirModalProductoById(id) {
   // Cargar foto_base64 solo ahora, bajo demanda
   let item = base ? { ...base } : { id };
   try {
-    const rows = await sbCached('catalogo', { select: 'foto_base64', filters: [`id=eq.${id}`], limit: 1 });
+    const rows = await sbCached('catalogo', { select: 'foto_base64,fotos_adicionales', filters: [`id=eq.${id}`], limit: 1 });
     if (rows[0]?.foto_base64) item.foto_base64 = rows[0].foto_base64;
+    if (rows[0]?.fotos_adicionales) item.fotos_adicionales = rows[0].fotos_adicionales;
   } catch(e) { /* sin foto */ }
   abrirModalProducto(item);
 }
@@ -227,6 +228,9 @@ export function abrirModalProducto(item) {
     status.textContent = '';
     document.getElementById('producto-foto-label').querySelector('span').textContent = '📷 Subir imagen';
   }
+  // Cargar fotos adicionales
+  _productFotosAdicionales = Array.isArray(item?.fotos_adicionales) ? [...item.fotos_adicionales] : [];
+  renderFotosAdicionalesProducto();
   // Sugerir categorías existentes
   const cats = [...new Set((window._catLista || []).map(i => i.categoria))];
   document.getElementById('cat-datalist').innerHTML = cats.map(c => `<option value="${c}">`).join('');
@@ -314,11 +318,11 @@ export async function guardarProducto() {
     let targetId = id;
     if (id) {
       const codigo = document.getElementById('producto-codigo').value.trim();
-      await sbPatch('catalogo', id, { codigo, categoria, producto, descripcion, precio_ars });
+      await sbPatch('catalogo', id, { codigo, categoria, producto, descripcion, precio_ars, fotos_adicionales: _productFotosAdicionales });
     } else {
       const todos = await sb('catalogo', { select: 'id', limit: 1000 });
       const codigo = String(todos.length + 1);
-      const inserted = await sbInsert('catalogo', { codigo, categoria, producto, descripcion, precio_ars, activo: true });
+      const inserted = await sbInsert('catalogo', { codigo, categoria, producto, descripcion, precio_ars, activo: true, fotos_adicionales: _productFotosAdicionales });
       targetId = Array.isArray(inserted) ? inserted[0]?.id : inserted?.id;
     }
     if (window._fotoBlob && targetId) {
@@ -900,6 +904,51 @@ export function agregarItemCatalogo(id) {
   filtrarCatalogoPres(); // actualizar botones
 }
 
+// ── FOTOS ADICIONALES DEL PRODUCTO ───────────────────────
+let _productFotosAdicionales: string[] = [];
+
+export function renderFotosAdicionalesProducto() {
+  const grid = document.getElementById('producto-fotos-adicionales-grid');
+  if (!grid) return;
+  grid.innerHTML = _productFotosAdicionales.map((b64, i) => `
+    <div style="position:relative;width:72px;height:72px;flex-shrink:0">
+      <img src="${b64}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
+      <button onclick="removeFotoAdicionalProducto(${i})" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#e74c3c;color:#fff;border:none;cursor:pointer;font-size:13px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center">×</button>
+    </div>
+  `).join('');
+}
+
+export function removeFotoAdicionalProducto(idx) {
+  _productFotosAdicionales.splice(idx, 1);
+  renderFotosAdicionalesProducto();
+}
+
+export function agregarFotosAdicionalesProducto(input) {
+  const files = Array.from(input.files) as File[];
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        _productFotosAdicionales.push(canvas.toDataURL('image/jpeg', 0.85));
+        renderFotosAdicionalesProducto();
+      };
+      img.src = e.target.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
 // ── AGREGAR ITEM PERSONALIZADO ───────────────────────────
 let _customFotoB64 = null;
 
@@ -1100,10 +1149,19 @@ export async function generarPresupuesto() {
 
     // ── Fotos del catálogo (desde Supabase foto_base64) ───────
     const fotosMap = {};
+    const fotosAdicionalesMap: Record<string, string[]> = {};
+    const catIds = presItems.filter(it => !it.esCustom).map(it => String(it.id));
     presItems.filter(it => !it.esCustom).forEach(it => {
       const cat = (catalogoCache.length ? catalogoCache : (window._catLista||[])).find(c => String(c.id) === String(it.id));
       if (cat?.foto_base64) fotosMap[it.id] = cat.foto_base64;
     });
+    // Cargar fotos adicionales del catálogo para el PDF
+    if (catIds.length) {
+      try {
+        const catFotosAd = await sbCached('catalogo', { filters: [`id=in.(${catIds.join(',')})`], select: 'id,fotos_adicionales', limit: catIds.length + 1 });
+        catFotosAd.forEach(c => { if (Array.isArray(c.fotos_adicionales) && c.fotos_adicionales.length) fotosAdicionalesMap[c.id] = c.fotos_adicionales; });
+      } catch(e) {}
+    }
     console.log(`Fotos disponibles: ${Object.keys(fotosMap).length}`);
 
     
@@ -1331,6 +1389,39 @@ export async function generarPresupuesto() {
       doc.text(`${i+1}. ${n}`, M, y); y += 3.8;
     });
 
+    // ── GALERÍA DE IMÁGENES ADICIONALES ──────────────────
+    const itemsConFotosAd = presItems.filter(it => !it.esCustom && (fotosAdicionalesMap[it.id] || []).length > 0);
+    if (itemsConFotosAd.length) {
+      doc.addPage(); y = 15;
+      fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+      font('bold', 8); text(BLANCO);
+      doc.text('GALERÍA DE PRODUCTOS', M+2, y+4); y += 10;
+
+      const IMG_W = 44, IMG_H = 44, IMG_GAP = 5;
+      const perRow = Math.floor(CW / (IMG_W + IMG_GAP));
+
+      for (const it of itemsConFotosAd) {
+        const fotos: string[] = fotosAdicionalesMap[it.id] || [];
+        const rowsNeeded = Math.ceil(fotos.length / perRow);
+        const blockH = rowsNeeded * (IMG_H + IMG_GAP) + 14;
+        if (y + blockH > PH - 20) { doc.addPage(); y = 15; }
+
+        font('bold', 8); text(NEGRO);
+        doc.text(it.producto, M, y + 5); y += 8;
+
+        fotos.forEach((foto, i) => {
+          const col = i % perRow;
+          const row = Math.floor(i / perRow);
+          if (col === 0 && i > 0) y += IMG_H + IMG_GAP;
+          const x = M + col * (IMG_W + IMG_GAP);
+          try { doc.addImage(foto, 'JPEG', x, y, IMG_W, IMG_H); } catch(e) {
+            try { doc.addImage(foto, 'PNG', x, y, IMG_W, IMG_H); } catch(e2) {}
+          }
+        });
+        y += IMG_H + IMG_GAP + 6;
+      }
+    }
+
     // ── FOOTER — fijo al pie de la hoja ──────────────────
     const footerY = PH - 12;
     fill(NEGRO); doc.rect(0, footerY, PW, 12, 'F');
@@ -1469,6 +1560,8 @@ window.loadCatalogo = loadCatalogo;
 window.abrirModalProductoById = abrirModalProductoById;
 window.abrirModalProducto = abrirModalProducto;
 window.previewFotoProducto = previewFotoProducto;
+window.agregarFotosAdicionalesProducto = agregarFotosAdicionalesProducto;
+window.removeFotoAdicionalProducto = removeFotoAdicionalProducto;
 window.blobToBase64 = blobToBase64;
 window.subirFotoProducto = subirFotoProducto;
 window.guardarProducto = guardarProducto;
