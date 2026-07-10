@@ -5,14 +5,14 @@ import { sbCached, invalidateCache } from '../query-cache';
 
 // ── IMPUESTOS ─────────────────────────────────────────────
 const MESES_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const SECCIONES_ORDEN = ['Empresa / Fiscal','Familia / Casa','Suscripciones','Tarjetas','Planes de pago','Deudas'];
+const SECCIONES_ORDEN = ['Empresa','Familia','Suscripciones','Tarjetas','Planes','Deudas'];
 const CATS_POR_SECCION = {
-  'Empresa / Fiscal': ['Oficina','Fiscal','Empresa'],
-  'Familia / Casa':   ['Casa','Auto','Actividad'],
-  'Suscripciones':    ['Suscripción'],
-  'Tarjetas':         ['Tarjeta'],
-  'Planes de pago':   ['Plan de pago'],
-  'Deudas':           ['Deuda'],
+  'Empresa':       ['Oficina','Fiscal','Empresa'],
+  'Familia':       ['Casa','Auto','Actividad'],
+  'Suscripciones': ['Suscripción'],
+  'Tarjetas':      ['Tarjeta'],
+  'Planes':        ['Plan de pago'],
+  'Deudas':        ['Deuda'],
 };
 
 let todosImpuestos = [];
@@ -100,12 +100,12 @@ export async function renderImpuestos() {
       </td>
     </tr>`;
     const SECCION_BG = {
-      'Empresa / Fiscal': 'rgba(52,152,219,.22)',
-      'Familia / Casa':   'rgba(155,89,182,.22)',
-      'Suscripciones':    'rgba(26,188,156,.22)',
-      'Tarjetas':         'rgba(231,76,60,.22)',
-      'Planes de pago':   'rgba(241,196,15,.22)',
-      'Deudas':           'rgba(231,76,60,.32)',
+      'Empresa':       'rgba(52,152,219,.22)',
+      'Familia':       'rgba(155,89,182,.22)',
+      'Suscripciones': 'rgba(26,188,156,.22)',
+      'Tarjetas':      'rgba(231,76,60,.22)',
+      'Planes':        'rgba(241,196,15,.22)',
+      'Deudas':        'rgba(231,76,60,.32)',
     };
 
     items.forEach(i => {
@@ -227,7 +227,7 @@ export function editarImpuesto(id) {
   document.getElementById('imp-cat').value           = i.categoria || '';
   document.getElementById('imp-concepto').value      = i.concepto || '';
   document.getElementById('imp-empresa').value       = i.empresa || '';
-  document.getElementById('imp-mes').value           = i.mes || '';
+  document.getElementById('imp-mes').value           = MESES_NAMES[mesNum(i.mes) - 1] || '';
   document.getElementById('imp-anio').value          = i.anio || '';
   document.getElementById('imp-vence').value         = i.vence_dia || '';
   document.getElementById('imp-monto').value         = i.monto_ars > 0 ? Number(i.monto_ars).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
