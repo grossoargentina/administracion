@@ -413,15 +413,16 @@ export function onCobroTipoChange() {
 export async function registrarCobro(id, cliente, senaOk, saldoOk) {
   if (senaOk && saldoOk) { toast('Este evento ya está cobrado completo'); return; }
 
-  const ev = (todosEventos || []).find(e => e.id === id);
-  const totalEv = Number(ev?.total_ars) || 0;
-  const esPagoTotal = ev?.modalidad_pago === 'Pago total al finalizar';
-
-  // Buscar pendiente real desde pagos registrados
-  const pagosEv = await sb('pagos', { filters: [`evento_id=eq.${id}`], limit: 100 });
+  // Fetch fresco del evento para evitar datos desactualizados en memoria
+  const [[evFresh], pagosEv] = await Promise.all([
+    sb('eventos', { filters: [`id=eq.${id}`], select: 'id,total_ars,modalidad_pago,sena_monto', limit: 1 }),
+    sb('pagos', { filters: [`evento_id=eq.${id}`], limit: 100 }),
+  ]);
+  const totalEv = Number(evFresh?.total_ars) || 0;
+  const esPagoTotal = evFresh?.modalidad_pago === 'Pago total al finalizar';
   const totalPagado = pagosEv.reduce((s, p) => s + Number(p.monto_ars || 0), 0);
   const pendienteReal = Math.max(0, totalEv - totalPagado);
-  const montosena = Number(ev?.sena_monto) || 0;
+  const montosena = Number(evFresh?.sena_monto) || 0;
 
   _cobroCtx = { id, cliente, senaOk, saldoOk, totalEv, esPagoTotal, pendienteReal, montosena };
 
