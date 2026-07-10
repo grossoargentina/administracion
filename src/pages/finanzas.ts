@@ -83,13 +83,47 @@ export async function loadFinanzas() {
     const totalPagos  = pagosPersonal.reduce((s, e) => s + Number(e.monto || 0), 0);
     const totalEgresos = egresosFiltrados.reduce((s, e) => s + Number(e.monto || 0), 0);
 
+    // 4. Personal pendiente: jornadas sin pagar con personal asignado en el período
+    const jornadasPendientes = await sbCached('v_jornadas', {
+      filters: [`pagado=eq.false`, `personal_id=not.is.null`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`],
+      select: 'id,tipo,personal_id,personal_nombre,personal_apellido,tarifa_armado,tarifa_operador,tarifa_deposito',
+      limit: 1000,
+    });
+    // Para Fijo: calcular sueldo prorrateado una vez por persona en el período
+    const personalFijo = jornadasPendientes.length
+      ? await sbCached('personal', { filters: [`tipo=eq.Fijo`, `activo=eq.true`], select: 'id,sueldo_fijo', limit: 200 })
+      : [];
+    const sueldoFijoMap: Record<number, number> = {};
+    personalFijo.forEach(p => { sueldoFijoMap[p.id] = Number(p.sueldo_fijo || 0); });
+    const esLaborable = (j) => {
+      const dow = new Date(j.fecha + 'T12:00:00').getDay(); // 0=Dom,6=Sab
+      return dow !== 0 && dow !== 6;
+    };
+    const tarifa = (j) => {
+      const esFijo = !!sueldoFijoMap[j.personal_id];
+      if (esFijo) {
+        // Fijo: Operador + fines de semana son extra; el resto está incluido en el sueldo
+        const esExtra = j.tipo === 'Operador' || !esLaborable(j);
+        if (!esExtra) return 0;
+        return j.tipo === 'Operador' ? Number(j.tarifa_operador || 0) : Number(j.tarifa_armado || 0);
+      }
+      return j.tipo === 'Depósito' ? Number(j.tarifa_deposito || 0)
+           : j.tipo === 'Operador' ? Number(j.tarifa_operador || 0)
+           : Number(j.tarifa_armado || 0);
+    };
+    // Sueldo fijo: una vez por persona que tenga jornadas en el período
+    const persConJornadas = [...new Set(jornadasPendientes.filter(j => sueldoFijoMap[j.personal_id]).map(j => j.personal_id))];
+    const totalSueldosFijos = persConJornadas.reduce((s, pid) => s + (sueldoFijoMap[pid] || 0), 0);
+    const totalTarifasPendientes = jornadasPendientes.reduce((s, j) => s + tarifa(j), 0);
+    const totalPersonalPendiente = totalSueldosFijos + totalTarifasPendientes;
+
     // 5. Capital
     const capitalMovs = await sbCached('capital', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`], order: 'fecha.desc', limit: 500 });
     const capitalIng = capitalMovs.filter(c => c.tipo === 'ingreso').reduce((s, c) => s + Number(c.monto || 0), 0);
     const capitalEg  = capitalMovs.filter(c => c.tipo === 'egreso').reduce((s, c) => s + Number(c.monto || 0), 0);
     const capitalNeto = capitalIng - capitalEg;
 
-    const resultado = totalIngresos + capitalNeto - totalImpuestos - totalPagos - totalEgresos;
+    const resultado = totalIngresos + capitalNeto - totalImpuestos - totalPagos - totalEgresos - totalPersonalPendiente;
 
     // KPIs
     const capEl = document.getElementById('fin-capital');
@@ -102,7 +136,7 @@ export async function loadFinanzas() {
     // KPIs adicionales: pendientes de cobro y jornadas sin pagar (estado actual, no atado al período)
     const cobrosPendientes = await sbCached('v_cobros_pendientes');
     document.getElementById('fin-pendientes-cobro').textContent = cobrosPendientes.length;
-    const jornadasSinPagar = await sbCached('jornadas', { select: 'id', filters: ['pagado=eq.false'], limit: 1000 });
+    const jornadasSinPagar = await sbCached('jornadas', { select: 'id', filters: ['pagado=eq.false', 'personal_id=not.is.null'], limit: 1000 });
     document.getElementById('fin-jornadas-sin-pagar').textContent = jornadasSinPagar.length;
 
     // Detalle ingresos por evento
@@ -125,20 +159,22 @@ export async function loadFinanzas() {
 
     // Agrupar personal e impuestos
     const egResumen = [
-      ...(totalImpuestos > 0 ? [{ desc: `Gastos fijos (${impuestos.length} ítems)`, monto: totalImpuestos, cat: 'Impuesto' }] : []),
-      ...(totalPagos > 0 ? [{ desc: `Pagos al personal (${pagosPersonal.length} pagos)`, monto: totalPagos, cat: 'Personal' }] : []),
-      ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: Number(e.monto), cat: 'Caja' })),
+      ...(totalImpuestos > 0 ? [{ desc: `Gastos fijos (${impuestos.length} ítems)`, monto: totalImpuestos, cat: 'Impuesto', pendiente: false }] : []),
+      ...(totalPagos > 0 ? [{ desc: `Personal pagado (${pagosPersonal.length} pagos)`, monto: totalPagos, cat: 'Personal', pendiente: false }] : []),
+      ...(totalPersonalPendiente > 0 ? [{ desc: `Personal pendiente (${jornadasPendientes.length} jornadas)`, monto: totalPersonalPendiente, cat: 'Pendiente', pendiente: true }] : []),
+      ...egresosFiltrados.map(e => ({ desc: e.descripcion, monto: Number(e.monto), cat: 'Caja', pendiente: false })),
     ].sort((a, b) => b.monto - a.monto);
 
-    const catColor = { Impuesto: 'var(--orange)', Personal: 'var(--blue)', Caja: 'var(--red)' };
+    const catColor = { Impuesto: 'var(--orange)', Personal: 'var(--blue)', Pendiente: 'var(--text-3)', Caja: 'var(--red)' };
     document.getElementById('fin-detalle-egresos').innerHTML = egResumen.length
       ? egResumen.map(e => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <div>
-            <span style="font-size:10px;color:${catColor[e.cat]||'var(--text-3)'};margin-right:6px">${e.cat}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px${e.pendiente ? ';opacity:.75' : ''}">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;color:${catColor[e.cat]||'var(--text-3)'}">${e.cat}</span>
             <span style="color:var(--text-2)">${e.desc}</span>
+            ${e.pendiente ? `<span style="font-size:10px;color:var(--text-3);font-style:italic">(proyectado)</span>` : ''}
           </div>
-          <span style="color:var(--red);font-weight:600">${fmtARS(e.monto)}</span>
+          <span style="color:${e.pendiente ? 'var(--text-2)' : 'var(--red)'};font-weight:600">${fmtARS(e.monto)}</span>
         </div>`).join('')
       : '<div style="color:var(--text-3);font-size:13px">Sin egresos en este período</div>';
 
