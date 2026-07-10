@@ -377,7 +377,7 @@ export function generarReciboPDF(data, periodo, lunesDate) {
     const incluida = esIncluida(j);
     fill(idx % 2 === 0 ? BLANCO : GRIS_F); doc.rect(M, y, CW, 8, 'F');
     font('normal', 8); text(incluida ? [150,150,150] : NEGRO);
-    const fechaStr = new Date(j.fecha + 'T12:00:00').toLocaleDateString('es-AR');
+    const fechaStr = new Date(j.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
     doc.text(fechaStr, M + 2, y + 5.5);
     doc.text((j.tipo || '') + (incluida ? ' (incluida)' : ''), M + 32, y + 5.5);
     const eventoStr = j.evento_codigo ? `${j.evento_codigo} · ${j.evento_venue || ''}` : '—';

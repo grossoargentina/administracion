@@ -359,7 +359,7 @@ export async function loadDashboard() {
         </div>
         ${columnsHtml}
         ${productosHtml}
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="verSegurosEvento(${ev.id})">🛡️ Ver cláusulas</button>
           ${ev.seguro_enviado
             ? `<button class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed" disabled>✅ Seguros enviados</button>`
