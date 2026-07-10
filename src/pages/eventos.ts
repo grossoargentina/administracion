@@ -117,9 +117,11 @@ export async function loadEventos() {
 }
 
 export function renderEventos() {
-  let lista = filtroEvento === 'todos'
-    ? todosEventos
-    : todosEventos.filter(e => e.estado === filtroEvento);
+  let lista = filtroEvento === 'Dado de baja'
+    ? todosEventos.filter(e => e.estado === 'Dado de baja')
+    : filtroEvento === 'todos'
+      ? todosEventos.filter(e => e.estado !== 'Dado de baja')
+      : todosEventos.filter(e => e.estado === filtroEvento);
   if (busquedaEvento.trim()) {
     const q = busquedaEvento.trim().toLowerCase();
     lista = lista.filter(e => (e.cliente_nombre || '').toLowerCase().includes(q));
@@ -165,6 +167,9 @@ export function renderEventos() {
               ? `<button class="btn btn-ghost btn-sm" onclick="registrarCobro(${e.id},'${e.cliente_nombre}',${e.sena_cobrada},${e.saldo_cobrado})">Cobro</button>
                  <button class="btn btn-ghost btn-sm" onclick="window.abrirPresupuestoParaEvento(${e.id})">+ Presupuesto</button>`
               : ''}
+            ${e.estado !== 'Dado de baja'
+              ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);opacity:.6" onclick="darDeBajaEvento(${e.id},'${(e.cliente_nombre||'').replace(/'/g,"\\'")}')">Baja</button>`
+              : `<button class="btn btn-ghost btn-sm" style="color:var(--green);opacity:.6" onclick="reactivarEvento(${e.id})">Reactivar</button>`}
           </div>
         </td>
       </tr>`).join('')
@@ -499,12 +504,14 @@ export async function confirmarCobro() {
 // ── COBROS ────────────────────────────────────────────────
 export async function loadCobros() {
   try {
-    const cobros = await sbCached('v_cobros_pendientes');
+    const [cobros, pagosRecientes] = await Promise.all([
+      sbCached('v_cobros_pendientes'),
+      sbCached('pagos', { select: 'id,evento_id,tipo,monto_ars,fecha_cobro', order: 'fecha_cobro.desc', limit: 20 }),
+    ]);
     const total = cobros.reduce((s,c) => s + Number(c.pendiente_ars||0), 0);
-    const eventos = cobros.length;
 
     document.getElementById('cobros-kpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Eventos con deuda</div><div class="kpi-value red">${eventos}</div></div>
+      <div class="kpi"><div class="kpi-label">Eventos con deuda</div><div class="kpi-value red">${cobros.length}</div></div>
       <div class="kpi"><div class="kpi-label">Total pendiente ARS</div><div class="kpi-value gold">${fmtARS(total)}</div></div>
     `;
 
@@ -528,7 +535,29 @@ export async function loadCobros() {
             </td>
           </tr>`;
         }).join('')
-      : `<tr><td colspan="9"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes. Todo al día.</div></td></tr>`;
+      : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes. Todo al día.</div></td></tr>`;
+
+    // Cargar nombres de eventos para los cobros recientes
+    const evIds = [...new Set(pagosRecientes.map(p => p.evento_id).filter(Boolean))];
+    const evMap: Record<number, string> = {};
+    if (evIds.length) {
+      const evs = await sbCached('v_pipeline', { filters: [`id=in.(${evIds.join(',')})`], select: 'id,cliente_nombre', limit: 50 });
+      evs.forEach(e => evMap[e.id] = e.cliente_nombre);
+    }
+
+    document.getElementById('cobros-recientes-tbody').innerHTML = pagosRecientes.length
+      ? pagosRecientes.map(p => {
+          const fecha = p.fecha_cobro ? new Date(p.fecha_cobro + 'T12:00:00').toLocaleDateString('es-AR') : '—';
+          const cliente = evMap[p.evento_id] || '—';
+          return `<tr>
+            <td style="color:var(--text-3);font-size:12px">${fecha}</td>
+            <td><b>${cliente}</b></td>
+            <td style="color:var(--text-3)">${p.tipo || '—'}</td>
+            <td style="color:var(--green);font-weight:600">${fmtARS(p.monto_ars)}</td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="4"><div class="empty" style="padding:16px">Sin cobros registrados</div></td></tr>`;
+
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -556,6 +585,27 @@ async function _sincronizarImagenesEvento(eventoId: number) {
   } catch(e) { console.warn('Error sincronizando imágenes:', e); }
 }
 
+export async function darDeBajaEvento(id, cliente) {
+  if (!confirm(`¿Dar de baja el evento de ${cliente}? Quedará oculto del pipeline.`)) return;
+  try {
+    await sbPatch('eventos', id, { estado: 'Dado de baja' });
+    invalidateCache('eventos');
+    invalidateCache('v_pipeline');
+    toast('Evento dado de baja');
+    loadEventos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+export async function reactivarEvento(id) {
+  try {
+    await sbPatch('eventos', id, { estado: 'Confirmado' });
+    invalidateCache('eventos');
+    invalidateCache('v_pipeline');
+    toast('Evento reactivado');
+    loadEventos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
 // Window assignments
 window.toggleSort = toggleSort;
 window.applySort = applySort;
@@ -572,6 +622,8 @@ window.renderClienteBenef = renderClienteBenef;
 window.agregarBenefCliente = agregarBenefCliente;
 window.renderSalonBenef = renderSalonBenef;
 window.agregarBenefSalon = agregarBenefSalon;
+window.darDeBajaEvento = darDeBajaEvento;
+window.reactivarEvento = reactivarEvento;
 window.editEvento = editEvento;
 window.guardarEvento = guardarEvento;
 window.agregarImagenesEvento = agregarImagenesEvento;

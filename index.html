@@ -43,7 +43,7 @@
         <span class="nav-icon">📋</span> Eventos
       </div>
       <div class="nav-item" data-page="cobros" onclick="goTo('cobros')">
-        <span class="nav-icon">💰</span> Cobros pendientes
+        <span class="nav-icon">💰</span> Cobros
       </div>
 
       <div class="nav-item" data-page="logistica" onclick="goTo('logistica')">
@@ -125,6 +125,7 @@
         <button class="filter-btn" onclick="filterEventos('Confirmado',this)">Confirmados</button>
         <button class="filter-btn" onclick="filterEventos('Realizado',this)">Realizados</button>
         <button class="filter-btn" onclick="filterEventos('Cobrado',this)">Cobrados</button>
+        <button class="filter-btn" onclick="filterEventos('Dado de baja',this)" style="opacity:.6">Bajas</button>
       </div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <input class="inp" style="max-width:320px" id="ev-busqueda" placeholder="🔍 Buscar por cliente..." oninput="buscarEventos(this.value)">
@@ -149,16 +150,26 @@
     <div class="page" id="p-cobros">
       <div class="page-header">
         <div>
-          <div class="page-title">Cobros pendientes</div>
-          <div class="page-sub">Eventos confirmados o realizados con pagos incompletos</div>
+          <div class="page-title">Cobros</div>
+          <div class="page-sub">Pendientes y últimos cobros registrados</div>
         </div>
       </div>
       <div class="kpi-grid" id="cobros-kpis"></div>
       <div class="card">
+        <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.08em;padding:0 0 8px 0">PENDIENTES</div>
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Total</th><th>Pendiente</th><th>Seña</th><th>Saldo</th><th></th></tr></thead>
-            <tbody id="cobros-tbody"><tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr></tbody>
+            <tbody id="cobros-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.08em;padding:0 0 8px 0">ÚLTIMOS COBROS</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th></tr></thead>
+            <tbody id="cobros-recientes-tbody"><tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -637,7 +648,7 @@
         <div class="field" id="ev-sena-wrap"><label class="lbl">Seña (ARS)</label><input class="inp ars-input" type="text" id="ev-sena" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Estado</label>
           <select class="inp" id="ev-estado">
-            <option>Confirmado</option><option>Realizado</option><option>Cobrado</option>
+            <option>Confirmado</option><option>Realizado</option><option>Cobrado</option><option>Dado de baja</option>
           </select>
         </div>
         <div class="field full" style="display:flex;gap:24px;padding:6px 0">
