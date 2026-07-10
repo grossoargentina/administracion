@@ -60,7 +60,20 @@ const hasOAuthHash = window.location.hash.includes('access_token');
   }
 
   if (hasOAuthHash) {
-    setTimeout(() => { if (!state.AUTH) renderGoogleBtn(); }, 3000);
+    // Polling de respaldo: Supabase a veces tarda en procesar el hash
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const { data: { session: s } } = await state.supabaseClient.auth.getSession();
+      if (isAllowedEmail(s?.user?.email)) {
+        clearInterval(poll);
+        state.AUTH = true;
+        if (!_appInitialized) { _appInitialized = true; showApp(); }
+      } else if (attempts >= 10) {
+        clearInterval(poll);
+        if (!state.AUTH) renderGoogleBtn();
+      }
+    }, 500);
     return;
   }
 
@@ -105,7 +118,7 @@ export async function loginConGoogle() {
   const { error } = await state.supabaseClient.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.href,
+      redirectTo: window.location.origin + window.location.pathname,
       scopes: 'https://www.googleapis.com/auth/drive',
       queryParams: {
         access_type: 'offline',
