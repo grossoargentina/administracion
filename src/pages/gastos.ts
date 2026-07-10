@@ -176,8 +176,8 @@ export async function eliminarGasto(id) {
 }
 
 // ── GASTOS OFICINA ────────────────────────────────────────
-const OFIC_CAT_COLOR = { Alquiler:'var(--orange)', Servicios:'var(--blue)', Materiales:'var(--gold)', Transporte:'var(--green)', Tecnología:'var(--purple)', Marketing:'var(--text-2)', Impuestos:'var(--red)', Pagos:'var(--gold)', Varios:'var(--text-3)' };
-const OFIC_CAT_HEX   = { Alquiler:'#f59e42', Servicios:'#4e9af1', Materiales:'#fbbf24', Transporte:'#4ade80', Tecnología:'#a78bfa', Marketing:'#94a3b8', Impuestos:'#f87171', Pagos:'#eab308', Varios:'#64748b' };
+const OFIC_CAT_COLOR = { Alquiler:'var(--orange)', Servicios:'var(--blue)', Materiales:'var(--gold)', Transporte:'var(--green)', Tecnología:'var(--purple)', Marketing:'var(--text-2)', Impuestos:'var(--red)', Pagos:'var(--gold)', Legal:'var(--blue)', Varios:'var(--text-3)' };
+const OFIC_CAT_HEX   = { Alquiler:'#f59e42', Servicios:'#4e9af1', Materiales:'#fbbf24', Transporte:'#4ade80', Tecnología:'#a78bfa', Marketing:'#94a3b8', Impuestos:'#f87171', Pagos:'#eab308', Legal:'#60a5fa', Varios:'#64748b' };
 let _todosGastosOficina = [];
 
 export async function loadCaja() {
