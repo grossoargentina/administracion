@@ -801,23 +801,43 @@ export async function guardarAgregarArmado() {
     if (persIds.length > 0) {
       const fechaFiltro = fecha ? `fecha=eq.${fecha}` : `fecha=is.null`;
       if (modoEdicion) {
-        // Modo edición: reconciliar — limpiar desmarcados, asignar marcados
-        const todas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, fechaFiltro], select: 'id,personal_id', limit: 100 });
-        const conPersonal = todas.filter(j => j.personal_id !== null);
-        const sinPersonal = todas.filter(j => j.personal_id === null);
-        // Limpiar jornadas de personas que ya no están seleccionadas
-        for (const j of conPersonal) {
-          if (!persIds.includes(j.personal_id)) await sbPatch('jornadas', j.id, { personal_id: null });
+        // Modo edición: reconciliar con deduplicación
+        const todas = await sb('jornadas', { filters: [`logistica_id=eq.${logId}`, `tipo=eq.${tipo}`, fechaFiltro], select: 'id,personal_id', limit: 200 });
+
+        // Agrupar por personal_id (puede haber duplicados de testing)
+        const byPerson: Record<number, number[]> = {};
+        for (const j of todas) {
+          if (j.personal_id !== null) {
+            if (!byPerson[j.personal_id]) byPerson[j.personal_id] = [];
+            byPerson[j.personal_id].push(j.id);
+          }
         }
-        // IDs que ya tienen jornada asignada
-        const yaAsignados = new Set(conPersonal.filter(j => persIds.includes(j.personal_id)).map(j => j.personal_id));
-        const aAsignar = persIds.filter(pid => !yaAsignados.has(pid));
-        // Usar slots vacíos para los nuevos
-        let slotIdx = 0;
+        const slotsLibres: number[] = todas.filter(j => j.personal_id === null).map(j => j.id);
+
+        // Para cada persona con jornada: si sigue seleccionada, mantener solo 1; si no, liberar todas
+        for (const [pidStr, ids] of Object.entries(byPerson)) {
+          const pid = Number(pidStr);
+          if (persIds.includes(pid)) {
+            // Mantener la primera, liberar las duplicadas
+            for (const id of ids.slice(1)) {
+              await sbPatch('jornadas', id, { personal_id: null });
+              slotsLibres.push(id);
+            }
+          } else {
+            // Persona deseleccionada: liberar todas
+            for (const id of ids) {
+              await sbPatch('jornadas', id, { personal_id: null });
+              slotsLibres.push(id);
+            }
+          }
+        }
+
+        // Asignar personas nuevas (que no tenían jornada)
+        const aAsignar = persIds.filter(pid => !byPerson[pid]?.length);
         for (const pid of aAsignar) {
-          if (slotIdx < sinPersonal.length) {
-            await sbPatch('jornadas', sinPersonal[slotIdx].id, { personal_id: pid });
-            slotIdx++;
+          const slot = slotsLibres.shift();
+          if (slot !== undefined) {
+            await sbPatch('jornadas', slot, { personal_id: pid });
           } else {
             await sbPost('jornadas', [{ codigo: `${codigoBase}-${pid}`, logistica_id: logId, tipo, fecha: fecha || null, personal_id: pid, pagado: false }]);
           }
