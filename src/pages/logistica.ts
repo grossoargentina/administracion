@@ -710,7 +710,10 @@ function _rellenarFechaHoraArmado() {
   const horaMap: Record<string,string>  = { Armado: ev?.hora_armado,  Operador: ev?.horario,      Desarme: ev?.hora_desarme };
   const fecha = fechaMap[tipo] || '';
   const hora  = horaMap[tipo]  || '';
-  if (fecha && !fechaEl.value) fechaEl.value = fecha;
+  if (fecha && !fechaEl.value) {
+    const fp = (fechaEl as any)._flatpickr;
+    if (fp) fp.setDate(fecha, true, 'Y-m-d'); else fechaEl.value = fecha;
+  }
   if (hora  && !horaEl.value)  horaEl.value  = hora;
 }
 
