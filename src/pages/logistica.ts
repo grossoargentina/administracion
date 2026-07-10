@@ -493,7 +493,8 @@ export async function loadLogisticas() {
         const dias = [...new Set(jors.map(j => j.fecha))].sort();
         const persIds = [...new Set(jors.map(j => j.personal_id).filter(Boolean))];
         const fechaLabel = dias.length ? new Date(dias[0]+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
-        filas.push({ logId: r.id, tipo: 'Depósito', evLabel, fechaLabel, persCount: persIds.length, orden: 3, eliminable: true });
+        const fechaSort = dias.length ? dias[0] : '9999-99-99';
+        filas.push({ logId: r.id, tipo: 'Depósito', evLabel, fechaLabel, fechaSort, persCount: persIds.length, orden: 3, eliminable: true });
       } else {
         const ev = evId ? (state.evCache||[]).find(e => e.id === evId) : null;
         const fechaFallback = { Armado: ev?.fecha_armado, Operador: ev?.fecha_evento, Desarme: ev?.fecha_desarme };
@@ -564,10 +565,12 @@ export async function loadLogisticas() {
       const jors = jornadas.filter(j => j.logistica_id === r.id);
       const opFechas = jors.filter(j => j.tipo === 'Operador').map(j => j.fecha).filter(Boolean).sort();
       const todasFechas = jors.map(j => j.fecha).filter(Boolean).sort();
-      // Preferir fecha del evento desde state.evCache
+      // Preferir la fecha propia de la logística (Operador, o la más temprana);
+      // la fecha del evento queda de último recurso, para logísticas sin jornadas con fecha
+      // (si no, un Armado o Depósito en otro día que el evento se "ancla" mal a la semana del evento)
       const evId = logToEvId[r.id];
       const ev = evId ? (state.evCache||[]).find(e => e.id === evId) : null;
-      anclaLog[r.id] = (ev?.fecha_evento) || opFechas[0] || todasFechas[0] || null;
+      anclaLog[r.id] = opFechas[0] || todasFechas[0] || (ev?.fecha_evento) || null;
     });
 
     // Filtrar: una fila aparece en la semana si su logística tiene ancla en esa semana
