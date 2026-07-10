@@ -19,6 +19,14 @@ let todosImpuestos = [];
 let impMesIdx = new Date().getMonth();
 let impAnio   = new Date().getFullYear();
 
+// Normaliza mes a número (1-12), acepta tanto nombre "Julio" como número 7
+const mesNum = (v) => {
+  const n = Number(v);
+  if (!isNaN(n) && n >= 1 && n <= 12) return n;
+  const idx = MESES_NAMES.indexOf(String(v));
+  return idx >= 0 ? idx + 1 : 0;
+};
+
 export async function loadImpuestos() {
   try {
     todosImpuestos = await sbCached('costos_fijos', { order: 'anio.asc,id.asc' });
@@ -48,7 +56,7 @@ export async function renderImpuestos() {
   document.getElementById('imp-mes').value = mesNombre;
 
   const hoy  = new Date();
-  const lista = todosImpuestos.filter(i => i.mes === mesNombre && i.anio === impAnio);
+  const lista = todosImpuestos.filter(i => mesNum(i.mes) === impMesIdx + 1 && Number(i.anio) === impAnio);
 
   const pagados  = lista.filter(i => i.pagado).length;
   const vencidos = lista.filter(i => !i.pagado && esVencido(i, hoy)).length;
@@ -103,7 +111,7 @@ export async function renderImpuestos() {
     items.forEach(i => {
       const vencido = !i.pagado && esVencido(i, hoy);
       const venceProximo = !i.pagado && !vencido && i.vence_dia && (() => {
-        const mesIdx = MESES_NAMES.indexOf(i.mes);
+        const mesIdx = mesNum(i.mes) - 1;
         const fecha = new Date(i.anio, mesIdx, i.vence_dia);
         return (fecha - hoy) <= 7 * 24 * 60 * 60 * 1000;
       })();
@@ -155,7 +163,7 @@ export async function renderImpuestos() {
 
 export function esVencido(imp, hoy) {
   if (!imp.vence_dia) return false;
-  const mesIdx = MESES_NAMES.indexOf(imp.mes);
+  const mesIdx = mesNum(imp.mes) - 1;
   if (mesIdx < 0) return false;
   return new Date(imp.anio, mesIdx, imp.vence_dia) < hoy;
 }
@@ -238,7 +246,7 @@ export async function guardarImpuesto() {
     seccion:   document.getElementById('imp-seccion').value,
     categoria: document.getElementById('imp-cat').value,
     empresa:   document.getElementById('imp-empresa').value.trim() || null,
-    mes:       document.getElementById('imp-mes').value,
+    mes:       mesNum(document.getElementById('imp-mes').value),
     anio:      parseInt(document.getElementById('imp-anio').value),
     vence_dia: parseInt(document.getElementById('imp-vence').value) || null,
     monto_ars: parseARSInput(document.getElementById('imp-monto')) || null,
@@ -281,10 +289,10 @@ export async function confirmarMesNuevo() {
   const mesDestino = document.getElementById('mn-destino-mes').value;
   const anioDestino = parseInt(document.getElementById('mn-destino-anio').value);
 
-  const delMes = todosImpuestos.filter(i => i.mes === mesOrigen && i.anio === anioOrigen);
+  const delMes = todosImpuestos.filter(i => mesNum(i.mes) === mesNum(mesOrigen) && Number(i.anio) === anioOrigen);
   if (!delMes.length) { toast(`No hay conceptos en ${mesOrigen} ${anioOrigen}`, 'err'); return; }
 
-  const yaExiste = todosImpuestos.some(i => i.mes === mesDestino && i.anio === anioDestino);
+  const yaExiste = todosImpuestos.some(i => mesNum(i.mes) === mesNum(mesDestino) && Number(i.anio) === anioDestino);
   if (yaExiste) { toast(`${mesDestino} ${anioDestino} ya existe`, 'err'); return; }
 
   try {
@@ -296,7 +304,7 @@ export async function confirmarMesNuevo() {
         seccion:   item.seccion,
         categoria: item.categoria,
         empresa:   item.empresa,
-        mes:       mesDestino,
+        mes:       mesNum(mesDestino),
         anio:      anioDestino,
         vence_dia: item.vence_dia,
         monto_ars: esVariable ? null : item.monto_ars,

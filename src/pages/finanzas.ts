@@ -69,15 +69,16 @@ export async function loadFinanzas() {
     const anioDesde = Number(desde.slice(0, 4));
     const anioHasta = Number(hasta.slice(0, 4));
     const mesesPeriodo = modo === 'mensual'
-      ? [{ mes: MESES_NAMES[Number(desde.slice(5, 7)) - 1], anio: anioDesde }]
-      : Array.from({ length: 12 }, (_, i) => ({ mes: MESES_NAMES[i], anio: anioDesde }));
+      ? [{ mes: Number(desde.slice(5, 7)), anio: anioDesde }]
+      : Array.from({ length: 12 }, (_, i) => ({ mes: i + 1, anio: anioDesde }));
     const aniosFiltro = [...new Set(mesesPeriodo.map(m => m.anio))];
+    const mesNumFin = (v) => { const n = Number(v); if (!isNaN(n) && n >= 1 && n <= 12) return n; const idx = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].indexOf(String(v)); return idx >= 0 ? idx + 1 : 0; };
     const [impuestosAnio, tcOficial] = await Promise.all([
       sbCached('costos_fijos', { filters: [`anio=in.(${aniosFiltro.join(',')})`], limit: 1000 }),
       fetchTipoCambioOficial(),
     ]);
     const impuestos = impuestosAnio.filter(i =>
-      !i.paga_por_tarjeta && mesesPeriodo.some(m => m.mes === i.mes && m.anio === Number(i.anio))
+      !i.paga_por_tarjeta && mesesPeriodo.some(m => m.mes === mesNumFin(i.mes) && m.anio === Number(i.anio))
     );
     const totalImpuestos = impuestos.reduce((s, i) =>
       s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tcOficial, 0);
