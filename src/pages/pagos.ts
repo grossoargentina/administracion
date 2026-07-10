@@ -301,7 +301,43 @@ export async function confirmarPagoPersona(metodo) {
         const periodo = `${lunesDate.toLocaleDateString('es-AR')} al ${domingoDate.toLocaleDateString('es-AR')}`;
         const nombreArchivo = `${hoy}-${persRow.apellido},${persRow.nombre}.pdf`;
         const pdfBlob = generarReciboPDF(data, periodo, lunesDate);
-        await subirPdfDrive(pdfBlob, nombreArchivo, FOLDER_LIQUIDACIONES);
+
+        // Subir a Drive con verificación de sesión
+        const { data: { session } } = await state.supabaseClient.auth.getSession();
+        let accessToken = session?.provider_token || localStorage.getItem('drive_token');
+        if (!accessToken) {
+          const refreshToken = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
+          if (refreshToken) {
+            try {
+              const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: refreshToken }),
+              });
+              if (r.ok) { const { access_token } = await r.json(); accessToken = access_token; localStorage.setItem('drive_token', access_token); }
+            } catch(e) { console.warn('Error refrescando token Drive:', e); }
+          }
+        }
+
+        if (accessToken) {
+          const metadata = { name: nombreArchivo, parents: [FOLDER_LIQUIDACIONES], mimeType: 'application/pdf' };
+          const formData = new FormData();
+          formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+          formData.append('file', pdfBlob, nombreArchivo);
+          const uploadRes = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+            { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: formData }
+          );
+          if (uploadRes.status === 401) {
+            localStorage.removeItem('drive_token');
+            toast('Sesión de Google Drive expirada. Cerrá sesión y volvé a ingresar.', 'err');
+            return;
+          }
+        } else {
+          const url = URL.createObjectURL(pdfBlob);
+          const a = document.createElement('a');
+          a.href = url; a.download = nombreArchivo; a.click();
+          URL.revokeObjectURL(url);
+        }
       }
     }
 
