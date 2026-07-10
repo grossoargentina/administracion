@@ -99,7 +99,12 @@ export async function loadPagos() {
       if (!porPersonaPagado[j.personal_id]) {
         porPersonaPagado[j.personal_id] = { apellido: j.personal_apellido || '', nombre: j.personal_nombre || '', jornadas: [] };
       }
-      porPersonaPagado[j.personal_id].jornadas.push(j);
+      // Misma lógica que en pendientes: siempre usar la tarifa vigente del personal
+      const p2 = personal.find(x => x.id === j.personal_id) || {};
+      const tarifaVigente = j.tipo === 'Depósito' ? p2.tarifa_deposito
+                          : j.tipo === 'Operador' ? p2.tarifa_operador
+                          : p2.tarifa_armado;
+      porPersonaPagado[j.personal_id].jornadas.push({ ...j, tarifa_ars: tarifaVigente || 0 });
     });
     const filasPagadas = Object.values(porPersonaPagado).sort((a,b) => a.apellido.localeCompare(b.apellido));
     const htmlPagados = filasPagadas.length ? `

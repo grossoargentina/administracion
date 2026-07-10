@@ -950,9 +950,13 @@
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field" style="grid-column:1/-1">
+        <div class="field" style="grid-column:1/-1" id="armado-evento-single-wrap">
           <label class="lbl">Evento *</label>
           <select class="inp" id="armado-evento" onchange="onArmadoEventoChange()"></select>
+        </div>
+        <div class="field" style="grid-column:1/-1;display:none" id="armado-evento-multi-wrap">
+          <label class="lbl">Eventos * <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios)</span></label>
+          <div id="armado-eventos-multi" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;padding:8px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px"></div>
         </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Tipo *</label>

@@ -429,6 +429,7 @@ let logDias = [];
 let logTipo = 'Evento';
 let logEventosDepIds = []; // para tipo Depósito
 let logEditId = null; // null = nueva, number = edición
+let armadoEventosDepIds = []; // eventos seleccionados en modal-agregar-armado cuando tipo = Depósito
 
 export async function loadLogisticas() {
   const { desde, hasta, lunes, domingo } = getSemana(state.logOffset);
@@ -718,7 +719,21 @@ function _rellenarFechaHoraArmado() {
 }
 
 export function onArmadoEventoChange() { _rellenarFechaHoraArmado(); }
-export function onArmadoTipoChange()   { _rellenarFechaHoraArmado(); }
+export function onArmadoTipoChange()   { _toggleArmadoEventoUI(); _rellenarFechaHoraArmado(); }
+
+// Depósito permite elegir varios eventos (en una jornada de depósito se arma pedido de más de un evento);
+// el resto de los tipos usan el select de un solo evento
+function _toggleArmadoEventoUI() {
+  const tipo = (document.getElementById('armado-tipo') as HTMLSelectElement).value;
+  const esDeposito = tipo === 'Depósito';
+  document.getElementById('armado-evento-single-wrap').style.display = esDeposito ? 'none' : '';
+  document.getElementById('armado-evento-multi-wrap').style.display = esDeposito ? '' : 'none';
+}
+
+export function toggleArmadoEventoDep(evId) {
+  const idx = armadoEventosDepIds.indexOf(evId);
+  if (idx === -1) armadoEventosDepIds.push(evId); else armadoEventosDepIds.splice(idx, 1);
+}
 
 export async function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
   abrirAgregarArmado();
@@ -754,15 +769,24 @@ export function abrirAgregarDeposito() {
   abrirAgregarArmado();
   (document.getElementById('armado-tipo') as HTMLSelectElement).value = 'Depósito';
   document.getElementById('armado-modal-title').textContent = 'Agregar día — Depósito';
+  _toggleArmadoEventoUI();
 }
 
 export function abrirAgregarArmado() {
-  // Poblar select de eventos
+  // Poblar select de eventos (tipos de un solo evento)
   const evSel = document.getElementById('armado-evento') as HTMLSelectElement;
   evSel.innerHTML = '<option value="">— Seleccionar evento —</option>' +
     (state.evCache || []).map(ev =>
       `<option value="${ev.id}">${ev.codigo} · ${ev.cliente_nombre}${ev.venue ? ' · ' + ev.venue : ''}</option>`
     ).join('');
+  // Poblar checkboxes de eventos (Depósito: se puede armar pedido de más de un evento el mismo día)
+  armadoEventosDepIds = [];
+  document.getElementById('armado-eventos-multi').innerHTML = (state.evCache || []).map(ev =>
+    `<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+      <input type="checkbox" value="${ev.id}" onchange="toggleArmadoEventoDep(${ev.id})">
+      ${ev.codigo} · ${ev.cliente_nombre}${ev.venue ? ' · ' + ev.venue : ''}
+    </label>`
+  ).join('');
   // Resetear tipo, fecha y hora
   (document.getElementById('armado-tipo') as HTMLSelectElement).value = 'Armado';
   (document.getElementById('armado-fecha') as HTMLInputElement).value = '';
@@ -777,21 +801,26 @@ export function abrirAgregarArmado() {
   ).join('');
   document.getElementById('armado-modal-title').textContent = 'Agregar día de armado';
   delete (state as any)._editLogId;
+  _toggleArmadoEventoUI();
   openModal('modal-agregar-armado');
 }
 
 export async function guardarAgregarArmado() {
-  const evId = parseInt((document.getElementById('armado-evento') as HTMLSelectElement).value);
   const tipo  = (document.getElementById('armado-tipo') as HTMLSelectElement).value || 'Armado';
+  const esDeposito = tipo === 'Depósito';
+  const evIds = esDeposito
+    ? [...armadoEventosDepIds]
+    : [parseInt((document.getElementById('armado-evento') as HTMLSelectElement).value)].filter(id => !isNaN(id));
   const fecha = (document.getElementById('armado-fecha') as HTMLInputElement).value || '';
   const hora  = (document.getElementById('armado-hora') as HTMLInputElement).value  || '';
-  if (!evId) { toast('Seleccioná un evento', 'err'); return; }
-  if (!fecha) { toast('Ingresá la fecha', 'err'); return; }
-
-  const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
   const editLogId = (state as any)._editLogId || 0;
   const modoEdicion = !!editLogId;
+
+  if (!modoEdicion && !evIds.length) { toast(esDeposito ? 'Seleccioná al menos un evento' : 'Seleccioná un evento', 'err'); return; }
+  if (!fecha) { toast('Ingresá la fecha', 'err'); return; }
+
+  const persIds = [...document.getElementById('armado-personal').querySelectorAll('input[type=checkbox]:checked')].map(o => parseInt(o.value));
 
   // Jornada tipo → logística tipo
   const JORNADA_TO_LOG_TIPO = { 'Operador': 'Evento', 'Armado': 'Armado', 'Desarme': 'Desarme', 'Depósito': 'Deposito' };
@@ -799,7 +828,15 @@ export async function guardarAgregarArmado() {
 
   try {
     let logId: number | undefined = modoEdicion ? editLogId : undefined;
-    if (!logId) {
+    if (!logId && esDeposito) {
+      // Depósito: siempre se crea una logística nueva vinculada a todos los eventos seleccionados
+      const evsSel = evIds.map(id => (state.evCache || []).find(e => e.id === id)).filter(Boolean);
+      const label = evsSel.map((e: any) => e.venue || e.cliente_nombre).join(', ');
+      const newLog = await sbPost('logisticas', { tipo: logTipoBuscado, notas: `Depósito — ${label}`, created_at: new Date().toISOString() });
+      logId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
+      await sbPost('logistica_eventos', evIds.map(eid => ({ logistica_id: logId, evento_id: eid })));
+    } else if (!logId) {
+      const evId = evIds[0];
       const armRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${evId}`], select: 'logistica_id', limit: 20 });
       const logIds = armRels.map(r => r.logistica_id);
       if (logIds.length) {
@@ -1755,6 +1792,7 @@ window.onArmadoTipoChange   = onArmadoTipoChange;
 window.abrirPresupuestoParaEvento = abrirPresupuestoParaEvento;
 window.abrirAgregarDeposito = abrirAgregarDeposito;
 window.abrirAgregarArmado = abrirAgregarArmado;
+window.toggleArmadoEventoDep = toggleArmadoEventoDep;
 window.guardarAgregarArmado = guardarAgregarArmado;
 window.abrirNuevaLogistica = abrirNuevaLogistica;
 window.setTipoLog = setTipoLog;
