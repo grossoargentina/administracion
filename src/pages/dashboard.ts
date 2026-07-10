@@ -296,7 +296,7 @@ export async function loadDashboard() {
 
       function renderColumna(titulo, tipo, jorns) {
         const fecha = new Date(jorns[0].fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
-        const horaFallback = { 'Armado': ev.hora_armado, 'Operador': ev.horario, 'Desarme': ev.hora_desarme };
+        const horaFallback = { 'Armado': ev.hora_armado, 'Desarme': ev.hora_desarme };
         const hora  = jorns[0].hora_inicio || horaFallback[tipo] || '';
         const pers  = [...new Map(jorns.map(j => [j.personal_id, `${j.personal_nombre||''} ${j.personal_apellido||''}`.trim()])).values()].filter(Boolean);
         return `<div style="flex:1;min-width:160px;background:var(--bg-2);border-radius:8px;padding:10px 12px">
