@@ -14,11 +14,6 @@ const isAllowedEmail = email => ALLOWED_EMAILS.includes(email);
 let _appInitialized = false;
 
 export async function initAuth() {
-  if (window.location.hostname === 'localhost') {
-    state.AUTH = true;
-    if (!_appInitialized) { _appInitialized = true; showApp(); }
-    return;
-  }
 
 const hasOAuthHash = window.location.hash.includes('access_token');
 

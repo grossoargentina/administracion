@@ -77,7 +77,7 @@ export async function loadFinanzas() {
       fetchTipoCambioOficial(),
     ]);
     const impuestos = impuestosAnio.filter(i =>
-      !i.paga_por_tarjeta && mesesPeriodo.some(m => m.mes === Number(i.mes) && m.anio === i.anio)
+      !i.paga_por_tarjeta && mesesPeriodo.some(m => m.mes === Number(i.mes) && m.anio === Number(i.anio))
     );
     const totalImpuestos = impuestos.reduce((s, i) =>
       s + Number(i.monto_ars || 0) + Number(i.monto_usd || 0) * tcOficial, 0);
