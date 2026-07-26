@@ -807,6 +807,14 @@
     <div class="modal-body">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre *</label><input class="inp" id="cliente-nombre" placeholder="Nombre del cliente"></div>
+        <div class="field">
+          <label class="lbl">Suma asegurada — Muerte / Invalidez</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-accidentes" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Suma asegurada — Gastos médicos</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-medicos" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Beneficiarios de cláusula de no repetición</label>
           <div id="cliente-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
@@ -822,7 +830,7 @@
 </div>
 
 <div class="modal-overlay" id="modal-seguros-evento">
-  <div class="modal" style="max-width:540px">
+  <div class="modal" style="max-width:560px">
     <div class="modal-header">
       <span class="modal-title">🛡️ Cláusulas de seguro</span>
       <button class="modal-close" onclick="closeModal('modal-seguros-evento')">×</button>
@@ -830,6 +838,39 @@
     <div class="modal-body" id="modal-seguros-body" style="display:flex;flex-direction:column;gap:16px"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-seguros-evento')">Cerrar</button>
+      <button class="btn btn-ghost" id="btn-editar-seguro-propio" onclick="abrirSeguroPropio()">✏️ Seguro propio</button>
+      <button class="btn btn-primary" id="btn-compartir-clausulas" onclick="compartirClausulas()">📤 Compartir</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SEGURO PROPIO DEL EVENTO -->
+<div class="modal-overlay" id="modal-seguro-propio">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title">🛡️ Seguro propio del evento</span>
+      <button class="modal-close" onclick="closeModal('modal-seguro-propio')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label class="lbl">Suma asegurada — Muerte / Invalidez</label>
+          <input class="inp ars-input" type="text" id="seg-propio-accidentes" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Suma asegurada — Gastos médicos</label>
+          <input class="inp ars-input" type="text" id="seg-propio-medicos" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Beneficiarios de cláusula de no repetición</label>
+          <div id="seg-propio-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBenefSeguroPropio()">+ Agregar beneficiario</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-seguro-propio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarSeguroPropio()">💾 Guardar</button>
     </div>
   </div>
 </div>
@@ -844,6 +885,14 @@
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre del salón *</label><input class="inp" id="salon-nombre" placeholder="Nombre"></div>
         <div class="field" style="grid-column:1/-1"><label class="lbl">Dirección</label><input class="inp" id="salon-direccion" placeholder="Calle, número, localidad"></div>
+        <div class="field">
+          <label class="lbl">Suma asegurada — Muerte / Invalidez</label>
+          <input class="inp ars-input" type="text" id="salon-monto-accidentes" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Suma asegurada — Gastos médicos</label>
+          <input class="inp ars-input" type="text" id="salon-monto-medicos" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Beneficiarios de cláusula de no repetición</label>
           <div id="salon-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>

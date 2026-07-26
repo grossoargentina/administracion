@@ -1,0 +1,1 @@
+ALTER TABLE eventos ADD COLUMN IF NOT EXISTS seguro_propio JSONB;

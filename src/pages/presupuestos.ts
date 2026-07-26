@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtARS0, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -32,14 +32,31 @@ export async function loadClientes() {
   } catch(e) { tbody.innerHTML = `<tr><td colspan="4" style="padding:16px;color:var(--red)">${e.message}</td></tr>`; }
 }
 
+function parseSeguroInfo(raw) {
+  if (!raw) return { monto_accidentes: 0, monto_gastos_medicos: 0, beneficiarios: [] };
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    // Backwards compat: old format was a plain array of {nombre, cuit}
+    if (Array.isArray(parsed)) return { monto_accidentes: 0, monto_gastos_medicos: 0, beneficiarios: parsed };
+    return {
+      monto_accidentes: parsed.monto_accidentes || 0,
+      monto_gastos_medicos: parsed.monto_gastos_medicos || 0,
+      beneficiarios: parsed.beneficiarios || [],
+    };
+  } catch(e) { return { monto_accidentes: 0, monto_gastos_medicos: 0, beneficiarios: [] }; }
+}
+
 export async function editarCliente(id) {
   clienteEditId = id;
   try {
     const rows = await sbCached('clientes', { filters: [`id=eq.${id}`], limit: 1 });
     const c = rows[0]; if (!c) return;
+    const info = parseSeguroInfo(c.seguro_info);
     document.getElementById('cliente-modal-title').textContent = c.nombre;
     document.getElementById('cliente-nombre').value  = c.nombre || '';
-    try { state.clienteBeneficiarios = c.seguro_info ? JSON.parse(c.seguro_info) : []; } catch(e) { state.clienteBeneficiarios = []; }
+    (document.getElementById('cliente-monto-accidentes') as HTMLInputElement).value = info.monto_accidentes ? fmtARS0(info.monto_accidentes) : '';
+    (document.getElementById('cliente-monto-medicos') as HTMLInputElement).value = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
+    state.clienteBeneficiarios = info.beneficiarios;
     renderClienteBenef();
     openModal('modal-cliente');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
@@ -48,9 +65,14 @@ export async function editarCliente(id) {
 export async function guardarCliente() {
   const nombre = document.getElementById('cliente-nombre').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
-  const benefs = state.clienteBeneficiarios.filter(b => b.nombre || b.cuit);
+  const monto_accidentes = parseARSInput(document.getElementById('cliente-monto-accidentes'));
+  const monto_gastos_medicos = parseARSInput(document.getElementById('cliente-monto-medicos'));
+  const beneficiarios = state.clienteBeneficiarios.filter(b => b.nombre || b.cuit);
+  const seguro_info = (monto_accidentes || monto_gastos_medicos || beneficiarios.length)
+    ? JSON.stringify({ monto_accidentes, monto_gastos_medicos, beneficiarios })
+    : null;
   try {
-    await sbPatch('clientes', clienteEditId, { nombre, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
+    await sbPatch('clientes', clienteEditId, { nombre, seguro_info });
     closeModal('modal-cliente');
     invalidateCache('clientes');
     toast('Cliente actualizado');
@@ -58,9 +80,12 @@ export async function guardarCliente() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
+let _segurosCtxEventoId = null;
+
 export async function verSegurosEvento(eventoId) {
+  _segurosCtxEventoId = eventoId;
   try {
-    const rows = await sbCached('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,cliente_nombre,venue', limit: 1 });
+    const rows = await sbCached('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,cliente_nombre,venue,seguro_propio', limit: 1 });
     const ev = rows[0]; if (!ev) return;
 
     const fetches = [];
@@ -73,24 +98,147 @@ export async function verSegurosEvento(eventoId) {
     const cliente = clRows[0];
     const salon   = slRows[0];
 
-    const seccionBenef = (titulo, seguroInfo) => {
-      let benefs = [];
-      try { benefs = seguroInfo ? JSON.parse(seguroInfo) : []; } catch(e) {}
-      const contenido = benefs.length
-        ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-1);line-height:1.8">${benefs.map(b => `<li><strong>${b.nombre}</strong>${b.cuit ? ` — CUIT ${b.cuit}` : ''}</li>`).join('')}</ul>`
+    const infoCliente = parseSeguroInfo(cliente?.seguro_info);
+    const infoSalon   = parseSeguroInfo(salon?.seguro_info);
+    const infoPropio  = parseSeguroInfo(ev.seguro_propio);
+
+    const maxAccidentes  = Math.max(infoCliente.monto_accidentes, infoSalon.monto_accidentes, infoPropio.monto_accidentes);
+    const maxMedicos     = Math.max(infoCliente.monto_gastos_medicos, infoSalon.monto_gastos_medicos, infoPropio.monto_gastos_medicos);
+
+    // Beneficiarios: usar los del origen con el monto más alto de accidentes
+    const fuentePrincipal = [
+      { info: infoSalon,   label: salon?.nombre || ev.venue || '—',          icon: '🏛️ Salón' },
+      { info: infoCliente, label: cliente?.nombre || ev.cliente_nombre || '—', icon: '👤 Cliente' },
+      { info: infoPropio,  label: 'Seguro propio del evento',                  icon: '🛡️ Propio' },
+    ].reduce((a, b) => b.info.monto_accidentes >= a.info.monto_accidentes ? b : a);
+
+    const fmtMonto = (n) => n ? `$ ${Number(n).toLocaleString('es-AR')}` : '—';
+
+    const seccionBenef = (titulo, info) => {
+      const contenido = info.beneficiarios.length
+        ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.8">${info.beneficiarios.map(b => `<li><strong>${escHtml(b.nombre)}</strong>${b.cuit ? ` — CUIT ${b.cuit}` : ''}</li>`).join('')}</ul>`
         : `<div style="color:var(--text-3);font-size:13px;font-style:italic">Sin beneficiarios cargados</div>`;
+      const montos = (info.monto_accidentes || info.monto_gastos_medicos) ? `
+        <div style="display:flex;gap:16px;margin-bottom:10px;font-size:12px">
+          <span>⚡ Muerte/Inv: <strong style="color:var(--gold)">${fmtMonto(info.monto_accidentes)}</strong></span>
+          <span>🏥 Gastos médicos: <strong style="color:var(--gold)">${fmtMonto(info.monto_gastos_medicos)}</strong></span>
+        </div>` : '';
       return `<div>
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:6px">${titulo}</div>
-        <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:8px;padding:12px">${contenido}</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">${montos}${contenido}</div>
       </div>`;
     };
 
+    const resumenMaximo = (maxAccidentes || maxMedicos) ? `
+      <div style="background:var(--gold-bg);border:1px solid var(--gold-dim);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gold);margin-bottom:8px">✓ Montos a exigir (máximo entre todas las fuentes)</div>
+        <div style="display:flex;gap:20px;font-size:13px">
+          <span>Muerte / Invalidez: <strong>$ ${Number(maxAccidentes).toLocaleString('es-AR')}</strong></span>
+          <span>Gastos médicos: <strong>$ ${Number(maxMedicos).toLocaleString('es-AR')}</strong></span>
+        </div>
+        <div style="font-size:11px;color:var(--text-2);margin-top:6px">Cláusula de no repetición según: ${fuentePrincipal.icon} ${escHtml(fuentePrincipal.label)}</div>
+      </div>` : '';
+
+    const secPropio = infoPropio.beneficiarios.length || infoPropio.monto_accidentes || infoPropio.monto_gastos_medicos
+      ? seccionBenef('🛡️ Seguro propio del evento', infoPropio) : '';
+
     document.getElementById('modal-seguros-body').innerHTML =
-      seccionBenef(`🏛️ Salón — ${salon?.nombre || ev.venue || '—'}`, salon?.seguro_info) +
-      seccionBenef(`👤 Cliente — ${cliente?.nombre || ev.cliente_nombre || '—'}`, cliente?.seguro_info);
+      resumenMaximo +
+      seccionBenef(`🏛️ Salón — ${escHtml(salon?.nombre || ev.venue || '—')}`, infoSalon) +
+      seccionBenef(`👤 Cliente — ${escHtml(cliente?.nombre || ev.cliente_nombre || '—')}`, infoCliente) +
+      secPropio;
 
     openModal('modal-seguros-evento');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ── SEGURO PROPIO DEL EVENTO ─────────────────────────────
+export function abrirSeguroPropio() {
+  if (!_segurosCtxEventoId) return;
+  closeModal('modal-seguros-evento');
+  // Cargar datos actuales del evento
+  sb('eventos', { filters: [`id=eq.${_segurosCtxEventoId}`], select: 'seguro_propio', limit: 1 }).then(rows => {
+    const info = parseSeguroInfo(rows[0]?.seguro_propio);
+    (document.getElementById('seg-propio-accidentes') as HTMLInputElement).value = info.monto_accidentes ? fmtARS0(info.monto_accidentes) : '';
+    (document.getElementById('seg-propio-medicos') as HTMLInputElement).value = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
+    state.seguroEventoBenef = info.beneficiarios;
+    renderSeguroPropBenef();
+    openModal('modal-seguro-propio');
+  });
+}
+
+export function renderSeguroPropBenef() {
+  document.getElementById('seg-propio-benef-lista').innerHTML = state.seguroEventoBenef.map((b, i) => `
+    <div style="display:flex;gap:8px;align-items:center">
+      <input class="inp" style="flex:2" placeholder="Nombre (ej: CENCOSUD S.A.)" value="${escHtml(b.nombre)}" oninput="state.seguroEventoBenef[${i}].nombre=this.value">
+      <input class="inp" style="flex:1" placeholder="CUIT (ej: 30-59036076-3)" value="${b.cuit}" maxlength="13" oninput="onCuitInput(this);state.seguroEventoBenef[${i}].cuit=this.value">
+      <button type="button" class="btn btn-danger btn-sm" onclick="state.seguroEventoBenef.splice(${i},1);renderSeguroPropBenef()">✕</button>
+    </div>`).join('');
+}
+
+export function agregarBenefSeguroPropio() {
+  state.seguroEventoBenef.push({ nombre: '', cuit: '' });
+  renderSeguroPropBenef();
+}
+
+export async function guardarSeguroPropio() {
+  const monto_accidentes     = parseARSInput(document.getElementById('seg-propio-accidentes'));
+  const monto_gastos_medicos = parseARSInput(document.getElementById('seg-propio-medicos'));
+  const beneficiarios        = state.seguroEventoBenef.filter(b => b.nombre || b.cuit);
+  const seguro_propio = (monto_accidentes || monto_gastos_medicos || beneficiarios.length)
+    ? { monto_accidentes, monto_gastos_medicos, beneficiarios }
+    : null;
+  try {
+    await sbPatch('eventos', _segurosCtxEventoId, { seguro_propio });
+    invalidateCache('eventos');
+    closeModal('modal-seguro-propio');
+    toast('Seguro propio guardado');
+    verSegurosEvento(_segurosCtxEventoId);
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+export async function compartirClausulas() {
+  if (!_segurosCtxEventoId) return;
+  try {
+    const rows = await sb('eventos', { filters: [`id=eq.${_segurosCtxEventoId}`], select: 'cliente_id,salon_id,cliente_nombre,venue,seguro_propio', limit: 1 });
+    const ev = rows[0]; if (!ev) return;
+
+    const fetches = [];
+    if (ev.cliente_id) fetches.push(sbCached('clientes', { filters: [`id=eq.${ev.cliente_id}`], select: 'nombre,seguro_info', limit: 1 }));
+    else fetches.push(Promise.resolve([]));
+    if (ev.salon_id) fetches.push(sbCached('salones', { filters: [`id=eq.${ev.salon_id}`], select: 'nombre,seguro_info', limit: 1 }));
+    else fetches.push(Promise.resolve([]));
+
+    const [clRows, slRows] = await Promise.all(fetches);
+    const infoCliente = parseSeguroInfo(clRows[0]?.seguro_info);
+    const infoSalon   = parseSeguroInfo(slRows[0]?.seguro_info);
+    const infoPropio  = parseSeguroInfo(ev.seguro_propio);
+
+    const maxAccidentes  = Math.max(infoCliente.monto_accidentes, infoSalon.monto_accidentes, infoPropio.monto_accidentes);
+    const maxMedicos     = Math.max(infoCliente.monto_gastos_medicos, infoSalon.monto_gastos_medicos, infoPropio.monto_gastos_medicos);
+
+    const fuentePrincipal = [
+      { info: infoSalon,   benefs: infoSalon.beneficiarios },
+      { info: infoCliente, benefs: infoCliente.beneficiarios },
+      { info: infoPropio,  benefs: infoPropio.beneficiarios },
+    ].reduce((a, b) => b.info.monto_accidentes >= a.info.monto_accidentes ? b : a);
+
+    const fmtM = (n) => n ? `$ ${Number(n).toLocaleString('es-AR')}` : '—';
+    const lineas = [
+      `🛡️ *Cláusulas de seguro — ${ev.cliente_nombre || ''}*`,
+      ev.venue ? `📍 Venue: ${ev.venue}` : '',
+      '',
+      `*Accidentes Personales (Muerte / Invalidez):* ${fmtM(maxAccidentes)}`,
+      `*Gastos Médicos:* ${fmtM(maxMedicos)}`,
+    ];
+    if (fuentePrincipal.benefs.length) {
+      lineas.push('', '*Cláusula de no repetición a favor de:*');
+      fuentePrincipal.benefs.forEach(b => lineas.push(`  • ${b.nombre}${b.cuit ? ` — CUIT ${b.cuit}` : ''}`));
+    }
+    const texto = lineas.filter(l => l !== null).join('\n');
+    await navigator.clipboard.writeText(texto);
+    toast('Cláusulas copiadas al portapapeles');
+  } catch(e) { toast('Error al copiar: ' + e.message, 'err'); }
 }
 
 // ── SALONES ─────────────────────────────────────────────
@@ -125,24 +273,31 @@ export async function editarSalon(id) {
   salonEditId = id;
   try {
     const rows = await sbCached('salones', { filters: [`id=eq.${id}`], limit: 1 });
-    const s = rows[0];
-    if (!s) return;
+    const s = rows[0]; if (!s) return;
+    const info = parseSeguroInfo(s.seguro_info);
     document.getElementById('salon-modal-title').textContent = s.nombre;
     document.getElementById('salon-nombre').value    = s.nombre || '';
     document.getElementById('salon-direccion').value = s.direccion || '';
-    try { state.salonBeneficiarios = s.seguro_info ? JSON.parse(s.seguro_info) : []; } catch(e) { state.salonBeneficiarios = []; }
+    (document.getElementById('salon-monto-accidentes') as HTMLInputElement).value = info.monto_accidentes ? fmtARS0(info.monto_accidentes) : '';
+    (document.getElementById('salon-monto-medicos') as HTMLInputElement).value = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
+    state.salonBeneficiarios = info.beneficiarios;
     renderSalonBenef();
     openModal('modal-salon');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
 export async function guardarSalon() {
-  const nombre   = document.getElementById('salon-nombre').value.trim();
+  const nombre    = document.getElementById('salon-nombre').value.trim();
   const direccion = document.getElementById('salon-direccion').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
-  const benefs = state.salonBeneficiarios.filter(b => b.nombre || b.cuit);
+  const monto_accidentes = parseARSInput(document.getElementById('salon-monto-accidentes'));
+  const monto_gastos_medicos = parseARSInput(document.getElementById('salon-monto-medicos'));
+  const beneficiarios = state.salonBeneficiarios.filter(b => b.nombre || b.cuit);
+  const seguro_info = (monto_accidentes || monto_gastos_medicos || beneficiarios.length)
+    ? JSON.stringify({ monto_accidentes, monto_gastos_medicos, beneficiarios })
+    : null;
   try {
-    await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info: benefs.length ? JSON.stringify(benefs) : null });
+    await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info });
     invalidateCache('salones');
     closeModal('modal-salon');
     toast('Salón actualizado');
@@ -1552,6 +1707,11 @@ window.loadClientes = loadClientes;
 window.editarCliente = editarCliente;
 window.guardarCliente = guardarCliente;
 window.verSegurosEvento = verSegurosEvento;
+window.abrirSeguroPropio = abrirSeguroPropio;
+window.renderSeguroPropBenef = renderSeguroPropBenef;
+window.agregarBenefSeguroPropio = agregarBenefSeguroPropio;
+window.guardarSeguroPropio = guardarSeguroPropio;
+window.compartirClausulas = compartirClausulas;
 window.loadSalones = loadSalones;
 window.editarSalon = editarSalon;
 window.guardarSalon = guardarSalon;

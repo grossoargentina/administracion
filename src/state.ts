@@ -20,6 +20,7 @@ export const state = {
   // Shared between eventos ↔ presupuestos
   clienteBeneficiarios: [],
   salonBeneficiarios: [],
+  seguroEventoBenef: [],
   _sortState: {},
   _acData: {},
 };

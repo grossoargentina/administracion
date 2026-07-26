@@ -45,6 +45,7 @@ export async function sbDelete(table, id) {
 }
 // ── HELPERS ───────────────────────────────────────────────
 export const fmtARS = v => v == null ? '—' : '$ ' + Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
+export const fmtARS0 = v => v == null || v === 0 ? '' : Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
 export const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR') : '—';
 export const escHtml = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 // Aplica 21% de IVA y/o 5% de recargo por pago diferido (sobre el monto ya con IVA, si corresponde) a un monto base sin IVA
