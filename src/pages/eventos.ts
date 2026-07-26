@@ -593,8 +593,20 @@ export async function darDeBajaEvento(id, cliente) {
   try {
     const ok = await sbPatch('eventos', id, { estado: 'Dado de baja' });
     if (!ok) { toast('Error al dar de baja', 'err'); return; }
+
+    // Eliminar jornadas del evento
+    const rels = await sb('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 100 });
+    if (rels.length) {
+      const logIds = rels.map(r => r.logistica_id).join(',');
+      await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=in.(${logIds})`, {
+        method: 'DELETE',
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+      });
+    }
+
     invalidateCache('eventos');
     invalidateCache('v_pipeline');
+    invalidateCache('jornadas');
     toast('Evento dado de baja');
     await loadEventos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
