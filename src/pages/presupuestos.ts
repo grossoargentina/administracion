@@ -33,17 +33,22 @@ export async function loadClientes() {
 }
 
 function parseSeguroInfo(raw) {
-  if (!raw) return { monto_accidentes: 0, monto_gastos_medicos: 0, beneficiarios: [] };
+  const empty = { monto_muerte: 0, monto_inv_total: 0, monto_inv_parcial: 0, monto_gastos_medicos: 0, beneficiarios: [] };
+  if (!raw) return empty;
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     // Backwards compat: old format was a plain array of {nombre, cuit}
-    if (Array.isArray(parsed)) return { monto_accidentes: 0, monto_gastos_medicos: 0, beneficiarios: parsed };
+    if (Array.isArray(parsed)) return { ...empty, beneficiarios: parsed };
+    // Backwards compat: old 2-field format
+    const legacyAccidentes = parsed.monto_accidentes || 0;
     return {
-      monto_accidentes: parsed.monto_accidentes || 0,
+      monto_muerte:         parsed.monto_muerte      || legacyAccidentes,
+      monto_inv_total:      parsed.monto_inv_total   || legacyAccidentes,
+      monto_inv_parcial:    parsed.monto_inv_parcial || legacyAccidentes,
       monto_gastos_medicos: parsed.monto_gastos_medicos || 0,
-      beneficiarios: parsed.beneficiarios || [],
+      beneficiarios:        parsed.beneficiarios || [],
     };
-  } catch(e) { return { monto_accidentes: 0, monto_gastos_medicos: 0, beneficiarios: [] }; }
+  } catch(e) { return empty; }
 }
 
 export async function editarCliente(id) {
@@ -54,8 +59,10 @@ export async function editarCliente(id) {
     const info = parseSeguroInfo(c.seguro_info);
     document.getElementById('cliente-modal-title').textContent = c.nombre;
     document.getElementById('cliente-nombre').value  = c.nombre || '';
-    (document.getElementById('cliente-monto-accidentes') as HTMLInputElement).value = info.monto_accidentes ? fmtARS0(info.monto_accidentes) : '';
-    (document.getElementById('cliente-monto-medicos') as HTMLInputElement).value = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
+    (document.getElementById('cliente-monto-muerte') as HTMLInputElement).value      = info.monto_muerte      ? fmtARS0(info.monto_muerte)      : '';
+    (document.getElementById('cliente-monto-inv-total') as HTMLInputElement).value   = info.monto_inv_total   ? fmtARS0(info.monto_inv_total)   : '';
+    (document.getElementById('cliente-monto-inv-parcial') as HTMLInputElement).value = info.monto_inv_parcial ? fmtARS0(info.monto_inv_parcial) : '';
+    (document.getElementById('cliente-monto-medicos') as HTMLInputElement).value     = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
     state.clienteBeneficiarios = info.beneficiarios;
     renderClienteBenef();
     openModal('modal-cliente');
@@ -65,11 +72,13 @@ export async function editarCliente(id) {
 export async function guardarCliente() {
   const nombre = document.getElementById('cliente-nombre').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
-  const monto_accidentes = parseARSInput(document.getElementById('cliente-monto-accidentes'));
+  const monto_muerte         = parseARSInput(document.getElementById('cliente-monto-muerte'));
+  const monto_inv_total      = parseARSInput(document.getElementById('cliente-monto-inv-total'));
+  const monto_inv_parcial    = parseARSInput(document.getElementById('cliente-monto-inv-parcial'));
   const monto_gastos_medicos = parseARSInput(document.getElementById('cliente-monto-medicos'));
   const beneficiarios = state.clienteBeneficiarios.filter(b => b.nombre || b.cuit);
-  const seguro_info = (monto_accidentes || monto_gastos_medicos || beneficiarios.length)
-    ? JSON.stringify({ monto_accidentes, monto_gastos_medicos, beneficiarios })
+  const seguro_info = (monto_muerte || monto_inv_total || monto_inv_parcial || monto_gastos_medicos || beneficiarios.length)
+    ? JSON.stringify({ monto_muerte, monto_inv_total, monto_inv_parcial, monto_gastos_medicos, beneficiarios })
     : null;
   try {
     await sbPatch('clientes', clienteEditId, { nombre, seguro_info });
@@ -102,26 +111,31 @@ export async function verSegurosEvento(eventoId) {
     const infoSalon   = parseSeguroInfo(salon?.seguro_info);
     const infoPropio  = parseSeguroInfo(ev.seguro_propio);
 
-    const maxAccidentes  = Math.max(infoCliente.monto_accidentes, infoSalon.monto_accidentes, infoPropio.monto_accidentes);
-    const maxMedicos     = Math.max(infoCliente.monto_gastos_medicos, infoSalon.monto_gastos_medicos, infoPropio.monto_gastos_medicos);
+    const maxMuerte     = Math.max(infoCliente.monto_muerte,      infoSalon.monto_muerte,      infoPropio.monto_muerte);
+    const maxInvTotal   = Math.max(infoCliente.monto_inv_total,   infoSalon.monto_inv_total,   infoPropio.monto_inv_total);
+    const maxInvParcial = Math.max(infoCliente.monto_inv_parcial, infoSalon.monto_inv_parcial, infoPropio.monto_inv_parcial);
+    const maxMedicos    = Math.max(infoCliente.monto_gastos_medicos, infoSalon.monto_gastos_medicos, infoPropio.monto_gastos_medicos);
 
-    // Beneficiarios: usar los del origen con el monto más alto de accidentes
+    // Beneficiarios: usar los del origen con el monto de muerte más alto
     const fuentePrincipal = [
-      { info: infoSalon,   label: salon?.nombre || ev.venue || '—',          icon: '🏛️ Salón' },
+      { info: infoSalon,   label: salon?.nombre || ev.venue || '—',            icon: '🏛️ Salón' },
       { info: infoCliente, label: cliente?.nombre || ev.cliente_nombre || '—', icon: '👤 Cliente' },
       { info: infoPropio,  label: 'Seguro propio del evento',                  icon: '🛡️ Propio' },
-    ].reduce((a, b) => b.info.monto_accidentes >= a.info.monto_accidentes ? b : a);
+    ].reduce((a, b) => b.info.monto_muerte >= a.info.monto_muerte ? b : a);
 
-    const fmtMonto = (n) => n ? `$ ${Number(n).toLocaleString('es-AR')}` : '—';
+    const fmtM = (n) => n ? `$ ${Number(n).toLocaleString('es-AR')}` : '—';
 
     const seccionBenef = (titulo, info) => {
       const contenido = info.beneficiarios.length
         ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text);line-height:1.8">${info.beneficiarios.map(b => `<li><strong>${escHtml(b.nombre)}</strong>${b.cuit ? ` — CUIT ${b.cuit}` : ''}</li>`).join('')}</ul>`
         : `<div style="color:var(--text-3);font-size:13px;font-style:italic">Sin beneficiarios cargados</div>`;
-      const montos = (info.monto_accidentes || info.monto_gastos_medicos) ? `
-        <div style="display:flex;gap:16px;margin-bottom:10px;font-size:12px">
-          <span>⚡ Muerte/Inv: <strong style="color:var(--gold)">${fmtMonto(info.monto_accidentes)}</strong></span>
-          <span>🏥 Gastos médicos: <strong style="color:var(--gold)">${fmtMonto(info.monto_gastos_medicos)}</strong></span>
+      const tieneMontos = info.monto_muerte || info.monto_inv_total || info.monto_inv_parcial || info.monto_gastos_medicos;
+      const montos = tieneMontos ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:10px;font-size:12px">
+          <span>Muerte accidental: <strong style="color:var(--gold)">${fmtM(info.monto_muerte)}</strong></span>
+          <span>Inv. Total Perm.: <strong style="color:var(--gold)">${fmtM(info.monto_inv_total)}</strong></span>
+          <span>Inv. Parcial Perm.: <strong style="color:var(--gold)">${fmtM(info.monto_inv_parcial)}</strong></span>
+          <span>Gastos médicos: <strong style="color:var(--gold)">${fmtM(info.monto_gastos_medicos)}</strong></span>
         </div>` : '';
       return `<div>
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2);margin-bottom:6px">${titulo}</div>
@@ -129,14 +143,17 @@ export async function verSegurosEvento(eventoId) {
       </div>`;
     };
 
-    const resumenMaximo = (maxAccidentes || maxMedicos) ? `
+    const hayMax = maxMuerte || maxInvTotal || maxInvParcial || maxMedicos;
+    const resumenMaximo = hayMax ? `
       <div style="background:var(--gold-bg);border:1px solid var(--gold-dim);border-radius:8px;padding:12px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gold);margin-bottom:8px">✓ Montos a exigir (máximo entre todas las fuentes)</div>
-        <div style="display:flex;gap:20px;font-size:13px">
-          <span>Muerte / Invalidez: <strong>$ ${Number(maxAccidentes).toLocaleString('es-AR')}</strong></span>
-          <span>Gastos médicos: <strong>$ ${Number(maxMedicos).toLocaleString('es-AR')}</strong></span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:13px">
+          <span>Muerte accidental: <strong>${fmtM(maxMuerte)}</strong></span>
+          <span>Inv. Total Perm.: <strong>${fmtM(maxInvTotal)}</strong></span>
+          <span>Inv. Parcial Perm.: <strong>${fmtM(maxInvParcial)}</strong></span>
+          <span>Gastos médicos: <strong>${fmtM(maxMedicos)}</strong></span>
         </div>
-        <div style="font-size:11px;color:var(--text-2);margin-top:6px">Cláusula de no repetición según: ${fuentePrincipal.icon} ${escHtml(fuentePrincipal.label)}</div>
+        <div style="font-size:11px;color:var(--text-2);margin-top:8px">Cláusula de no repetición según: ${fuentePrincipal.icon} ${escHtml(fuentePrincipal.label)}</div>
       </div>` : '';
 
     const secPropio = infoPropio.beneficiarios.length || infoPropio.monto_accidentes || infoPropio.monto_gastos_medicos
@@ -159,8 +176,10 @@ export function abrirSeguroPropio() {
   // Cargar datos actuales del evento
   sb('eventos', { filters: [`id=eq.${_segurosCtxEventoId}`], select: 'seguro_propio', limit: 1 }).then(rows => {
     const info = parseSeguroInfo(rows[0]?.seguro_propio);
-    (document.getElementById('seg-propio-accidentes') as HTMLInputElement).value = info.monto_accidentes ? fmtARS0(info.monto_accidentes) : '';
-    (document.getElementById('seg-propio-medicos') as HTMLInputElement).value = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
+    (document.getElementById('seg-propio-muerte') as HTMLInputElement).value      = info.monto_muerte      ? fmtARS0(info.monto_muerte)      : '';
+    (document.getElementById('seg-propio-inv-total') as HTMLInputElement).value   = info.monto_inv_total   ? fmtARS0(info.monto_inv_total)   : '';
+    (document.getElementById('seg-propio-inv-parcial') as HTMLInputElement).value = info.monto_inv_parcial ? fmtARS0(info.monto_inv_parcial) : '';
+    (document.getElementById('seg-propio-medicos') as HTMLInputElement).value     = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
     state.seguroEventoBenef = info.beneficiarios;
     renderSeguroPropBenef();
     openModal('modal-seguro-propio');
@@ -182,11 +201,13 @@ export function agregarBenefSeguroPropio() {
 }
 
 export async function guardarSeguroPropio() {
-  const monto_accidentes     = parseARSInput(document.getElementById('seg-propio-accidentes'));
+  const monto_muerte         = parseARSInput(document.getElementById('seg-propio-muerte'));
+  const monto_inv_total      = parseARSInput(document.getElementById('seg-propio-inv-total'));
+  const monto_inv_parcial    = parseARSInput(document.getElementById('seg-propio-inv-parcial'));
   const monto_gastos_medicos = parseARSInput(document.getElementById('seg-propio-medicos'));
   const beneficiarios        = state.seguroEventoBenef.filter(b => b.nombre || b.cuit);
-  const seguro_propio = (monto_accidentes || monto_gastos_medicos || beneficiarios.length)
-    ? { monto_accidentes, monto_gastos_medicos, beneficiarios }
+  const seguro_propio = (monto_muerte || monto_inv_total || monto_inv_parcial || monto_gastos_medicos || beneficiarios.length)
+    ? { monto_muerte, monto_inv_total, monto_inv_parcial, monto_gastos_medicos, beneficiarios }
     : null;
   try {
     await sbPatch('eventos', _segurosCtxEventoId, { seguro_propio });
@@ -214,22 +235,26 @@ export async function compartirClausulas() {
     const infoSalon   = parseSeguroInfo(slRows[0]?.seguro_info);
     const infoPropio  = parseSeguroInfo(ev.seguro_propio);
 
-    const maxAccidentes  = Math.max(infoCliente.monto_accidentes, infoSalon.monto_accidentes, infoPropio.monto_accidentes);
-    const maxMedicos     = Math.max(infoCliente.monto_gastos_medicos, infoSalon.monto_gastos_medicos, infoPropio.monto_gastos_medicos);
+    const maxMuerte     = Math.max(infoCliente.monto_muerte,      infoSalon.monto_muerte,      infoPropio.monto_muerte);
+    const maxInvTotal   = Math.max(infoCliente.monto_inv_total,   infoSalon.monto_inv_total,   infoPropio.monto_inv_total);
+    const maxInvParcial = Math.max(infoCliente.monto_inv_parcial, infoSalon.monto_inv_parcial, infoPropio.monto_inv_parcial);
+    const maxMedicos    = Math.max(infoCliente.monto_gastos_medicos, infoSalon.monto_gastos_medicos, infoPropio.monto_gastos_medicos);
 
     const fuentePrincipal = [
       { info: infoSalon,   benefs: infoSalon.beneficiarios },
       { info: infoCliente, benefs: infoCliente.beneficiarios },
       { info: infoPropio,  benefs: infoPropio.beneficiarios },
-    ].reduce((a, b) => b.info.monto_accidentes >= a.info.monto_accidentes ? b : a);
+    ].reduce((a, b) => b.info.monto_muerte >= a.info.monto_muerte ? b : a);
 
     const fmtM = (n) => n ? `$ ${Number(n).toLocaleString('es-AR')}` : '—';
     const lineas = [
       `🛡️ *Cláusulas de seguro — ${ev.cliente_nombre || ''}*`,
       ev.venue ? `📍 Venue: ${ev.venue}` : '',
       '',
-      `*Accidentes Personales (Muerte / Invalidez):* ${fmtM(maxAccidentes)}`,
-      `*Gastos Médicos:* ${fmtM(maxMedicos)}`,
+      `*Muerte accidental:* ${fmtM(maxMuerte)}`,
+      `*Inv. Total Permanente:* ${fmtM(maxInvTotal)}`,
+      `*Inv. Parcial Permanente:* ${fmtM(maxInvParcial)}`,
+      `*Gastos médicos / farmacéuticos:* ${fmtM(maxMedicos)}`,
     ];
     if (fuentePrincipal.benefs.length) {
       lineas.push('', '*Cláusula de no repetición a favor de:*');
@@ -278,8 +303,10 @@ export async function editarSalon(id) {
     document.getElementById('salon-modal-title').textContent = s.nombre;
     document.getElementById('salon-nombre').value    = s.nombre || '';
     document.getElementById('salon-direccion').value = s.direccion || '';
-    (document.getElementById('salon-monto-accidentes') as HTMLInputElement).value = info.monto_accidentes ? fmtARS0(info.monto_accidentes) : '';
-    (document.getElementById('salon-monto-medicos') as HTMLInputElement).value = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
+    (document.getElementById('salon-monto-muerte') as HTMLInputElement).value      = info.monto_muerte      ? fmtARS0(info.monto_muerte)      : '';
+    (document.getElementById('salon-monto-inv-total') as HTMLInputElement).value   = info.monto_inv_total   ? fmtARS0(info.monto_inv_total)   : '';
+    (document.getElementById('salon-monto-inv-parcial') as HTMLInputElement).value = info.monto_inv_parcial ? fmtARS0(info.monto_inv_parcial) : '';
+    (document.getElementById('salon-monto-medicos') as HTMLInputElement).value     = info.monto_gastos_medicos ? fmtARS0(info.monto_gastos_medicos) : '';
     state.salonBeneficiarios = info.beneficiarios;
     renderSalonBenef();
     openModal('modal-salon');
@@ -290,11 +317,13 @@ export async function guardarSalon() {
   const nombre    = document.getElementById('salon-nombre').value.trim();
   const direccion = document.getElementById('salon-direccion').value.trim();
   if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
-  const monto_accidentes = parseARSInput(document.getElementById('salon-monto-accidentes'));
+  const monto_muerte         = parseARSInput(document.getElementById('salon-monto-muerte'));
+  const monto_inv_total      = parseARSInput(document.getElementById('salon-monto-inv-total'));
+  const monto_inv_parcial    = parseARSInput(document.getElementById('salon-monto-inv-parcial'));
   const monto_gastos_medicos = parseARSInput(document.getElementById('salon-monto-medicos'));
   const beneficiarios = state.salonBeneficiarios.filter(b => b.nombre || b.cuit);
-  const seguro_info = (monto_accidentes || monto_gastos_medicos || beneficiarios.length)
-    ? JSON.stringify({ monto_accidentes, monto_gastos_medicos, beneficiarios })
+  const seguro_info = (monto_muerte || monto_inv_total || monto_inv_parcial || monto_gastos_medicos || beneficiarios.length)
+    ? JSON.stringify({ monto_muerte, monto_inv_total, monto_inv_parcial, monto_gastos_medicos, beneficiarios })
     : null;
   try {
     await sbPatch('salones', salonEditId, { nombre, direccion: direccion || null, seguro_info });

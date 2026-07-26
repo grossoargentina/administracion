@@ -808,11 +808,19 @@
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre *</label><input class="inp" id="cliente-nombre" placeholder="Nombre del cliente"></div>
         <div class="field">
-          <label class="lbl">Suma asegurada — Muerte / Invalidez</label>
-          <input class="inp ars-input" type="text" id="cliente-monto-accidentes" placeholder="0" oninput="fmtInputARS(this)">
+          <label class="lbl">Muerte accidental</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-muerte" placeholder="0" oninput="fmtInputARS(this)">
         </div>
         <div class="field">
-          <label class="lbl">Suma asegurada — Gastos médicos</label>
+          <label class="lbl">Inv. Total Permanente</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-inv-total" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Parcial Permanente</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-inv-parcial" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Gastos médicos / farmacéuticos</label>
           <input class="inp ars-input" type="text" id="cliente-monto-medicos" placeholder="0" oninput="fmtInputARS(this)">
         </div>
         <div class="field" style="grid-column:1/-1">
@@ -854,11 +862,19 @@
     <div class="modal-body">
       <div class="form-grid">
         <div class="field">
-          <label class="lbl">Suma asegurada — Muerte / Invalidez</label>
-          <input class="inp ars-input" type="text" id="seg-propio-accidentes" placeholder="0" oninput="fmtInputARS(this)">
+          <label class="lbl">Muerte accidental</label>
+          <input class="inp ars-input" type="text" id="seg-propio-muerte" placeholder="0" oninput="fmtInputARS(this)">
         </div>
         <div class="field">
-          <label class="lbl">Suma asegurada — Gastos médicos</label>
+          <label class="lbl">Inv. Total Permanente</label>
+          <input class="inp ars-input" type="text" id="seg-propio-inv-total" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Parcial Permanente</label>
+          <input class="inp ars-input" type="text" id="seg-propio-inv-parcial" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Gastos médicos / farmacéuticos</label>
           <input class="inp ars-input" type="text" id="seg-propio-medicos" placeholder="0" oninput="fmtInputARS(this)">
         </div>
         <div class="field" style="grid-column:1/-1">
@@ -886,11 +902,19 @@
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre del salón *</label><input class="inp" id="salon-nombre" placeholder="Nombre"></div>
         <div class="field" style="grid-column:1/-1"><label class="lbl">Dirección</label><input class="inp" id="salon-direccion" placeholder="Calle, número, localidad"></div>
         <div class="field">
-          <label class="lbl">Suma asegurada — Muerte / Invalidez</label>
-          <input class="inp ars-input" type="text" id="salon-monto-accidentes" placeholder="0" oninput="fmtInputARS(this)">
+          <label class="lbl">Muerte accidental</label>
+          <input class="inp ars-input" type="text" id="salon-monto-muerte" placeholder="0" oninput="fmtInputARS(this)">
         </div>
         <div class="field">
-          <label class="lbl">Suma asegurada — Gastos médicos</label>
+          <label class="lbl">Inv. Total Permanente</label>
+          <input class="inp ars-input" type="text" id="salon-monto-inv-total" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Parcial Permanente</label>
+          <input class="inp ars-input" type="text" id="salon-monto-inv-parcial" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Gastos médicos / farmacéuticos</label>
           <input class="inp ars-input" type="text" id="salon-monto-medicos" placeholder="0" oninput="fmtInputARS(this)">
         </div>
         <div class="field" style="grid-column:1/-1">
