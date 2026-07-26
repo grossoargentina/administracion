@@ -159,7 +159,7 @@
         <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.08em;padding:0 0 8px 0">PENDIENTES</div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Total</th><th>Pendiente</th><th>Seña</th><th>Saldo</th><th></th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Total</th><th>Pendiente</th><th>Seña</th><th>Saldo</th><th></th><th></th></tr></thead>
             <tbody id="cobros-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
@@ -1306,6 +1306,20 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-cobro')">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarCobro()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ARCHIVOS CONTABLES -->
+<div class="modal-overlay" id="modal-archivos-contables">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title" id="archivos-contables-titulo">📎 Archivos contables</span>
+      <button class="modal-close" onclick="closeModal('modal-archivos-contables')">×</button>
+    </div>
+    <div class="modal-body" id="archivos-contables-body" style="display:flex;flex-direction:column;gap:20px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-archivos-contables')">Cerrar</button>
     </div>
   </div>
 </div>

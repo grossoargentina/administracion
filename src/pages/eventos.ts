@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, getAdicionalesEv } from '../helpers';
-import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_CONTABLE } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
 // ── EVENTOS ───────────────────────────────────────────────
@@ -519,6 +519,8 @@ export async function loadCobros() {
       ? cobros.map(c => {
           const pct = c.total_ars > 0 ? Math.round((c.total_ars - c.pendiente_ars) / c.total_ars * 100) : 0;
           const vencido = c.fecha_evento && new Date(c.fecha_evento) < new Date(today()) && Number(c.pendiente_ars) > 0;
+          const venue = (c.venue || '').replace(/'/g, "\\'");
+          const clienteEsc = (c.cliente_nombre || '').replace(/'/g, "\\'");
           return `<tr ${vencido ? 'style="background:rgba(255,80,80,0.08)"' : ''}>
             <td><b>${c.cliente_nombre}</b></td>
             <td>${c.tipo_evento || '—'}</td>
@@ -533,9 +535,10 @@ export async function loadCobros() {
               </div>
               <div style="font-size:10px;color:var(--text-3);margin-top:2px">${pct}%</div>
             </td>
+            <td><button class="btn btn-ghost btn-sm" onclick="abrirArchivosContables(${c.id},'${clienteEsc}','${venue}','${c.fecha_evento||''}')">📎</button></td>
           </tr>`;
         }).join('')
-      : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes. Todo al día.</div></td></tr>`;
+      : `<tr><td colspan="9"><div class="empty"><div class="empty-icon">✅</div>Sin cobros pendientes. Todo al día.</div></td></tr>`;
 
     // Cargar nombres de eventos para los cobros recientes
     const evIds = [...new Set(pagosRecientes.map(p => p.evento_id).filter(Boolean))];
@@ -632,3 +635,135 @@ window.onCobroTipoChange = onCobroTipoChange;
 window.registrarCobro = registrarCobro;
 window.confirmarCobro = confirmarCobro;
 window.loadCobros = loadCobros;
+
+// ── ARCHIVOS CONTABLES ───────────────────────────────────
+let _archCtx: { eventoId: number; cliente: string; venue: string; fecha: string } | null = null;
+
+async function getDriveTokenContable() {
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
+  let token = session?.provider_token || localStorage.getItem('drive_token');
+  if (!token) {
+    const refresh = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
+    if (refresh) {
+      try {
+        const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refresh }),
+        });
+        if (r.ok) { const { access_token } = await r.json(); token = access_token; localStorage.setItem('drive_token', token); }
+      } catch(e) {}
+    }
+  }
+  return token;
+}
+
+function slugify(s: string) {
+  return (s || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+export async function abrirArchivosContables(eventoId: number, cliente: string, venue: string, fecha: string) {
+  _archCtx = { eventoId, cliente, venue, fecha };
+  document.getElementById('archivos-contables-titulo').textContent = `📎 Archivos contables — ${cliente}`;
+  await renderArchivosContables();
+  openModal('modal-archivos-contables');
+}
+
+async function renderArchivosContables() {
+  const body = document.getElementById('archivos-contables-body');
+  body.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const archivos = await sb('archivos_contables', { filters: [`evento_id=eq.${_archCtx.eventoId}`], order: 'created_at' });
+  const tipos = [
+    { key: 'pago',        label: 'Pago',        icon: '💳' },
+    { key: 'factura',     label: 'Factura',      icon: '🧾' },
+    { key: 'retenciones', label: 'Retenciones',  icon: '📋' },
+  ];
+  body.innerHTML = tipos.map(t => {
+    const lista = archivos.filter(a => a.tipo === t.key);
+    const items = lista.length
+      ? lista.map((a, i) => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${a.drive_url ? `<a href="${a.drive_url}" target="_blank" style="color:var(--blue)">${escHtml(a.nombre)}</a>` : escHtml(a.nombre)}
+            </span>
+            <button class="btn btn-danger btn-sm" onclick="eliminarArchivoContable(${a.id})">✕</button>
+          </div>`).join('')
+      : `<div style="color:var(--text-3);font-size:12px;font-style:italic;padding:4px 0">Sin archivos</div>`;
+    return `<div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2)">${t.icon} ${t.label}</div>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+          + Subir
+          <input type="file" style="display:none" multiple onchange="subirArchivosContables(this,'${t.key}')">
+        </label>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${items}</div>
+    </div>`;
+  }).join('');
+}
+
+export async function subirArchivosContables(input: HTMLInputElement, tipo: string) {
+  if (!_archCtx || !input.files?.length) return;
+  const token = await getDriveTokenContable();
+  if (!token) { toast('Sin acceso a Drive. Volvé a iniciar sesión.', 'err'); return; }
+
+  const { eventoId, cliente, venue, fecha } = _archCtx;
+  const fechaSlug = fecha ? fecha.replace(/-/g, '') : 'sfecha';
+  const salonSlug = slugify(venue || 'ssalon');
+  const clienteSlug = slugify(cliente || 'scliente');
+
+  // Contar archivos existentes de este tipo para numerar
+  const existentes = await sb('archivos_contables', { filters: [`evento_id=eq.${eventoId}`, `tipo=eq.${tipo}`], select: 'id' });
+  let num = existentes.length + 1;
+
+  for (const file of Array.from(input.files)) {
+    const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+    const nombre = `${fechaSlug}-${salonSlug}-${clienteSlug}-${tipo}-${num}${ext}`;
+
+    toast(`Subiendo ${nombre}...`);
+    try {
+      const metadata = { name: nombre, parents: [FOLDER_CONTABLE] };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', file, nombre);
+
+      const res = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form }
+      );
+
+      let drive_url = null, drive_id = null;
+      if (res.ok) {
+        const data = await res.json();
+        drive_id = data.id; drive_url = data.webViewLink;
+        await fetch(`https://www.googleapis.com/drive/v3/files/${drive_id}/permissions`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+        });
+      } else if (res.status === 401) {
+        localStorage.removeItem('drive_token');
+        toast('Token de Drive expirado. Volvé a iniciar sesión.', 'err');
+        return;
+      }
+
+      await sbPost('archivos_contables', { evento_id: eventoId, tipo, nombre, drive_url, drive_id });
+      num++;
+    } catch(e) { toast('Error al subir: ' + (e as any).message, 'err'); }
+  }
+
+  toast('Archivos subidos');
+  await renderArchivosContables();
+  input.value = '';
+}
+
+export async function eliminarArchivoContable(id: number) {
+  if (!confirm('¿Eliminar este archivo?')) return;
+  await sbDelete('archivos_contables', id);
+  await renderArchivosContables();
+}
+
+window.abrirArchivosContables = abrirArchivosContables;
+window.subirArchivosContables = subirArchivosContables;
+window.eliminarArchivoContable = eliminarArchivoContable;
