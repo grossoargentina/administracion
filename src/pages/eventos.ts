@@ -594,11 +594,11 @@ export async function darDeBajaEvento(id, cliente) {
     const ok = await sbPatch('eventos', id, { estado: 'Dado de baja' });
     if (!ok) { toast('Error al dar de baja', 'err'); return; }
 
-    // Eliminar jornadas del evento
+    // Eliminar logísticas del evento (cascade borra jornadas y logistica_eventos)
     const rels = await sb('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 100 });
     if (rels.length) {
       const logIds = rels.map(r => r.logistica_id).join(',');
-      await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=in.(${logIds})`, {
+      await fetch(`${SB_URL}/rest/v1/logisticas?id=in.(${logIds})`, {
         method: 'DELETE',
         headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
       });
