@@ -63,7 +63,7 @@ export function agregarImagenesEvento(input) {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const MAX = 800;
+        const MAX = 1200;
         let w = img.width, h = img.height;
         if (w > MAX || h > MAX) {
           if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -72,7 +72,7 @@ export function agregarImagenesEvento(input) {
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const b64 = canvas.toDataURL('image/jpeg', 0.75);
+        const b64 = canvas.toDataURL('image/jpeg', 0.85);
         _eventoImagenes.push({ id: null, imagen_base64: b64, nombre: file.name });
         renderImagenesEvento();
       };
