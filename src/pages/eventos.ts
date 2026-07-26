@@ -523,7 +523,7 @@ export async function loadCobros() {
           const clienteEsc = (c.cliente_nombre || '').replace(/'/g, "\\'");
           return `<tr ${vencido ? 'style="background:rgba(255,80,80,0.08)"' : ''}>
             <td><b>${c.cliente_nombre}</b></td>
-            <td>${c.tipo_evento || '—'}</td>
+            <td>${c.venue || '—'}</td>
             <td>${fmtDate(c.fecha_evento)} ${vencido ? '<span style="color:var(--red);font-size:10px;font-weight:600">⚠ VENCIDO</span>' : ''}</td>
             <td>${fmtARS(c.total_ars)}</td>
             <td style="color:var(--red);font-weight:600">${fmtARS(c.pendiente_ars)}</td>
