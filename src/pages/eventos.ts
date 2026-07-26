@@ -63,7 +63,7 @@ export function agregarImagenesEvento(input) {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const MAX = 1200;
+        const MAX = 800;
         let w = img.width, h = img.height;
         if (w > MAX || h > MAX) {
           if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -72,7 +72,7 @@ export function agregarImagenesEvento(input) {
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const b64 = canvas.toDataURL('image/jpeg', 0.85);
+        const b64 = canvas.toDataURL('image/jpeg', 0.75);
         _eventoImagenes.push({ id: null, imagen_base64: b64, nombre: file.name });
         renderImagenesEvento();
       };
@@ -567,25 +567,28 @@ export async function loadCobros() {
 
 async function _sincronizarImagenesEvento(eventoId: number) {
   try {
-    // Obtener imágenes actuales en DB
     const dbImgs = await sb('evento_imagenes', { filters: [`evento_id=eq.${eventoId}`], select: 'id', limit: 30 });
     const keepIds = new Set(_eventoImagenes.filter(i => i.id).map(i => i.id));
-    // Eliminar las que fueron quitadas
     for (const dbImg of dbImgs) {
       if (!keepIds.has(dbImg.id)) await sbDelete('evento_imagenes', dbImg.id);
     }
-    // Insertar las nuevas
+    // Insertar de a una para evitar límite de tamaño en el body
+    const existentes = _eventoImagenes.filter(x => x.id).length;
     const nuevas = _eventoImagenes.filter(i => !i.id);
-    if (nuevas.length) {
-      await sbPost('evento_imagenes', nuevas.map((img, i) => ({
+    for (let i = 0; i < nuevas.length; i++) {
+      const img = nuevas[i];
+      await sbPost('evento_imagenes', {
         evento_id: eventoId,
         imagen_base64: img.imagen_base64,
         nombre: img.nombre,
-        orden: _eventoImagenes.filter(x => x.id).length + i,
-      })));
+        orden: existentes + i,
+      });
     }
     invalidateCache('evento_imagenes');
-  } catch(e) { console.warn('Error sincronizando imágenes:', e); }
+  } catch(e) {
+    console.error('Error sincronizando imágenes:', e);
+    toast('Error al guardar imágenes: ' + (e as any).message, 'err');
+  }
 }
 
 export async function darDeBajaEvento(id, cliente) {

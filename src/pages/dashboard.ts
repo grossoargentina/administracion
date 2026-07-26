@@ -21,6 +21,16 @@ export async function generarPDFFechas() {
   const eventos = _dashData.eventos.filter(e => ids.includes(e.id)).sort((a,b) => (a.fecha_evento||'').localeCompare(b.fecha_evento||''));
   if (!eventos.length) return;
 
+  // Recargar imágenes fresh para que incluya las subidas recientemente
+  const imagenesByEvento: Record<number, any[]> = {};
+  try {
+    const evImgs = await sb('evento_imagenes', { filters: [`evento_id=in.(${ids.join(',')})`], order: 'orden', limit: 100 });
+    evImgs.forEach(img => {
+      if (!imagenesByEvento[img.evento_id]) imagenesByEvento[img.evento_id] = [];
+      imagenesByEvento[img.evento_id].push(img);
+    });
+  } catch(e) {}
+
   
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const PW = 210, PH = 297, M = 14, CW = PW - M * 2;
@@ -167,7 +177,7 @@ export async function generarPDFFechas() {
     }
 
     // Imágenes de referencia del evento
-    const evImgs = (_dashData.imagenesByEvento || {})[ev.id] || [];
+    const evImgs = imagenesByEvento[ev.id] || [];
     if (evImgs.length) {
       checkY(20);
       fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');

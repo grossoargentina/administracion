@@ -1331,6 +1331,16 @@ export async function generarPresupuesto() {
     const versionNum = presVersionInfo ? presVersionInfo.nextVersion : 1;
     const nombreArchivo = `${fechaHoy}-${slugify(venue||'evento')}-${slugify(cliente)}-v${versionNum}.pdf`;
 
+    // ── Fotos de referencia del evento ───────────────────
+    let fotosEvento: string[] = [];
+    const evId = state._presupuestoParaEventoId;
+    if (evId) {
+      try {
+        const imgs = await sb('evento_imagenes', { filters: [`evento_id=eq.${evId}`], order: 'orden', limit: 30 });
+        fotosEvento = imgs.map(i => i.imagen_base64).filter(Boolean);
+      } catch(e) {}
+    }
+
     // ── Fotos del catálogo (desde Supabase foto_base64) ───────
     const fotosMap = {};
     const fotosAdicionalesMap: Record<string, string[]> = {};
@@ -1604,6 +1614,28 @@ export async function generarPresupuesto() {
         });
         y += IMG_H + IMG_GAP + 6;
       }
+    }
+
+    // ── FOTOS DE REFERENCIA DEL EVENTO ───────────────────
+    if (fotosEvento.length) {
+      doc.addPage(); y = 15;
+      fill(NEGRO); doc.rect(M, y, CW, 6, 'F');
+      font('bold', 8); text(BLANCO);
+      doc.text('FOTOS DE REFERENCIA', M+2, y+4); y += 10;
+
+      const IMG_W = 55, IMG_H = 55, IMG_GAP = 5;
+      const perRow = Math.floor(CW / (IMG_W + IMG_GAP));
+
+      fotosEvento.forEach((foto, i) => {
+        const col = i % perRow;
+        if (col === 0 && i > 0) y += IMG_H + IMG_GAP;
+        if (y + IMG_H > PH - 20) { doc.addPage(); y = 15; }
+        const x = M + col * (IMG_W + IMG_GAP);
+        try { doc.addImage(foto, 'JPEG', x, y, IMG_W, IMG_H); } catch(e) {
+          try { doc.addImage(foto, 'PNG', x, y, IMG_W, IMG_H); } catch(e2) {}
+        }
+      });
+      y += IMG_H + IMG_GAP;
     }
 
     // ── FOOTER — fijo al pie de la hoja ──────────────────
