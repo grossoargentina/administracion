@@ -122,8 +122,12 @@ export async function guardarPersonal() {
       invalidateCache('personal');
       toast('Personal actualizado');
     } else {
-      const count = await sb('personal', { select: 'id' });
-      data.codigo = 'P' + String(count.length + 1).padStart(3, '0');
+      const todos = await sb('personal', { select: 'codigo' });
+      const maxNum = todos.reduce((max, p) => {
+        const n = parseInt((p.codigo || '').replace(/\D/g, '')) || 0;
+        return n > max ? n : max;
+      }, 0);
+      data.codigo = 'P' + String(maxNum + 1).padStart(3, '0');
       await sbPost('personal', data);
       invalidateCache('personal');
       toast('Personal agregado');
