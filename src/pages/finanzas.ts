@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
-import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_FINANZAS } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
 // ── FINANZAS ──────────────────────────────────────────────
@@ -49,6 +49,8 @@ export async function loadFinanzas() {
   _tipoCambioCache = null;
   const { desde, hasta, label, modo } = getPeriodoFinanzas();
   document.getElementById('finanzas-sub').textContent = label;
+  const btnResumenes = document.getElementById('btn-resumenes-finanzas');
+  if (btnResumenes) btnResumenes.style.display = modo === 'mensual' ? '' : 'none';
 
   try {
     // 1. Ingresos: pagos de eventos cuya fecha_evento cae en el período
@@ -283,3 +285,134 @@ window.setCapitalMoneda = setCapitalMoneda;
 window.abrirModalCapital = abrirModalCapital;
 window.guardarCapital = guardarCapital;
 window.eliminarCapital = eliminarCapital;
+
+// ── RESÚMENES BANCARIOS ──────────────────────────────────
+async function getDriveTokenFin() {
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
+  let token = session?.provider_token || localStorage.getItem('drive_token');
+  if (!token) {
+    const refresh = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
+    if (refresh) {
+      try {
+        const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refresh }),
+        });
+        if (r.ok) { const { access_token } = await r.json(); token = access_token; localStorage.setItem('drive_token', token); }
+      } catch(e) {}
+    }
+  }
+  return token;
+}
+
+export function abrirResumenesFinanzas() {
+  const { desde, modo } = getPeriodoFinanzas();
+  if (modo !== 'mensual') return;
+  const d = new Date(desde + 'T12:00:00');
+  const anio = d.getFullYear();
+  const mes  = d.getMonth() + 1;
+  const label = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  document.getElementById('resumenes-finanzas-titulo').textContent = `📎 Resúmenes — ${label}`;
+  renderResumenesFinanzas(anio, mes);
+  openModal('modal-resumenes-finanzas');
+}
+
+async function renderResumenesFinanzas(anio: number, mes: number) {
+  const body = document.getElementById('resumenes-finanzas-body');
+  body.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const archivos = await sb('archivos_finanzas', { filters: [`anio=eq.${anio}`, `mes=eq.${mes}`], order: 'created_at' });
+
+  const tipos = [
+    { key: 'caja_ahorro_pesos',    label: 'Caja de ahorro pesos',    icon: '🏦' },
+    { key: 'caja_ahorro_dolares',  label: 'Caja de ahorro dólares',  icon: '💵' },
+    { key: 'cuenta_corriente',     label: 'Cuenta corriente',        icon: '📄' },
+  ];
+
+  body.innerHTML = tipos.map(t => {
+    const lista = archivos.filter(a => a.tipo === t.key);
+    const items = lista.length
+      ? lista.map(a => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${a.drive_url ? `<a href="${a.drive_url}" target="_blank" style="color:var(--blue)">${escHtml(a.nombre)}</a>` : escHtml(a.nombre)}
+            </span>
+            <button class="btn btn-danger btn-sm" onclick="eliminarResumenFinanzas(${a.id},${anio},${mes})">✕</button>
+          </div>`).join('')
+      : `<div style="color:var(--text-3);font-size:12px;font-style:italic;padding:4px 0">Sin archivos</div>`;
+
+    return `<div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2)">${t.icon} ${t.label}</div>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+          + Subir
+          <input type="file" style="display:none" multiple onchange="subirResumenFinanzas(this,'${t.key}',${anio},${mes})">
+        </label>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${items}</div>
+    </div>`;
+  }).join('');
+}
+
+export async function subirResumenFinanzas(input: HTMLInputElement, tipo: string, anio: number, mes: number) {
+  if (!input.files?.length) return;
+  const token = await getDriveTokenFin();
+  if (!token) { toast('Sin acceso a Drive. Volvé a iniciar sesión.', 'err'); return; }
+
+  const yyyymm = `${anio}${String(mes).padStart(2, '0')}`;
+  const tipoSlug = tipo.replace(/_/g, '-');
+
+  const existentes = await sb('archivos_finanzas', { filters: [`anio=eq.${anio}`, `mes=eq.${mes}`, `tipo=eq.${tipo}`], select: 'id' });
+  let num = existentes.length + 1;
+
+  for (const file of Array.from(input.files)) {
+    const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+    const nombre = num === 1 && !existentes.length
+      ? `${yyyymm}-${tipoSlug}${ext}`
+      : `${yyyymm}-${tipoSlug}-${num}${ext}`;
+
+    toast(`Subiendo ${nombre}...`);
+    try {
+      const metadata = { name: nombre, parents: [FOLDER_FINANZAS] };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', file, nombre);
+
+      const res = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form }
+      );
+
+      let drive_url = null, drive_id = null;
+      if (res.ok) {
+        const data = await res.json();
+        drive_id = data.id; drive_url = data.webViewLink;
+        await fetch(`https://www.googleapis.com/drive/v3/files/${drive_id}/permissions`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+        });
+      } else if (res.status === 401) {
+        localStorage.removeItem('drive_token');
+        toast('Token de Drive expirado. Volvé a iniciar sesión.', 'err');
+        return;
+      }
+
+      await sbPost('archivos_finanzas', { anio, mes, tipo, nombre, drive_url, drive_id });
+      num++;
+    } catch(e) { toast('Error al subir: ' + (e as any).message, 'err'); }
+  }
+
+  toast('Archivos subidos');
+  await renderResumenesFinanzas(anio, mes);
+  input.value = '';
+}
+
+export async function eliminarResumenFinanzas(id: number, anio: number, mes: number) {
+  if (!confirm('¿Eliminar este archivo?')) return;
+  await sbDelete('archivos_finanzas', id);
+  await renderResumenesFinanzas(anio, mes);
+}
+
+window.abrirResumenesFinanzas = abrirResumenesFinanzas;
+window.subirResumenFinanzas = subirResumenFinanzas;
+window.eliminarResumenFinanzas = eliminarResumenFinanzas;

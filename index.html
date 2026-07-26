@@ -282,6 +282,7 @@
             <option value="anual">Anual</option>
           </select>
           <button class="btn btn-ghost" onclick="cambiarPeriodoFinanzas(1)">Siguiente →</button>
+          <button class="btn btn-ghost" id="btn-resumenes-finanzas" onclick="abrirResumenesFinanzas()" style="display:none">📎 Resúmenes</button>
         </div>
       </div>
       <!-- KPIs -->
@@ -1306,6 +1307,20 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-cobro')">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarCobro()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESUMENES FINANZAS -->
+<div class="modal-overlay" id="modal-resumenes-finanzas">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title" id="resumenes-finanzas-titulo">📎 Resúmenes bancarios</span>
+      <button class="modal-close" onclick="closeModal('modal-resumenes-finanzas')">×</button>
+    </div>
+    <div class="modal-body" id="resumenes-finanzas-body" style="display:flex;flex-direction:column;gap:20px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-resumenes-finanzas')">Cerrar</button>
     </div>
   </div>
 </div>

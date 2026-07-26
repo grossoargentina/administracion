@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" crossorigin src="/assets/index-Cg6kLtOy.js"></script>
+  <script type="module" crossorigin src="/assets/index-kUlK5B64.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
   <link rel="stylesheet" crossorigin href="/assets/index-BbE6liBB.css">
 <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
@@ -45,7 +45,7 @@
         <span class="nav-icon">📋</span> Eventos
       </div>
       <div class="nav-item" data-page="cobros" onclick="goTo('cobros')">
-        <span class="nav-icon">💰</span> Cobros pendientes
+        <span class="nav-icon">💰</span> Cobros
       </div>
 
       <div class="nav-item" data-page="logistica" onclick="goTo('logistica')">
@@ -127,9 +127,16 @@
         <button class="filter-btn" onclick="filterEventos('Confirmado',this)">Confirmados</button>
         <button class="filter-btn" onclick="filterEventos('Realizado',this)">Realizados</button>
         <button class="filter-btn" onclick="filterEventos('Cobrado',this)">Cobrados</button>
+        <button class="filter-btn" onclick="filterEventos('Dado de baja',this)" style="opacity:.6">Bajas</button>
       </div>
-      <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <input class="inp" style="max-width:320px" id="ev-busqueda" placeholder="🔍 Buscar por cliente..." oninput="buscarEventos(this.value)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="navMesEventos(-1)">‹</button>
+          <span id="ev-mes-label" style="font-size:13px;font-weight:600;min-width:110px;text-align:center"></span>
+          <button class="btn btn-ghost btn-sm" onclick="navMesEventos(1)">›</button>
+          <button class="btn btn-ghost btn-sm" onclick="navMesEventos(0)" style="font-size:11px">Todos</button>
+        </div>
       </div>
       <div class="card">
         <div class="tbl-wrap">
@@ -145,16 +152,26 @@
     <div class="page" id="p-cobros">
       <div class="page-header">
         <div>
-          <div class="page-title">Cobros pendientes</div>
-          <div class="page-sub">Eventos confirmados o realizados con pagos incompletos</div>
+          <div class="page-title">Cobros</div>
+          <div class="page-sub">Pendientes y últimos cobros registrados</div>
         </div>
       </div>
       <div class="kpi-grid" id="cobros-kpis"></div>
       <div class="card">
+        <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.08em;padding:0 0 8px 0">PENDIENTES</div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Total</th><th>Pendiente</th><th>Seña</th><th>Saldo</th><th></th></tr></thead>
-            <tbody id="cobros-tbody"><tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr></tbody>
+            <thead><tr><th>Cliente</th><th>Evento</th><th>Fecha</th><th>Total</th><th>Pendiente</th><th>Seña</th><th>Saldo</th><th></th><th></th></tr></thead>
+            <tbody id="cobros-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.08em;padding:0 0 8px 0">ÚLTIMOS COBROS</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th></tr></thead>
+            <tbody id="cobros-recientes-tbody"><tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -237,6 +254,8 @@
           <option>Tecnología</option>
           <option>Marketing</option>
           <option>Impuestos</option>
+          <option>Pagos</option>
+          <option>Legal</option>
           <option>Varios</option>
         </select>
         <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosOficina()">Limpiar</button>
@@ -265,6 +284,7 @@
             <option value="anual">Anual</option>
           </select>
           <button class="btn btn-ghost" onclick="cambiarPeriodoFinanzas(1)">Siguiente →</button>
+          <button class="btn btn-ghost" id="btn-resumenes-finanzas" onclick="abrirResumenesFinanzas()" style="display:none">📎 Resúmenes</button>
         </div>
       </div>
       <!-- KPIs -->
@@ -524,10 +544,11 @@
 <div class="modal-overlay" id="modal-gasto-oficina">
   <div class="modal" style="max-width:420px">
     <div class="modal-header">
-      <span class="modal-title">Registrar gasto de oficina</span>
+      <span class="modal-title" id="ofic-modal-title">Registrar gasto de oficina</span>
       <button class="modal-close" onclick="closeModal('modal-gasto-oficina')">×</button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="ofic-id">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="ofic-desc" placeholder="Ej: Alquiler, Internet, Resmas..."></div>
         <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="ofic-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
@@ -548,6 +569,8 @@
             <option value="Tecnología">Tecnología</option>
             <option value="Marketing">Marketing</option>
             <option value="Impuestos">Impuestos</option>
+            <option value="Pagos">Pagos</option>
+            <option value="Legal">Legal</option>
             <option value="Varios">Varios</option>
           </select>
         </div>
@@ -633,7 +656,7 @@
         <div class="field" id="ev-sena-wrap"><label class="lbl">Seña (ARS)</label><input class="inp ars-input" type="text" id="ev-sena" placeholder="0" oninput="fmtInputARS(this)"></div>
         <div class="field"><label class="lbl">Estado</label>
           <select class="inp" id="ev-estado">
-            <option>Confirmado</option><option>Realizado</option><option>Cobrado</option>
+            <option>Confirmado</option><option>Realizado</option><option>Cobrado</option><option>Dado de baja</option>
           </select>
         </div>
         <div class="field full" style="display:flex;gap:24px;padding:6px 0">
@@ -651,6 +674,14 @@
           <span id="ev-total-final" style="font-size:16px;font-weight:600;color:var(--gold)">$ 0</span>
         </div>
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
+        <div class="field full">
+          <label class="lbl">Imágenes de referencia</label>
+          <div id="ev-imagenes-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+          <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px dashed var(--border);border-radius:8px;margin-top:8px;color:var(--text-2);font-size:12px">
+            + Agregar imagen
+            <input type="file" id="ev-imagen-input" accept="image/*" multiple style="display:none" onchange="agregarImagenesEvento(this)">
+          </label>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -768,26 +799,6 @@
 </div>
 
 <!-- MODAL CAJA -->
-<div class="modal-overlay" id="modal-caja">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-header">
-      <span class="modal-title" id="caja-modal-title">Registrar movimiento</span>
-      <button class="modal-close" onclick="closeModal('modal-caja')">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="caja-tipo">
-      <div class="form-grid">
-        <div class="field" style="grid-column:1/-1"><label class="lbl">Descripción *</label><input class="inp" id="caja-desc" placeholder="Ej: Compra materiales, Pago servicio..."></div>
-        <div class="field"><label class="lbl">Monto (ARS) *</label><input class="inp ars-input" type="text" id="caja-monto" placeholder="0" oninput="fmtInputARS(this)"></div>
-        <div class="field"><label class="lbl">Fecha</label><input class="inp" type="date" id="caja-fecha"></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-caja')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarMovimientoCaja()">Guardar</button>
-    </div>
-  </div>
-</div>
 
 <!-- MODAL PRODUCTO CATÁLOGO -->
 <div class="modal-overlay" id="modal-cliente">
@@ -799,6 +810,22 @@
     <div class="modal-body">
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre *</label><input class="inp" id="cliente-nombre" placeholder="Nombre del cliente"></div>
+        <div class="field">
+          <label class="lbl">Muerte accidental</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-muerte" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Total Permanente</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-inv-total" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Parcial Permanente</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-inv-parcial" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Gastos médicos / farmacéuticos</label>
+          <input class="inp ars-input" type="text" id="cliente-monto-medicos" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Beneficiarios de cláusula de no repetición</label>
           <div id="cliente-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
@@ -814,7 +841,7 @@
 </div>
 
 <div class="modal-overlay" id="modal-seguros-evento">
-  <div class="modal" style="max-width:540px">
+  <div class="modal" style="max-width:560px">
     <div class="modal-header">
       <span class="modal-title">🛡️ Cláusulas de seguro</span>
       <button class="modal-close" onclick="closeModal('modal-seguros-evento')">×</button>
@@ -822,6 +849,47 @@
     <div class="modal-body" id="modal-seguros-body" style="display:flex;flex-direction:column;gap:16px"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-seguros-evento')">Cerrar</button>
+      <button class="btn btn-ghost" id="btn-editar-seguro-propio" onclick="abrirSeguroPropio()">✏️ Seguro propio</button>
+      <button class="btn btn-primary" id="btn-compartir-clausulas" onclick="compartirClausulas()">📤 Compartir</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SEGURO PROPIO DEL EVENTO -->
+<div class="modal-overlay" id="modal-seguro-propio">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title">🛡️ Seguro propio del evento</span>
+      <button class="modal-close" onclick="closeModal('modal-seguro-propio')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label class="lbl">Muerte accidental</label>
+          <input class="inp ars-input" type="text" id="seg-propio-muerte" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Total Permanente</label>
+          <input class="inp ars-input" type="text" id="seg-propio-inv-total" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Parcial Permanente</label>
+          <input class="inp ars-input" type="text" id="seg-propio-inv-parcial" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Gastos médicos / farmacéuticos</label>
+          <input class="inp ars-input" type="text" id="seg-propio-medicos" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Beneficiarios de cláusula de no repetición</label>
+          <div id="seg-propio-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="agregarBenefSeguroPropio()">+ Agregar beneficiario</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-seguro-propio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarSeguroPropio()">💾 Guardar</button>
     </div>
   </div>
 </div>
@@ -836,6 +904,22 @@
       <div class="form-grid">
         <div class="field" style="grid-column:1/-1"><label class="lbl">Nombre del salón *</label><input class="inp" id="salon-nombre" placeholder="Nombre"></div>
         <div class="field" style="grid-column:1/-1"><label class="lbl">Dirección</label><input class="inp" id="salon-direccion" placeholder="Calle, número, localidad"></div>
+        <div class="field">
+          <label class="lbl">Muerte accidental</label>
+          <input class="inp ars-input" type="text" id="salon-monto-muerte" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Total Permanente</label>
+          <input class="inp ars-input" type="text" id="salon-monto-inv-total" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Inv. Parcial Permanente</label>
+          <input class="inp ars-input" type="text" id="salon-monto-inv-parcial" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
+        <div class="field">
+          <label class="lbl">Gastos médicos / farmacéuticos</label>
+          <input class="inp ars-input" type="text" id="salon-monto-medicos" placeholder="0" oninput="fmtInputARS(this)">
+        </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Beneficiarios de cláusula de no repetición</label>
           <div id="salon-benef-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
@@ -876,6 +960,14 @@
             <img id="producto-foto-preview" src="" alt="" style="display:none;width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
           </div>
           <div id="producto-foto-status" style="font-size:11px;color:var(--text-3);margin-top:4px"></div>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Fotos adicionales</label>
+          <div id="producto-fotos-adicionales-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+          <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px dashed var(--border);border-radius:8px;margin-top:8px;color:var(--text-2);font-size:12px">
+            + Agregar foto
+            <input type="file" id="producto-fotos-adicionales-input" accept="image/*" multiple style="display:none" onchange="agregarFotosAdicionalesProducto(this)">
+          </label>
         </div>
       </div>
     </div>
@@ -946,25 +1038,34 @@
   <div class="modal" style="max-width:440px">
     <div class="modal-header">
       <span class="modal-title" id="armado-modal-title">Agregar día de armado</span>
-      <button class="modal-close" onclick="closeModal('modal-agregar-armado')">×</button>
+      <button class="modal-close" onclick="delete state._editLogId; closeModal('modal-agregar-armado')">×</button>
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Evento</label>
-          <div id="armado-evento" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+        <div class="field" style="grid-column:1/-1" id="armado-evento-single-wrap">
+          <label class="lbl">Evento *</label>
+          <select class="inp" id="armado-evento" onchange="onArmadoEventoChange()"></select>
+        </div>
+        <div class="field" style="grid-column:1/-1;display:none" id="armado-evento-multi-wrap">
+          <label class="lbl">Eventos * <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios)</span></label>
+          <div id="armado-eventos-multi" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;padding:8px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px"></div>
         </div>
         <div class="field" style="grid-column:1/-1">
-          <label class="lbl">Tipo</label>
-          <div id="armado-tipo" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+          <label class="lbl">Tipo *</label>
+          <select class="inp" id="armado-tipo" onchange="onArmadoTipoChange()">
+            <option value="Armado">Armado</option>
+            <option value="Operador">Operador</option>
+            <option value="Desarme">Desarme</option>
+            <option value="Depósito">Depósito</option>
+          </select>
         </div>
         <div class="field">
-          <label class="lbl">Fecha</label>
-          <div id="armado-fecha" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+          <label class="lbl">Fecha *</label>
+          <input class="inp" type="date" id="armado-fecha">
         </div>
         <div class="field">
           <label class="lbl">Hora inicio</label>
-          <div id="armado-hora" style="padding:8px 12px;background:var(--bg-3);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2)">—</div>
+          <input class="inp" type="time" id="armado-hora">
         </div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Personal</label>
@@ -973,7 +1074,7 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-agregar-armado')">Cancelar</button>
+      <button class="btn btn-ghost" onclick="delete state._editLogId; closeModal('modal-agregar-armado')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarAgregarArmado()">💾 Guardar</button>
     </div>
   </div>
@@ -1041,7 +1142,6 @@
       <button class="btn btn-ghost" onclick="closeModal('modal-log-det')">Cerrar</button>
       <button class="btn btn-ghost" onclick="generarWhatsappLogistica()">💬 WhatsApp por persona</button>
       <button class="btn btn-ghost" onclick="generarPDFLogistica()">📄 PDF y guardar en Drive</button>
-      <button class="btn btn-primary" onclick="confirmarPagosLogistica()">✓ Confirmar jornadas</button>
     </div>
   </div>
 </div>
@@ -1106,9 +1206,9 @@
       <div class="form-grid">
         <div class="field"><label class="lbl">Sección</label>
           <select class="inp" id="imp-seccion" onchange="actualizarCatImp()">
-            <option>Empresa / Fiscal</option><option>Familia / Casa</option>
+            <option>Empresa</option><option>Familia</option>
             <option>Suscripciones</option><option>Tarjetas</option>
-            <option>Planes de pago</option><option>Deudas</option>
+            <option>Planes</option><option>Deudas</option>
           </select>
         </div>
         <div class="field"><label class="lbl">Categoría</label>
@@ -1209,6 +1309,48 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-cobro')">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarCobro()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESUMENES FINANZAS -->
+<div class="modal-overlay" id="modal-resumenes-finanzas">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title" id="resumenes-finanzas-titulo">📎 Resúmenes bancarios</span>
+      <button class="modal-close" onclick="closeModal('modal-resumenes-finanzas')">×</button>
+    </div>
+    <div class="modal-body" id="resumenes-finanzas-body" style="display:flex;flex-direction:column;gap:20px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-resumenes-finanzas')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ARCHIVOS IMPUESTOS -->
+<div class="modal-overlay" id="modal-archivos-impuestos">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title" id="archivos-impuestos-titulo">📎 Archivos</span>
+      <button class="modal-close" onclick="closeModal('modal-archivos-impuestos')">×</button>
+    </div>
+    <div class="modal-body" id="archivos-impuestos-body" style="display:flex;flex-direction:column;gap:20px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-archivos-impuestos')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ARCHIVOS CONTABLES -->
+<div class="modal-overlay" id="modal-archivos-contables">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title" id="archivos-contables-titulo">📎 Archivos contables</span>
+      <button class="modal-close" onclick="closeModal('modal-archivos-contables')">×</button>
+    </div>
+    <div class="modal-body" id="archivos-contables-body" style="display:flex;flex-direction:column;gap:20px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-archivos-contables')">Cerrar</button>
     </div>
   </div>
 </div>
