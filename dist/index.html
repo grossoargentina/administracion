@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" crossorigin src="/assets/index-rFtQGuPu.js"></script>
+  <script type="module" crossorigin src="/assets/index-gxb4Mjmd.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
   <link rel="stylesheet" crossorigin href="/assets/index-BbE6liBB.css">
 <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
@@ -1190,6 +1190,34 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-personal')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarPersonal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-historial-tarifas">
+  <div class="modal" style="max-width:760px;width:95%">
+    <div class="modal-header">
+      <span class="modal-title" id="historial-tarifas-titulo">📈 Evolución de tarifas</span>
+      <button class="modal-close" onclick="closeModal('modal-historial-tarifas')">×</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:20px">
+      <div id="historial-chart-area"></div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2)">Registros históricos</div>
+          <button class="btn btn-ghost btn-sm" onclick="mostrarFormHistorial()">+ Agregar fecha</button>
+        </div>
+        <div id="historial-form-nuevo" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
+            <div><label style="font-size:11px;color:var(--text-2)">Fecha</label><input type="text" id="hist-fecha" class="form-control" placeholder="dd/mm/aaaa"></div>
+            <div><label style="font-size:11px;color:var(--text-2)">Depósito</label><input type="text" id="hist-dep" class="form-control" placeholder="0"></div>
+            <div><label style="font-size:11px;color:var(--text-2)">Armado</label><input type="text" id="hist-arm" class="form-control" placeholder="0"></div>
+            <div><label style="font-size:11px;color:var(--text-2)">Operador</label><input type="text" id="hist-op" class="form-control" placeholder="0"></div>
+            <button class="btn btn-primary btn-sm" onclick="guardarEntradaHistorial()">Guardar</button>
+          </div>
+        </div>
+        <div id="historial-tarifas-body"></div>
+      </div>
     </div>
   </div>
 </div>
