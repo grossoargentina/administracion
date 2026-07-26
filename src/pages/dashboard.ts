@@ -216,7 +216,7 @@ export async function loadDashboard() {
 
   try {
     const [eventos, logisticas, logEvs] = await Promise.all([
-      sbCached('v_eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], order: 'fecha_evento.asc', limit: 100 }),
+      sbCached('v_eventos', { filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`, `estado=neq.Dado de baja`], order: 'fecha_evento.asc', limit: 100 }),
       sbCached('logisticas', { limit: 200 }),
       sbCached('logistica_eventos', { limit: 500 }),
     ]);

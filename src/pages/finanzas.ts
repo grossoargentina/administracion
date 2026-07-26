@@ -54,7 +54,7 @@ export async function loadFinanzas() {
 
   try {
     // 1. Ingresos: pagos de eventos cuya fecha_evento cae en el período
-    const eventosDelPeriodo = await sbCached('v_eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`], limit: 200 });
+    const eventosDelPeriodo = await sbCached('v_eventos', { select: 'id,venue,cliente_nombre', filters: [`fecha_evento=gte.${desde}`, `fecha_evento=lte.${hasta}`, `estado=neq.Dado de baja`], limit: 200 });
     const eventoIds = eventosDelPeriodo.map(e => e.id);
     const [cobros, presupuestosEvento] = await Promise.all([
       eventoIds.length ? sbCached('pagos', { filters: [`evento_id=in.(${eventoIds.join(',')})`], limit: 500 }) : Promise.resolve([]),
@@ -143,7 +143,7 @@ export async function loadFinanzas() {
     resEl.style.color = resultado >= 0 ? 'var(--green)' : 'var(--red)';
 
     // KPIs adicionales: pendientes de cobro y jornadas sin pagar (estado actual, no atado al período)
-    const cobrosPendientes = await sbCached('v_cobros_pendientes');
+    const cobrosPendientes = (await sbCached('v_cobros_pendientes')).filter(c => c.estado !== 'Dado de baja');
     document.getElementById('fin-pendientes-cobro').textContent = cobrosPendientes.length;
     const jornadasSinPagar = await sbCached('jornadas', { select: 'id', filters: ['pagado=eq.false', 'personal_id=not.is.null'], limit: 1000 });
     document.getElementById('fin-jornadas-sin-pagar').textContent = jornadasSinPagar.length;

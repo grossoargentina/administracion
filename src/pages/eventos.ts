@@ -505,7 +505,7 @@ export async function confirmarCobro() {
 export async function loadCobros() {
   try {
     const [cobros, pagosRecientes] = await Promise.all([
-      sbCached('v_cobros_pendientes'),
+      sbCached('v_cobros_pendientes').then(r => r.filter(c => c.estado !== 'Dado de baja')),
       sbCached('pagos', { select: 'id,evento_id,tipo,monto_ars,fecha_cobro', order: 'fecha_cobro.desc', limit: 20 }),
     ]);
     const total = cobros.reduce((s,c) => s + Number(c.pendiente_ars||0), 0);
