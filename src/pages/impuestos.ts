@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
-import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
+import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_IMPUESTOS } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
 // ── IMPUESTOS ─────────────────────────────────────────────
@@ -151,6 +151,7 @@ export async function renderImpuestos() {
                 : `<button class="btn btn-ghost btn-sm" onclick="marcarPagadoImp(${i.id})">Marcar pagado</button>`}
         </td>
         <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="abrirArchivosImpuesto(${i.id},'${(i.concepto||'').replace(/'/g,"\\'")}',${i.anio},${mesNum(i.mes)})">📎</button>
           <button class="btn btn-ghost btn-sm" onclick="editarImpuesto(${i.id})">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="eliminarImpuesto(${i.id})">✕</button>
         </td>
@@ -339,3 +340,132 @@ window.editarImpuesto = editarImpuesto;
 window.guardarImpuesto = guardarImpuesto;
 window.generarMesNuevo = generarMesNuevo;
 window.confirmarMesNuevo = confirmarMesNuevo;
+
+// ── ARCHIVOS IMPUESTOS ───────────────────────────────────
+let _impArchCtx: { costoFijoId: number; concepto: string; anio: number; mes: number } | null = null;
+
+async function getDriveTokenImp() {
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
+  let token = session?.provider_token || localStorage.getItem('drive_token');
+  if (!token) {
+    const refresh = session?.provider_refresh_token || localStorage.getItem('drive_refresh_token');
+    if (refresh) {
+      try {
+        const r = await fetch('https://mitosihorpjmrosdxqbt.supabase.co/functions/v1/refresh-drive-token', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refresh }),
+        });
+        if (r.ok) { const { access_token } = await r.json(); token = access_token; localStorage.setItem('drive_token', token); }
+      } catch(e) {}
+    }
+  }
+  return token;
+}
+
+function slugifyImp(s: string) {
+  return (s || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+export async function abrirArchivosImpuesto(costoFijoId: number, concepto: string, anio: number, mes: number) {
+  _impArchCtx = { costoFijoId, concepto, anio, mes };
+  document.getElementById('archivos-impuestos-titulo').textContent = `📎 ${concepto}`;
+  await renderArchivosImpuesto();
+  openModal('modal-archivos-impuestos');
+}
+
+async function renderArchivosImpuesto() {
+  const body = document.getElementById('archivos-impuestos-body');
+  body.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const archivos = await sb('archivos_impuestos', { filters: [`costo_fijo_id=eq.${_impArchCtx.costoFijoId}`], order: 'created_at' });
+  const tipos = [
+    { key: 'factura',           label: 'Factura',               icon: '🧾' },
+    { key: 'comprobante_pago',  label: 'Comprobante de pago',   icon: '💳' },
+  ];
+  body.innerHTML = tipos.map(t => {
+    const lista = archivos.filter(a => a.tipo === t.key);
+    const items = lista.length
+      ? lista.map(a => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${a.drive_url ? `<a href="${a.drive_url}" target="_blank" style="color:var(--blue)">${escHtml(a.nombre)}</a>` : escHtml(a.nombre)}
+            </span>
+            <button class="btn btn-danger btn-sm" onclick="eliminarArchivoImpuesto(${a.id})">✕</button>
+          </div>`).join('')
+      : `<div style="color:var(--text-3);font-size:12px;font-style:italic;padding:4px 0">Sin archivos</div>`;
+    return `<div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-2)">${t.icon} ${t.label}</div>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+          + Subir
+          <input type="file" style="display:none" multiple onchange="subirArchivosImpuesto(this,'${t.key}')">
+        </label>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${items}</div>
+    </div>`;
+  }).join('');
+}
+
+export async function subirArchivosImpuesto(input: HTMLInputElement, tipo: string) {
+  if (!_impArchCtx || !input.files?.length) return;
+  const token = await getDriveTokenImp();
+  if (!token) { toast('Sin acceso a Drive. Volvé a iniciar sesión.', 'err'); return; }
+
+  const { costoFijoId, concepto, anio, mes } = _impArchCtx;
+  const yyyymm = `${anio}${String(mes).padStart(2, '0')}`;
+  const conceptoSlug = slugifyImp(concepto);
+
+  const existentes = await sb('archivos_impuestos', { filters: [`costo_fijo_id=eq.${costoFijoId}`, `tipo=eq.${tipo}`], select: 'id' });
+  let num = existentes.length + 1;
+
+  for (const file of Array.from(input.files)) {
+    const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+    const nombre = `${yyyymm}-${conceptoSlug}-${tipo}-${num}${ext}`;
+
+    toast(`Subiendo ${nombre}...`);
+    try {
+      const metadata = { name: nombre, parents: [FOLDER_IMPUESTOS] };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', file, nombre);
+
+      const res = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form }
+      );
+
+      let drive_url = null, drive_id = null;
+      if (res.ok) {
+        const data = await res.json();
+        drive_id = data.id; drive_url = data.webViewLink;
+        await fetch(`https://www.googleapis.com/drive/v3/files/${drive_id}/permissions`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+        });
+      } else if (res.status === 401) {
+        localStorage.removeItem('drive_token');
+        toast('Token de Drive expirado. Volvé a iniciar sesión.', 'err');
+        return;
+      }
+
+      await sbPost('archivos_impuestos', { costo_fijo_id: costoFijoId, tipo, nombre, drive_url, drive_id });
+      num++;
+    } catch(e) { toast('Error al subir: ' + (e as any).message, 'err'); }
+  }
+
+  toast('Archivos subidos');
+  await renderArchivosImpuesto();
+  input.value = '';
+}
+
+export async function eliminarArchivoImpuesto(id: number) {
+  if (!confirm('¿Eliminar este archivo?')) return;
+  await sbDelete('archivos_impuestos', id);
+  await renderArchivosImpuesto();
+}
+
+window.abrirArchivosImpuesto = abrirArchivosImpuesto;
+window.subirArchivosImpuesto = subirArchivosImpuesto;
+window.eliminarArchivoImpuesto = eliminarArchivoImpuesto;
