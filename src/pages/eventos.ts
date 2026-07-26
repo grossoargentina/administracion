@@ -591,11 +591,12 @@ async function _sincronizarImagenesEvento(eventoId: number) {
 export async function darDeBajaEvento(id, cliente) {
   if (!confirm(`¿Dar de baja el evento de ${cliente}? Quedará oculto del pipeline.`)) return;
   try {
-    await sbPatch('eventos', id, { estado: 'Dado de baja' });
+    const ok = await sbPatch('eventos', id, { estado: 'Dado de baja' });
+    if (!ok) { toast('Error al dar de baja', 'err'); return; }
     invalidateCache('eventos');
     invalidateCache('v_pipeline');
     toast('Evento dado de baja');
-    loadEventos();
+    await loadEventos();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
