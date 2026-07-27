@@ -1463,6 +1463,17 @@
         <div class="field" id="pres-sena-wrap"><label class="lbl">Seña (ARS)</label><input class="inp ars-input" type="text" id="pres-sena" placeholder="0" oninput="fmtInputARS(this)"></div>
       </div>
 
+      <!-- FLETE -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="pres-flete-incluido" checked onchange="toggleFletePresup()" style="accent-color:var(--gold);width:15px;height:15px">
+          Flete incluido
+        </label>
+        <div id="pres-flete-wrap" style="display:none;flex:1">
+          <input class="inp ars-input" type="text" id="pres-flete-monto" placeholder="Costo de flete (ARS)" oninput="fmtInputARS(this);actualizarTotalFinalEv()" style="margin:0">
+        </div>
+      </div>
+
       <!-- TOTALES -->
       <div id="pres-totales" style="background:var(--surface2);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
         <span style="color:var(--text-2);font-size:13px">Total</span>

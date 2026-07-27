@@ -925,6 +925,9 @@ export async function abrirModalPresupuesto() {
   document.querySelector('#modal-presupuesto .modal-title').textContent = 'Nuevo presupuesto';
   presItems = [];
   renderItemsPresup();
+  // Reset flete
+  const fleteChk = document.getElementById('pres-flete-incluido') as HTMLInputElement;
+  if (fleteChk) { fleteChk.checked = true; document.getElementById('pres-flete-wrap').style.display = 'none'; (document.getElementById('pres-flete-monto') as HTMLInputElement).value = ''; }
   calcularTotal();
 
   // Cargar catálogo si no está en cache
@@ -1260,10 +1263,23 @@ export function quitarItem(i) {
 
 // ── CALCULAR TOTAL ────────────────────────────────────────
 export function calcularTotal() {
-  const total = presItems.reduce((s, it) => s + it.precio * it.cantidad, 0);
+  const subtotal = presItems.reduce((s, it) => s + it.precio * it.cantidad, 0);
+  const fleteIncluido = (document.getElementById('pres-flete-incluido') as HTMLInputElement)?.checked ?? true;
+  const flete = fleteIncluido ? 0 : (parseARSInput(document.getElementById('pres-flete-monto')) || 0);
+  const total = subtotal + flete;
   const el = document.getElementById('pres-total-display');
   if (el) el.textContent = fmtARS(total);
-  return { total };
+  return { total, subtotal, flete };
+}
+
+export function toggleFletePresup() {
+  const incluido = (document.getElementById('pres-flete-incluido') as HTMLInputElement).checked;
+  const wrap = document.getElementById('pres-flete-wrap');
+  if (wrap) wrap.style.display = incluido ? 'none' : '';
+  if (incluido && document.getElementById('pres-flete-monto')) {
+    (document.getElementById('pres-flete-monto') as HTMLInputElement).value = '';
+  }
+  calcularTotal();
 }
 
 // Mostrar/ocultar seña según modalidad
@@ -1308,6 +1324,8 @@ export async function generarPresupuesto() {
     const senaMonto = parseARSInput(document.getElementById('pres-sena'));
     const hoy       = new Date().toLocaleDateString('es-AR');
 
+    const fleteIncluido = (document.getElementById('pres-flete-incluido') as HTMLInputElement).checked;
+    const fleteMonto    = fleteIncluido ? 0 : (parseARSInput(document.getElementById('pres-flete-monto')) || 0);
     const { total } = calcularTotal();
     const sena  = senaMonto;
     const saldo = total - sena;
@@ -1499,6 +1517,16 @@ export async function generarPresupuesto() {
     });
 
 
+    // Flete (si no está incluido)
+    if (!fleteIncluido && fleteMonto > 0) {
+      if (y > PH - 20) { doc.addPage(); y = 15; }
+      fill([240,240,240]); doc.rect(M, y, CW, 7, 'F');
+      font('normal', 9); text(NEGRO);
+      doc.text('Flete', M+2, y+5);
+      doc.text(fmtA(fleteMonto), PW-M-2, y+5, { align:'right' });
+      y += 9;
+    }
+
     // Total
     if (y > PH - 20) { doc.addPage(); y = 15; }
     fill(ORO); doc.rect(M, y, CW, 0.8, 'F');
@@ -1570,7 +1598,9 @@ export async function generarPresupuesto() {
 
     const notas = [
       'Precios expresados en pesos argentinos (ARS).',
-      'El presupuesto incluye traslado dentro de CABA y alrededores.',
+      fleteIncluido
+        ? 'El presupuesto incluye traslado dentro de CABA y alrededores.'
+        : `Flete no incluido en los productos. Costo de flete adicional: ${fmtA(fleteMonto)}.`,
       'El presupuesto incluye costos de armado, operador y desarme.',
       'Valores de pago en efectivo (Factura A – Más IVA).',
       'Vigencia presupuesto por 15 días.',
@@ -1811,6 +1841,7 @@ window.guardarItemEnCatalogo = guardarItemEnCatalogo;
 window.quitarItem = quitarItem;
 window.calcularTotal = calcularTotal;
 window.toggleSena = toggleSena;
+window.toggleFletePresup = toggleFletePresup;
 window.toggleSenaEv = toggleSenaEv;
 window.actualizarTotalFinalEv = actualizarTotalFinalEv;
 window.generarPresupuesto = generarPresupuesto;
