@@ -418,6 +418,7 @@ export async function subirArchivosImpuesto(input: HTMLInputElement, tipo: strin
 
   const existentes = await sb('archivos_impuestos', { filters: [`costo_fijo_id=eq.${costoFijoId}`, `tipo=eq.${tipo}`], select: 'id' });
   let num = existentes.length + 1;
+  let ok = 0, err = 0;
 
   for (const file of Array.from(input.files)) {
     const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
@@ -451,11 +452,13 @@ export async function subirArchivosImpuesto(input: HTMLInputElement, tipo: strin
       }
 
       await sbPost('archivos_impuestos', { costo_fijo_id: costoFijoId, tipo, nombre, drive_url, drive_id });
-      num++;
-    } catch(e) { toast('Error al subir: ' + (e as any).message, 'err'); }
+      num++; ok++;
+    } catch(e) { err++; toast('Error al subir ' + nombre + ': ' + (e as any).message, 'err'); }
   }
 
-  toast('Archivos subidos');
+  if (err === 0) toast(`✅ ${ok} archivo(s) subido(s)`);
+  else if (ok === 0) toast(`❌ No se pudo subir ningún archivo (${err} error${err>1?'es':''})`, 'err');
+  else toast(`⚠️ ${ok} subido(s), ${err} con error`, 'err');
   await renderArchivosImpuesto();
   input.value = '';
 }
