@@ -347,8 +347,12 @@ export async function loadDashboard() {
       const productosHtml = items.length
         ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
             <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Productos</div>
-            <div style="display:flex;flex-wrap:wrap;gap:4px">
-              ${items.map(i => `<span style="font-size:11px;background:var(--bg-3);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text-1)">${i.cantidad > 1 ? `${i.cantidad}× ` : ''}${i.producto}</span>`).join('')}
+            <div style="display:flex;flex-direction:column;gap:6px">
+              ${items.map(i => `
+                <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:5px 8px">
+                  <div style="font-size:12px;color:var(--text-1);font-weight:600">${i.cantidad > 1 ? `${i.cantidad}× ` : ''}${escHtml(i.producto)}</div>
+                  ${i.descripcion ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">${escHtml(i.descripcion)}</div>` : ''}
+                </div>`).join('')}
             </div>
           </div>`
         : '';
