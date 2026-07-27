@@ -815,26 +815,8 @@ export async function perderPresupuesto(id, cliente) {
   const motivoTexto = motivos[parseInt(motivo) - 1] || motivo;
 
   try {
-    // Crear evento perdido en pipeline
-    const evCount = await sb('eventos', { select: 'id' });
-    const codigo  = 'EV' + String(evCount.length + 1).padStart(3,'0');
-
-    await sbPost('eventos', {
-      codigo,
-      estado:         'Perdido',
-      cliente_nombre: cliente,
-      motivo_perdida: motivoTexto,
-      created_at:     new Date().toISOString(),
-      updated_at:     new Date().toISOString(),
-    });
-
-    // Actualizar estado del presupuesto
-    await sbPatch('presupuestos', id, {
-      estado_evento: 'Perdido',
-    });
-
+    await sbPatch('presupuestos', id, { estado_evento: 'Perdido' });
     invalidateCache('presupuestos');
-    invalidateCache('eventos');
     toast(`Presupuesto marcado como perdido — ${motivoTexto}`);
     loadPresupuestos();
   } catch(e) {
