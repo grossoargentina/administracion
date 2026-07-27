@@ -144,7 +144,7 @@ export function renderEventos() {
   document.getElementById('ev-tbody').innerHTML = lista.length
     ? lista.map(e => `<tr>
         <td>${badge(e.estado)}</td>
-        <td><b>${e.cliente_nombre}</b></td>
+        <td><b>${escHtml(e.cliente_nombre)}</b>${e.nombre_evento ? `<div style="font-size:11px;color:var(--text-2)">${escHtml(e.nombre_evento)}</div>` : ''}</td>
         <td>${e.tipo_evento || '—'}</td>
         <td>${fmtDate(e.fecha_evento)}</td>
         <td>${e.venue || '—'}</td>
@@ -249,6 +249,7 @@ export async function editEvento(id) {
   document.getElementById('modal-evento-title').textContent = 'Editar evento';
   document.getElementById('ev-cliente').value   = ev.cliente_nombre;
   document.getElementById('ev-tipo').value      = ev.tipo_evento || 'Casamiento';
+  (document.getElementById('ev-nombre-evento') as HTMLInputElement).value = ev.nombre_evento || '';
   const fpFecha = document.getElementById('ev-fecha')._flatpickr;
   if (fpFecha) {
     fpFecha.clear();
@@ -316,6 +317,7 @@ export async function guardarEvento() {
   const data = {
     cliente_nombre:  cliente,
     tipo_evento:     document.getElementById('ev-tipo').value,
+    nombre_evento:   (document.getElementById('ev-nombre-evento') as HTMLInputElement).value.trim() || null,
     venue:           document.getElementById('ev-venue').value,
     monto_base_ars: evMontoBase,
     incluye_iva:    evIncluyeIva,

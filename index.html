@@ -634,6 +634,7 @@
             <option>Social</option><option>Cumpleaños</option><option>Otro</option>
           </select>
         </div>
+        <div class="field full"><label class="lbl">Nombre del evento <span style="color:var(--text-3);font-weight:400">(opcional, ej: "Cumpleaños de 15 de Sofía")</span></label><input class="inp" id="ev-nombre-evento" placeholder="Opcional"></div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Fechas del evento <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios días)</span></label>
           <input class="inp" type="text" id="ev-fecha" placeholder="Seleccioná una o más fechas..." readonly style="cursor:pointer">
@@ -1405,11 +1406,13 @@
             <option>Social</option><option>Cumpleaños</option><option>Otro</option>
           </select>
         </div>
+        <div class="field full"><label class="lbl">Nombre del evento <span style="color:var(--text-3);font-weight:400">(opcional, ej: "Cumpleaños de 15 de Sofía")</span></label><input class="inp" id="pres-nombre-evento" placeholder="Opcional"></div>
         <div class="field" style="grid-column:1/-1">
           <label class="lbl">Fechas del evento <span style="color:var(--text-3);font-weight:400">(podés seleccionar varios días)</span></label>
           <input class="inp" id="pres-fechas" placeholder="Seleccioná una o más fechas..." readonly style="cursor:pointer">
         </div>
         <div class="field full"><label class="lbl">Venue / Lugar</label><div style="position:relative"><input class="inp" id="pres-venue" placeholder="Nombre del salón" autocomplete="off" oninput="acFilter('pres-venue','ac-salones')" onfocus="acFilter('pres-venue','ac-salones')" onblur="acHide('ac-salones')"><div id="ac-salones" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;z-index:9999;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.2);margin-top:2px"></div></div></div>
+        <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="pres-notas" placeholder="Notas del presupuesto (salen en el PDF y se copian al evento)" rows="2" style="resize:vertical"></textarea></div>
       </div>
 
       <!-- PRODUCTOS DEL CATÁLOGO -->

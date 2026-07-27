@@ -370,6 +370,13 @@ export async function loadDashboard() {
           </div>`
         : '';
 
+      const notasHtml = ev.notas
+        ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Notas</div>
+            <div style="font-size:12px;color:var(--text-1);white-space:pre-wrap">${escHtml(ev.notas)}</div>
+          </div>`
+        : '';
+
       return `<div class="card" style="margin-bottom:12px;padding:16px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
           <div style="display:flex;align-items:flex-start;gap:10px">
@@ -387,6 +394,7 @@ export async function loadDashboard() {
         ${columnsHtml}
         ${productosHtml}
         ${imagenesRefHtml}
+        ${notasHtml}
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="verSegurosEvento(${ev.id})">🛡️ Ver cláusulas</button>
           ${ev.seguro_enviado

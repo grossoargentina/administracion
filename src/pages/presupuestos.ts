@@ -1,5 +1,6 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
+import flatpickr from 'flatpickr';
 import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtARS0, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
@@ -696,6 +697,8 @@ export async function confirmarPresupuestoFinal() {
       estado:          'Confirmado',
       cliente_nombre:  cliente,
       tipo_evento:     tipo || '',
+      nombre_evento:   p.nombre_evento || null,
+      notas:           p.notas || null,
       venue:           venue || '',
       monto_base_ars:  montoBase,
       incluye_iva:     incluyeIva,
@@ -866,7 +869,7 @@ export async function loadPresupuestos() {
             <td style="color:var(--text-2);font-size:12px">${fmtDate(p.created_at?.split('T')[0])}</td>
             <td style="font-weight:600;color:var(--gold)">${p.numero}</td>
             <td style="font-size:12px;color:var(--text-2)">v${p.version || 1}</td>
-            <td><b>${p.cliente}</b></td>
+            <td><b>${escHtml(p.cliente)}</b>${p.nombre_evento ? `<div style="font-size:11px;color:var(--text-2)">${escHtml(p.nombre_evento)}</div>` : ''}</td>
             <td>${p.tipo_evento || '—'}</td>
             <td style="font-weight:600">${fmtARS(p.total_ars)}</td>
             <td style="font-size:12px;color:var(--text-2)">${p.modalidad || '—'}</td>
@@ -905,6 +908,8 @@ let presVersionInfo = null; // { grupoId, nextVersion } cuando se está creando 
 export async function abrirModalPresupuesto() {
   presVersionInfo = null;
   document.querySelector('#modal-presupuesto .modal-title').textContent = 'Nuevo presupuesto';
+  (document.getElementById('pres-nombre-evento') as HTMLInputElement).value = '';
+  (document.getElementById('pres-notas') as HTMLTextAreaElement).value = '';
   presItems = [];
   renderItemsPresup();
   // Reset flete
@@ -988,6 +993,8 @@ export async function nuevaVersionPresupuesto(id) {
   document.getElementById('pres-numero').value   = base.numero;
   document.getElementById('pres-cliente').value  = base.cliente || '';
   document.getElementById('pres-tipo').value     = base.tipo_evento || 'Casamiento';
+  (document.getElementById('pres-nombre-evento') as HTMLInputElement).value = base.nombre_evento || '';
+  (document.getElementById('pres-notas') as HTMLTextAreaElement).value     = base.notas || '';
   // Cargar fechas guardadas en el flatpickr multi-fecha
   const fpPres = document.getElementById('pres-fechas')._flatpickr;
   if (fpPres) {
@@ -1298,6 +1305,8 @@ export async function generarPresupuesto() {
   try {
     const numero    = document.getElementById('pres-numero').value;
     const tipo      = document.getElementById('pres-tipo').value;
+    const nombreEvento = (document.getElementById('pres-nombre-evento') as HTMLInputElement).value.trim();
+    const notasInternas = (document.getElementById('pres-notas') as HTMLTextAreaElement).value.trim();
     const fpPres    = document.getElementById('pres-fechas')._flatpickr;
     const fechasEvento = fpPres ? fpPres.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
     const fecha        = fechasEvento[0] || '';
@@ -1419,6 +1428,7 @@ export async function generarPresupuesto() {
 
     const eventoRows = [
       ['Cliente:', cliente, 'Tipo:', tipo],
+      ...(nombreEvento ? [['Nombre:', nombreEvento, '', '']] : []),
       [`Fecha${fechasEvento.length > 1 ? 's' : ''}:`, fechasEvento.length ? fechasEvento.map(f => new Date(f+'T12:00:00').toLocaleDateString('es-AR')).join(' · ') : (fecha ? new Date(fecha+'T12:00:00').toLocaleDateString('es-AR') : '-'), '', ''],
       ['Venue:', venue||'-', '', ''],
     ];
@@ -1595,6 +1605,21 @@ export async function generarPresupuesto() {
       doc.text(`${i+1}. ${n}`, M, y); y += 3.8;
     });
 
+    // ── NOTAS DEL PRESUPUESTO ─────────────────────────────
+    if (notasInternas) {
+      y += 3;
+      if (y > PH - 25) { doc.addPage(); y = 15; }
+      fill(NEGRO); doc.rect(M, y, CW, 5.5, 'F');
+      font('bold', 7.5); text(BLANCO);
+      doc.text('NOTAS', M+2, y+3.8); y += 8;
+      font('normal', 7.5); text(NEGRO);
+      const notasWrapped = doc.splitTextToSize(notasInternas, CW - 4);
+      notasWrapped.forEach(line => {
+        if (y > PH - 18) { doc.addPage(); y = 15; }
+        doc.text(line, M, y); y += 4;
+      });
+    }
+
     // ── GALERÍA DE IMÁGENES ADICIONALES ──────────────────
     const itemsConFotosAd = presItems.filter(it => !it.esCustom && (fotosAdicionalesMap[it.id] || []).length > 0);
     if (itemsConFotosAd.length) {
@@ -1726,7 +1751,7 @@ export async function generarPresupuesto() {
     // ── Guardar en Supabase ───────────────────────────────
     try {
       const pres = await sbPost('presupuestos', {
-        numero, cliente, tipo_evento: tipo,
+        numero, cliente, tipo_evento: tipo, nombre_evento: nombreEvento || null,
         fecha_evento: fecha || null, venue,
         fechas_evento: fechasEvento.length ? JSON.stringify(fechasEvento) : null,
         dias_evento: fechasEvento.length || 1,
@@ -1738,6 +1763,7 @@ export async function generarPresupuesto() {
         evento_id: state._presupuestoParaEventoId || null,
         version: presVersionInfo ? presVersionInfo.nextVersion : 1,
         grupo_id: presVersionInfo ? presVersionInfo.grupoId : null,
+        notas: notasInternas || null,
       });
       // Guardar items
       const presId = Array.isArray(pres) ? pres[0]?.id : pres?.id;
