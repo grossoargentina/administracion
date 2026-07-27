@@ -349,10 +349,23 @@ export async function loadDashboard() {
             <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Productos</div>
             <div style="display:flex;flex-direction:column;gap:6px">
               ${items.map(i => `
-                <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:5px 8px">
-                  <div style="font-size:12px;color:var(--text-1);font-weight:600">${i.cantidad > 1 ? `${i.cantidad}× ` : ''}${escHtml(i.producto)}</div>
-                  ${i.descripcion ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">${escHtml(i.descripcion)}</div>` : ''}
+                <div style="display:flex;gap:8px;align-items:flex-start;background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:5px 8px">
+                  ${i.foto_base64 ? `<img src="${i.foto_base64}" style="width:36px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0">` : ''}
+                  <div style="min-width:0">
+                    <div style="font-size:12px;color:var(--text-1);font-weight:600">${i.cantidad > 1 ? `${i.cantidad}× ` : ''}${escHtml(i.producto)}</div>
+                    ${i.descripcion ? `<div style="font-size:11px;color:var(--text-2);margin-top:2px">${escHtml(i.descripcion)}</div>` : ''}
+                  </div>
                 </div>`).join('')}
+            </div>
+          </div>`
+        : '';
+
+      const evImgs = imagenesByEvento[ev.id] || [];
+      const imagenesRefHtml = evImgs.length
+        ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Imágenes de referencia</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              ${evImgs.map(img => `<img src="${img.imagen_base64}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`).join('')}
             </div>
           </div>`
         : '';
@@ -373,6 +386,7 @@ export async function loadDashboard() {
         </div>
         ${columnsHtml}
         ${productosHtml}
+        ${imagenesRefHtml}
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="verSegurosEvento(${ev.id})">🛡️ Ver cláusulas</button>
           ${ev.seguro_enviado
