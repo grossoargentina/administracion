@@ -1255,7 +1255,7 @@ export async function guardarLogistica() {
 
 export async function enviarMailSeguroEvento(eventoId, evLabel) {
   try {
-    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,seguro_propio,fecha_armado,fecha_evento,fecha_desarme', limit: 1 });
+    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,seguro_propio,fecha_armado,fecha_desarme', limit: 1 });
     const ev0 = evRow[0] || {};
     let seguroInfo = parseSeguroInfo(null);
     if (ev0.cliente_id) {
@@ -1278,7 +1278,7 @@ export async function enviarMailSeguroEvento(eventoId, evLabel) {
     const persIds = [...new Set(jornadas.map(j => j.personal_id).filter(Boolean))];
     if (!persIds.length) { toast('Sin personal asignado a este evento', 'err'); return; }
 
-    const fechasEvento = [...jornadas.map(j => j.fecha), ev0.fecha_armado, ev0.fecha_evento, ev0.fecha_desarme].filter(Boolean).sort();
+    const fechasEvento = [...jornadas.map(j => j.fecha), ev0.fecha_armado, ev0.fecha_desarme].filter(Boolean).sort();
     let fechasLine = '';
     if (fechasEvento.length) {
       const desde = new Date(fechasEvento[0] + 'T12:00:00');
