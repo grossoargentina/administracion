@@ -1255,27 +1255,38 @@ export async function guardarLogistica() {
 
 export async function enviarMailSeguroEvento(eventoId, evLabel) {
   try {
-    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,seguro_propio', limit: 1 });
+    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,seguro_propio,fecha_armado,fecha_evento,fecha_desarme', limit: 1 });
     const ev0 = evRow[0] || {};
-    let beneficiarios = [];
+    let seguroInfo = parseSeguroInfo(null);
     if (ev0.cliente_id) {
       const clRow = await sb('clientes', { filters: [`id=eq.${ev0.cliente_id}`], select: 'seguro_info', limit: 1 });
-      beneficiarios = parseSeguroInfo(clRow[0]?.seguro_info).beneficiarios;
+      seguroInfo = parseSeguroInfo(clRow[0]?.seguro_info);
     }
-    if (!beneficiarios.length && ev0.salon_id) {
+    if (!seguroInfo.beneficiarios.length && ev0.salon_id) {
       const slRow = await sb('salones', { filters: [`id=eq.${ev0.salon_id}`], select: 'seguro_info', limit: 1 });
-      beneficiarios = parseSeguroInfo(slRow[0]?.seguro_info).beneficiarios;
+      seguroInfo = parseSeguroInfo(slRow[0]?.seguro_info);
     }
-    if (!beneficiarios.length) {
-      beneficiarios = parseSeguroInfo(ev0.seguro_propio).beneficiarios;
+    if (!seguroInfo.beneficiarios.length) {
+      seguroInfo = parseSeguroInfo(ev0.seguro_propio);
     }
-    if (!beneficiarios.length) { toast('Cargá los beneficiarios en el cliente, salón o evento primero', 'err'); return; }
+    if (!seguroInfo.beneficiarios.length) { toast('Cargá los beneficiarios en el cliente, salón o evento primero', 'err'); return; }
+    const beneficiarios = seguroInfo.beneficiarios;
 
     const segRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${eventoId}`], select: 'logistica_id', limit: 50 });
     const segLogIds = segRels.map(r => r.logistica_id);
-    const jornadas = segLogIds.length ? await sb('jornadas', { filters: [`logistica_id=in.(${segLogIds.join(',')})`], select: 'personal_id', limit: 500 }) : [];
+    const jornadas = segLogIds.length ? await sb('jornadas', { filters: [`logistica_id=in.(${segLogIds.join(',')})`], select: 'personal_id,fecha', limit: 500 }) : [];
     const persIds = [...new Set(jornadas.map(j => j.personal_id).filter(Boolean))];
     if (!persIds.length) { toast('Sin personal asignado a este evento', 'err'); return; }
+
+    const fechasEvento = [...jornadas.map(j => j.fecha), ev0.fecha_armado, ev0.fecha_evento, ev0.fecha_desarme].filter(Boolean).sort();
+    let fechasLine = '';
+    if (fechasEvento.length) {
+      const desde = new Date(fechasEvento[0] + 'T12:00:00');
+      const hasta = new Date(fechasEvento[fechasEvento.length - 1] + 'T12:00:00');
+      desde.setDate(desde.getDate() - 5);
+      hasta.setDate(hasta.getDate() + 5);
+      fechasLine = `${desde.toLocaleDateString('es-AR')} al ${hasta.toLocaleDateString('es-AR')}`;
+    }
 
     const personal = await sb('personal', {
       filters: [`id=in.(${persIds.join(',')})`],
@@ -1308,10 +1319,20 @@ export async function enviarMailSeguroEvento(eventoId, evLabel) {
         <div style="background:#f9f9f9;padding:24px;border-radius:0 0 8px 8px">
           <p style="margin:0 0 16px;font-size:14px;color:#333">
             Listado de personal para cobertura de seguro:<br><strong>${evLabel}</strong>
+            ${fechasLine ? `<br><span style="font-size:13px;color:#666">Vigencia: ${fechasLine}</span>` : ''}
           </p>
           <div style="background:#fff;border-radius:6px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
             <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#333">Cláusula de no repetición a favor de:</p>
             <ul style="margin:0;padding-left:18px;font-size:13px;color:#555">${filasClausula}</ul>
+          </div>
+          <div style="background:#fff;border-radius:6px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#333">Montos de cobertura:</p>
+            <ul style="margin:0;padding-left:18px;font-size:13px;color:#555">
+              <li>Muerte: ${fmtARS(seguroInfo.monto_muerte)}</li>
+              <li>Invalidez total: ${fmtARS(seguroInfo.monto_inv_total)}</li>
+              <li>Invalidez parcial: ${fmtARS(seguroInfo.monto_inv_parcial)}</li>
+              <li>Gastos médicos: ${fmtARS(seguroInfo.monto_gastos_medicos)}</li>
+            </ul>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
             <thead>
