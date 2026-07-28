@@ -44,11 +44,12 @@ export async function loadPagos() {
   content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
   try {
-    const [jornadas, jornadasPagadas, personal, extrasDB] = await Promise.all([
+    const [jornadas, jornadasPagadas, personal, extrasDB, extrasPagadas] = await Promise.all([
       sbCached('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`, `personal_id=not.is.null`], limit: 500 }),
       sbCached('v_jornadas', { filters: [`fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.true`, `personal_id=not.is.null`], limit: 500 }),
       sbCached('personal', { limit: 200 }),
-      sbCached('pago_extras', { filters: [`semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`], limit: 200 }),
+      sbCached('pago_extras', { filters: [`semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`, `pagado=eq.false`], limit: 200 }),
+      sbCached('pago_extras', { filters: [`semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`, `pagado=eq.true`], limit: 200 }),
     ]);
     window._extrasCache = extrasDB;
 
@@ -96,7 +97,7 @@ export async function loadPagos() {
     const porPersonaPagado = {};
     jornadasPagadas.forEach(j => {
       if (!porPersonaPagado[j.personal_id]) {
-        porPersonaPagado[j.personal_id] = { apellido: j.personal_apellido || '', nombre: j.personal_nombre || '', jornadas: [] };
+        porPersonaPagado[j.personal_id] = { id: j.personal_id, apellido: j.personal_apellido || '', nombre: j.personal_nombre || '', jornadas: [] };
       }
       // Misma lógica que en pendientes: siempre usar la tarifa vigente del personal
       const p2 = personal.find(x => x.id === j.personal_id) || {};
@@ -109,7 +110,8 @@ export async function loadPagos() {
     const htmlPagados = filasPagadas.length ? `
       <div style="margin-top:24px;margin-bottom:10px;font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase">✅ Pagados esta semana</div>
       ${filasPagadas.map(p => {
-        const total = p.jornadas.reduce((s,j) => s + Number(j.tarifa_ars||0), 0);
+        const extrasP = extrasPagadas.filter(e => e.personal_id == p.id);
+        const total = p.jornadas.reduce((s,j) => s + Number(j.tarifa_ars||0), 0) + extrasP.reduce((s,e) => s + Number(e.monto||0), 0);
         const filas2 = p.jornadas.sort((a,b) => a.fecha.localeCompare(b.fecha)).map(j => {
           const dow = new Date(j.fecha+'T12:00:00').toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'2-digit'});
           return `<tr style="font-size:12px;color:var(--text-3)">
@@ -118,7 +120,11 @@ export async function loadPagos() {
             <td style="padding:4px 8px">${j.venue||j.evento_codigo||'—'}</td>
             <td style="padding:4px 8px;text-align:right">${fmtARS(j.tarifa_ars)}</td>
           </tr>`;
-        }).join('');
+        }).join('') + extrasP.map(e => `<tr style="font-size:12px;color:var(--text-3)">
+            <td style="padding:4px 8px" colspan="2">${e.descripcion || 'Extra'}</td>
+            <td style="padding:4px 8px">—</td>
+            <td style="padding:4px 8px;text-align:right">${fmtARS(e.monto)}</td>
+          </tr>`).join('');
         const fechaPago = p.jornadas[0]?.fecha_pago;
         const fechaPagoFmt = fechaPago ? new Date(fechaPago + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
         return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--green);background:color-mix(in srgb, var(--green) 6%, var(--bg-2))">
@@ -342,12 +348,14 @@ export async function confirmarPagoPersona(metodo) {
     }
 
     for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: true, fecha_pago: hoy });
-    if (total !== 0) {
-      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: total, fecha: hoy, metodo_pago: metodo, categoria: 'Pagos' });
+    const totalExtras = extras.reduce((s, ex) => s + Number(ex.monto || 0), 0);
+    const baseTotal = total - totalExtras;
+    if (baseTotal !== 0) {
+      await sbInsert('caja', { tipo: 'egreso', descripcion: `Pago a ${nombre}`, monto: baseTotal, fecha: hoy, metodo_pago: metodo, categoria: 'Pagos' });
     }
-    // Borrar extras de la BD y registrar cada uno en caja
+    // Marcar extras como pagados (se conservan para reflejarse en "Pagados esta semana") y registrar cada uno en caja
     for (const ex of extras) {
-      await sbDelete('pago_extras', ex.id);
+      await sbPatch('pago_extras', ex.id, { pagado: true, fecha_pago: hoy });
       if (!ex.monto) continue;
       const tipo = Number(ex.monto) > 0 ? 'egreso' : 'ingreso';
       await sbInsert('caja', { tipo, descripcion: ex.descripcion || `Extra — ${nombre}`, monto: Math.abs(Number(ex.monto)), fecha: hoy, metodo_pago: metodo, categoria: 'Pagos' });
@@ -370,7 +378,7 @@ export async function generarReciboIndividual(p) {
   const [persRow, jornadas, extras] = await Promise.all([
     sbCached('personal', { filters: [`id=eq.${p.id}`], limit: 1 }).then(r => r[0] || p),
     sbCached('v_jornadas', { filters: [`personal_id=eq.${p.id}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.false`], limit: 200 }),
-    sbCached('pago_extras', { filters: [`personal_id=eq.${p.id}`, `semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`], limit: 200 }),
+    sbCached('pago_extras', { filters: [`personal_id=eq.${p.id}`, `semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`, `pagado=eq.false`], limit: 200 }),
   ]);
   const data = {
     apellido: persRow.apellido, nombre: persRow.nombre, tipo: persRow.tipo,

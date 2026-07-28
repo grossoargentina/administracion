@@ -599,6 +599,15 @@ export async function darDeBajaEvento(id, cliente) {
     const ok = await sbPatch('eventos', id, { estado: 'Dado de baja' });
     if (!ok) { toast('Error al dar de baja', 'err'); return; }
 
+    // Marcar como perdidos los presupuestos vinculados a este evento
+    const resPres = await fetch(`${SB_URL}/rest/v1/presupuestos?evento_id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado_evento: 'Perdido' }),
+    });
+    if (!resPres.ok) console.error('Error marcando presupuestos como perdidos', id, await resPres.text());
+    invalidateCache('presupuestos');
+
     // Eliminar logísticas del evento (jornadas no tienen cascade, hay que borrarlas primero)
     const rels = await sb('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 100 });
     if (rels.length) {
