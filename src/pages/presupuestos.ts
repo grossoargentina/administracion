@@ -907,6 +907,10 @@ let presVersionInfo = null; // { grupoId, nextVersion } cuando se está creando 
 
 export async function abrirModalPresupuesto() {
   presVersionInfo = null;
+  // Evita que un presupuesto nuevo herede el evento de una acción anterior
+  // (ej: "+ Presupuesto" sobre un evento existente); quien necesite asociarlo
+  // a un evento debe volver a setear esto DESPUÉS de llamar a esta función.
+  state._presupuestoParaEventoId = null;
   document.querySelector('#modal-presupuesto .modal-title').textContent = 'Nuevo presupuesto';
   (document.getElementById('pres-nombre-evento') as HTMLInputElement).value = '';
   (document.getElementById('pres-notas') as HTMLTextAreaElement).value = '';
@@ -986,6 +990,8 @@ export async function nuevaVersionPresupuesto(id) {
   const nextVersion = Math.max(...versiones.map(p => p.version || 1)) + 1;
 
   await abrirModalPresupuesto();
+  // Preservar la asociación a evento de la versión anterior, si tenía una
+  state._presupuestoParaEventoId = base.evento_id || null;
 
   presVersionInfo = { grupoId: root, nextVersion };
   document.querySelector('#modal-presupuesto .modal-title').textContent = `Nueva versión — v${nextVersion}`;

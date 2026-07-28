@@ -775,8 +775,9 @@ export async function abrirAgregarArmadoParaTipo(logId, tipo, evId) {
 export async function abrirPresupuestoParaEvento(eventoId) {
   const ev = (state.evCache || []).find(e => e.id === eventoId);
   if (!ev) return;
-  state._presupuestoParaEventoId = eventoId;
+  // abrirModalPresupuesto() resetea _presupuestoParaEventoId a null, por eso se setea DESPUÉS
   await abrirModalPresupuesto();
+  state._presupuestoParaEventoId = eventoId;
   document.querySelector('#modal-presupuesto .modal-title').textContent = `Presupuesto adicional — ${ev.cliente_nombre}`;
   document.getElementById('pres-cliente').value = ev.cliente_nombre || '';
   document.getElementById('pres-venue').value   = ev.venue || '';

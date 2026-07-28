@@ -1415,16 +1415,19 @@
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="pres-notas" placeholder="Notas del presupuesto (salen en el PDF y se copian al evento)" rows="2" style="resize:vertical"></textarea></div>
       </div>
 
-      <!-- PRODUCTOS DEL CATÁLOGO -->
-      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Productos del catálogo</div>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <input class="inp" id="pres-buscar" placeholder="🔍 Buscar producto..." style="flex:1;min-width:160px" oninput="filtrarCatalogoPres()">
-        <select class="inp" id="pres-cat-filtro" style="width:160px" onchange="filtrarCatalogoPres()">
-          <option value="">Todas las categorías</option>
-        </select>
+      <!-- ITEM PERSONALIZADO -->
+      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Ítem personalizado</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;margin-bottom:8px;align-items:flex-end">
+        <div class="field"><label class="lbl">Título del ítem</label><input class="inp" id="pres-custom-nombre" placeholder="Nombre del servicio"></div>
+        <div class="field"><label class="lbl">Precio ARS</label><input class="inp ars-input" type="text" id="pres-custom-precio" placeholder="0" oninput="fmtInputARS(this)"></div>
+        <label style="cursor:pointer;align-self:flex-end;margin-bottom:1px" title="Agregar foto">
+          <div id="pres-custom-foto-preview" style="width:38px;height:38px;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg-2);overflow:hidden;cursor:pointer">📷</div>
+          <input type="file" id="pres-custom-foto" accept="image/*" style="display:none" onchange="onCustomFotoChange(this)">
+        </label>
+        <button class="btn btn-ghost" onclick="agregarItemCustom()" style="flex-shrink:0;align-self:flex-end">+ Agregar</button>
       </div>
-      <div id="pres-catalogo-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
-        <div class="loading"><div class="spinner"></div> Cargando catálogo...</div>
+      <div style="margin-bottom:16px">
+        <textarea class="inp" id="pres-custom-desc" placeholder="Descripción del servicio (opcional)" rows="2" style="resize:vertical;font-size:12px;width:100%"></textarea>
       </div>
 
       <!-- ITEMS SELECCIONADOS -->
@@ -1444,18 +1447,16 @@
         </table>
       </div>
 
-      <!-- ITEM PERSONALIZADO -->
-      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;margin-bottom:8px;align-items:flex-end">
-        <div class="field"><label class="lbl">Título del ítem</label><input class="inp" id="pres-custom-nombre" placeholder="Nombre del servicio"></div>
-        <div class="field"><label class="lbl">Precio ARS</label><input class="inp ars-input" type="text" id="pres-custom-precio" placeholder="0" oninput="fmtInputARS(this)"></div>
-        <label style="cursor:pointer;align-self:flex-end;margin-bottom:1px" title="Agregar foto">
-          <div id="pres-custom-foto-preview" style="width:38px;height:38px;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg-2);overflow:hidden;cursor:pointer">📷</div>
-          <input type="file" id="pres-custom-foto" accept="image/*" style="display:none" onchange="onCustomFotoChange(this)">
-        </label>
-        <button class="btn btn-ghost" onclick="agregarItemCustom()" style="flex-shrink:0;align-self:flex-end">+ Agregar</button>
+      <!-- PRODUCTOS DEL CATÁLOGO -->
+      <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Productos del catálogo</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <input class="inp" id="pres-buscar" placeholder="🔍 Buscar producto..." style="flex:1;min-width:160px" oninput="filtrarCatalogoPres()">
+        <select class="inp" id="pres-cat-filtro" style="width:160px" onchange="filtrarCatalogoPres()">
+          <option value="">Todas las categorías</option>
+        </select>
       </div>
-      <div style="margin-bottom:16px">
-        <textarea class="inp" id="pres-custom-desc" placeholder="Descripción del servicio (opcional)" rows="2" style="resize:vertical;font-size:12px;width:100%"></textarea>
+      <div id="pres-catalogo-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:16px">
+        <div class="loading"><div class="spinner"></div> Cargando catálogo...</div>
       </div>
 
       <!-- CONDICIONES DE PAGO -->
