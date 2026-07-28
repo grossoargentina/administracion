@@ -48,6 +48,28 @@ export const fmtARS = v => v == null ? '—' : '$ ' + Number(v).toLocaleString('
 export const fmtARS0 = v => v == null || v === 0 ? '' : Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
 export const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR') : '—';
 export const escHtml = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// Parsea seguro_info/seguro_propio (clientes, salones, eventos): guarda un objeto
+// { montos..., beneficiarios } serializado, con compat hacia el formato viejo
+// (array plano de {nombre, cuit}, o solo 2 campos de monto)
+export function parseSeguroInfo(raw) {
+  const empty = { monto_muerte: 0, monto_inv_total: 0, monto_inv_parcial: 0, monto_gastos_medicos: 0, beneficiarios: [] };
+  if (!raw) return empty;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    // Backwards compat: formato viejo era un array plano de {nombre, cuit}
+    if (Array.isArray(parsed)) return { ...empty, beneficiarios: parsed };
+    // Backwards compat: formato viejo de 2 campos
+    const legacyAccidentes = parsed.monto_accidentes || 0;
+    return {
+      monto_muerte:         parsed.monto_muerte      || legacyAccidentes,
+      monto_inv_total:      parsed.monto_inv_total   || legacyAccidentes,
+      monto_inv_parcial:    parsed.monto_inv_parcial || legacyAccidentes,
+      monto_gastos_medicos: parsed.monto_gastos_medicos || 0,
+      beneficiarios:        parsed.beneficiarios || [],
+    };
+  } catch(e) { return empty; }
+}
 // Aplica 21% de IVA y/o 5% de recargo por pago diferido (sobre el monto ya con IVA, si corresponde) a un monto base sin IVA
 export function calcularTotalConRecargos(base, incluyeIva, pagoDiferido) {
   let t = Number(base) || 0;

@@ -1,7 +1,7 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
 import flatpickr from 'flatpickr';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtARS0, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtARS0, fmtDate, escHtml, calcularTotalConRecargos, parseSeguroInfo, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -33,24 +33,6 @@ export async function loadClientes() {
   } catch(e) { tbody.innerHTML = `<tr><td colspan="4" style="padding:16px;color:var(--red)">${e.message}</td></tr>`; }
 }
 
-function parseSeguroInfo(raw) {
-  const empty = { monto_muerte: 0, monto_inv_total: 0, monto_inv_parcial: 0, monto_gastos_medicos: 0, beneficiarios: [] };
-  if (!raw) return empty;
-  try {
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    // Backwards compat: old format was a plain array of {nombre, cuit}
-    if (Array.isArray(parsed)) return { ...empty, beneficiarios: parsed };
-    // Backwards compat: old 2-field format
-    const legacyAccidentes = parsed.monto_accidentes || 0;
-    return {
-      monto_muerte:         parsed.monto_muerte      || legacyAccidentes,
-      monto_inv_total:      parsed.monto_inv_total   || legacyAccidentes,
-      monto_inv_parcial:    parsed.monto_inv_parcial || legacyAccidentes,
-      monto_gastos_medicos: parsed.monto_gastos_medicos || 0,
-      beneficiarios:        parsed.beneficiarios || [],
-    };
-  } catch(e) { return empty; }
-}
 
 export async function editarCliente(id) {
   clienteEditId = id;

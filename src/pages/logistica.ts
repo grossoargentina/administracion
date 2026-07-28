@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, fmtLocalDate, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, parseSeguroInfo, today, fmtLocalDate, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_LIQUIDACIONES } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -1255,18 +1255,21 @@ export async function guardarLogistica() {
 
 export async function enviarMailSeguroEvento(eventoId, evLabel) {
   try {
-    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id', limit: 1 });
+    const evRow = await sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'cliente_id,salon_id,seguro_propio', limit: 1 });
     const ev0 = evRow[0] || {};
     let beneficiarios = [];
     if (ev0.cliente_id) {
       const clRow = await sb('clientes', { filters: [`id=eq.${ev0.cliente_id}`], select: 'seguro_info', limit: 1 });
-      try { beneficiarios = clRow[0]?.seguro_info ? JSON.parse(clRow[0].seguro_info) : []; } catch(e) {}
+      beneficiarios = parseSeguroInfo(clRow[0]?.seguro_info).beneficiarios;
     }
     if (!beneficiarios.length && ev0.salon_id) {
       const slRow = await sb('salones', { filters: [`id=eq.${ev0.salon_id}`], select: 'seguro_info', limit: 1 });
-      try { beneficiarios = slRow[0]?.seguro_info ? JSON.parse(slRow[0].seguro_info) : []; } catch(e) {}
+      beneficiarios = parseSeguroInfo(slRow[0]?.seguro_info).beneficiarios;
     }
-    if (!beneficiarios.length) { toast('Cargá los beneficiarios en el cliente o salón primero', 'err'); return; }
+    if (!beneficiarios.length) {
+      beneficiarios = parseSeguroInfo(ev0.seguro_propio).beneficiarios;
+    }
+    if (!beneficiarios.length) { toast('Cargá los beneficiarios en el cliente, salón o evento primero', 'err'); return; }
 
     const segRels = await sb('logistica_eventos', { filters: [`evento_id=eq.${eventoId}`], select: 'logistica_id', limit: 50 });
     const segLogIds = segRels.map(r => r.logistica_id);
