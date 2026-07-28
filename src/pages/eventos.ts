@@ -599,14 +599,20 @@ export async function darDeBajaEvento(id, cliente) {
     const ok = await sbPatch('eventos', id, { estado: 'Dado de baja' });
     if (!ok) { toast('Error al dar de baja', 'err'); return; }
 
-    // Eliminar logísticas del evento (cascade borra jornadas y logistica_eventos)
+    // Eliminar logísticas del evento (jornadas no tienen cascade, hay que borrarlas primero)
     const rels = await sb('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 100 });
     if (rels.length) {
       const logIds = rels.map(r => r.logistica_id).join(',');
-      await fetch(`${SB_URL}/rest/v1/logisticas?id=in.(${logIds})`, {
+      const resJorn = await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=in.(${logIds})`, {
         method: 'DELETE',
         headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
       });
+      if (!resJorn.ok) console.error('Error borrando jornadas del evento', id, await resJorn.text());
+      const resLog = await fetch(`${SB_URL}/rest/v1/logisticas?id=in.(${logIds})`, {
+        method: 'DELETE',
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+      });
+      if (!resLog.ok) console.error('Error borrando logísticas del evento', id, await resLog.text());
     }
 
     invalidateCache('eventos');
