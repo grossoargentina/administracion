@@ -348,7 +348,16 @@ export async function guardarEvento() {
       const jornadasOp = jornadasEv.filter(j => j.tipo === 'Operador');
       // Usar la logística tipo 'Evento' para las jornadas Operador
       const logsData = logIdsEv.length ? await sb('logisticas', { filters: [`id=in.(${logIdsEv.join(',')})`], select: 'id,tipo', limit: 20 }) : [];
-      const logIdEvento = logsData.find(l => l.tipo === 'Evento')?.id ?? logsData.find(l => l.tipo === 'Armado')?.id ?? logIdsEv[0];
+      let logIdEvento = logsData.find(l => l.tipo === 'Evento')?.id ?? logsData.find(l => l.tipo === 'Armado')?.id ?? logIdsEv[0];
+      if (!logIdEvento && fechasEv.length) {
+        // Este evento no tiene ninguna logística vinculada todavía (p.ej. eventos viejos) — crear una para poder guardar las fechas
+        const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: null });
+        const newLogId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
+        if (newLogId) {
+          await sbPost('logistica_eventos', { logistica_id: newLogId, evento_id: editingEventoId });
+          logIdEvento = newLogId;
+        }
+      }
       if (logIdEvento) {
         // Eliminar jornadas sobrantes (más jornadas que fechas)
         for (let i = fechasEv.length; i < jornadasOp.length; i++) {

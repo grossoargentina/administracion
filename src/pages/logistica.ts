@@ -1362,7 +1362,7 @@ export async function enviarMailSeguroEvento(eventoId, evLabel) {
       invalidateCache('eventos');
       const ev = (state.evCache || []).find(e => e.id === eventoId);
       if (ev) ev.seguro_enviado = true;
-      toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
+      toast(`✅ Mail enviado a ${EMAIL_SEGURO.join(', ')}`);
       loadDashboard();
     } else {
       toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
@@ -1448,7 +1448,7 @@ export async function enviarMailSeguro(logId) {
       }),
     });
     const data = await res.json();
-    if (res.ok && data.ok) toast(`✅ Mail enviado a ${EMAIL_SEGURO}`);
+    if (res.ok && data.ok) toast(`✅ Mail enviado a ${EMAIL_SEGURO.join(', ')}`);
     else toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
