@@ -25,7 +25,15 @@ export async function loadSeguros() {
             <td>${escHtml(e.venue || '—')}</td>
             <td>${fmtDate(e.fecha_evento)}</td>
             <td>${escHtml(e.estado || '')}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="abrirArchivosSeguros(${e.id},'${clienteEsc}','${venueEsc}','${e.fecha_evento || ''}')">📎 Archivos</button></td>
+            <td>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-ghost btn-sm" onclick="abrirArchivosSeguros(${e.id},'${clienteEsc}','${venueEsc}','${e.fecha_evento || ''}')">📎 Archivos</button>
+                <button class="btn btn-ghost btn-sm" onclick="verSegurosEvento(${e.id})">🛡️ Ver cláusulas</button>
+                ${e.seguro_enviado
+                  ? `<button class="btn btn-ghost btn-sm" style="opacity:.4;cursor:not-allowed" disabled>✅ Enviado</button>`
+                  : `<button class="btn btn-ghost btn-sm" onclick="enviarMailSeguroEvento(${e.id},'${venueEsc || e.codigo || ''}')">📧 Enviar seguro</button>`}
+              </div>
+            </td>
           </tr>`;
         }).join('')
       : `<tr><td colspan="5"><div class="empty"><div class="empty-icon">🛡️</div>Sin eventos</div></td></tr>`;
