@@ -70,6 +70,9 @@
       <div class="nav-item" data-page="impuestos" onclick="goTo('impuestos')">
         <span class="nav-icon">🗓️</span> Impuestos
       </div>
+      <div class="nav-item" data-page="seguros" onclick="goTo('seguros')">
+        <span class="nav-icon">🛡️</span> Seguros
+      </div>
       <div class="nav-item" data-page="presupuestos" onclick="goTo('presupuestos')">
         <span class="nav-icon">📄</span> Presupuestos
       </div>
@@ -168,8 +171,8 @@
         <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.08em;padding:0 0 8px 0">ÚLTIMOS COBROS</div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th></tr></thead>
-            <tbody id="cobros-recientes-tbody"><tr><td colspan="4" class="loading"><div class="spinner"></div></td></tr></tbody>
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Monto</th><th></th></tr></thead>
+            <tbody id="cobros-recientes-tbody"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -402,6 +405,25 @@
       </div>
     </div>
 
+    <!-- SEGUROS -->
+    <div class="page" id="p-seguros">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Seguros</div>
+          <div class="page-sub">Cláusulas y certificados por evento</div>
+        </div>
+      </div>
+      <input class="inp" style="max-width:320px;margin-bottom:16px" id="seg-busqueda" placeholder="🔍 Buscar por cliente o venue..." oninput="buscarSeguros(this.value)">
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th>Venue</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="seguros-tbody"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- PRESUPUESTOS -->
     <div class="page" id="p-presupuestos">
       <div class="page-header">
@@ -534,6 +556,7 @@
       <div class="mobile-nav-item" onclick="goTo('cobros')"><span class="mn-icon">💰</span>Cobros</div>
 
       <div class="mobile-nav-item" onclick="goTo('impuestos')"><span class="mn-icon">🗓️</span>Impuestos</div>
+      <div class="mobile-nav-item" onclick="goTo('seguros')"><span class="mn-icon">🛡️</span>Seguros</div>
     </div>
   </nav>
 </div>
@@ -673,6 +696,7 @@
           <span id="ev-total-final" style="font-size:16px;font-weight:600;color:var(--gold)">$ 0</span>
         </div>
         <div class="field full"><label class="lbl">Notas</label><textarea class="inp" id="ev-notas" rows="2"></textarea></div>
+        <div class="field full"><label class="lbl">Notas administrativas <span style="font-weight:400;color:var(--text-3)">(internas, no salen en el PDF)</span></label><textarea class="inp" id="ev-notas-admin" rows="2"></textarea></div>
         <div class="field full">
           <label class="lbl">Imágenes de referencia</label>
           <div id="ev-imagenes-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
@@ -1382,6 +1406,20 @@
     <div class="modal-body" id="archivos-contables-body" style="display:flex;flex-direction:column;gap:20px"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-archivos-contables')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ARCHIVOS SEGUROS -->
+<div class="modal-overlay" id="modal-archivos-seguros">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title" id="archivos-seguros-titulo">🛡️ Archivos de seguro</span>
+      <button class="modal-close" onclick="closeModal('modal-archivos-seguros')">×</button>
+    </div>
+    <div class="modal-body" id="archivos-seguros-body" style="display:flex;flex-direction:column;gap:20px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-archivos-seguros')">Cerrar</button>
     </div>
   </div>
 </div>

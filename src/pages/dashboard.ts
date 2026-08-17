@@ -197,6 +197,19 @@ export async function generarPDFFechas() {
       y += IMG_H + IMG_GAP;
     }
 
+    // Notas del evento
+    if (ev.notas) {
+      checkY(14);
+      fill(GRIS_F); doc.rect(M, y, CW, 6, 'F');
+      font('bold', 8); text(NEGRO);
+      doc.text('NOTAS', M + 2, y + 4); y += 9;
+      font('normal', 8); text(GRIS_T);
+      const notasLines = doc.splitTextToSize(ev.notas, CW - 4);
+      checkY(notasLines.length * 4 + 2);
+      doc.text(notasLines, M + 2, y);
+      y += notasLines.length * 4 + 4;
+    }
+
     stroke([220,220,220]); doc.setLineWidth(0.3); doc.line(M, y, PW - M, y); y += 8;
   }
 
@@ -377,6 +390,13 @@ export async function loadDashboard() {
           </div>`
         : '';
 
+      const notasAdminHtml = ev.notas_admin
+        ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+            <div style="font-size:11px;color:var(--gold);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Notas administrativas</div>
+            <div style="font-size:12px;color:var(--text-1);white-space:pre-wrap">${escHtml(ev.notas_admin)}</div>
+          </div>`
+        : '';
+
       return `<div class="card" style="margin-bottom:12px;padding:16px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
           <div style="display:flex;align-items:flex-start;gap:10px">
@@ -395,6 +415,7 @@ export async function loadDashboard() {
         ${productosHtml}
         ${imagenesRefHtml}
         ${notasHtml}
+        ${notasAdminHtml}
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="verSegurosEvento(${ev.id})">🛡️ Ver cláusulas</button>
           ${ev.seguro_enviado

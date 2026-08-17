@@ -127,6 +127,7 @@ export async function loadPagos() {
           </tr>`).join('');
         const fechaPago = p.jornadas[0]?.fecha_pago;
         const fechaPagoFmt = fechaPago ? new Date(fechaPago + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
+        const nombreEsc = `${p.apellido} ${p.nombre}`.replace(/'/g, "\\'");
         return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--green);background:color-mix(in srgb, var(--green) 6%, var(--bg-2))">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div style="display:flex;align-items:center;gap:8px">
@@ -134,7 +135,10 @@ export async function loadPagos() {
               <span style="font-weight:600;font-size:14px">${p.apellido} ${p.nombre}</span>
               ${fechaPagoFmt ? `<span style="font-size:11px;color:var(--green);opacity:.8">Pagado el ${fechaPagoFmt}</span>` : ''}
             </div>
-            <span style="font-size:16px;font-weight:700;color:var(--green)">${fmtARS(total)}</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:16px;font-weight:700;color:var(--green)">${fmtARS(total)}</span>
+              <button class="btn btn-ghost btn-sm" title="Deshacer pago" onclick="cancelarPagoPersona(${p.id},'${desde}','${hasta}','${nombreEsc}')">↩️</button>
+            </div>
           </div>
           <table style="width:100%;border-collapse:collapse">${filas2}</table>
         </div>`;
@@ -368,6 +372,22 @@ export async function confirmarPagoPersona(metodo) {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
+export async function cancelarPagoPersona(persId, desde, hasta, nombre) {
+  if (!confirm(`¿Deshacer el pago de ${nombre} de esta semana? Las jornadas y extras vuelven a quedar pendientes. Si ya se registró un gasto en Gastos oficina, borralo ahí manualmente.`)) return;
+  try {
+    const jornadas = await sb('v_jornadas', { filters: [`personal_id=eq.${persId}`, `fecha=gte.${desde}`, `fecha=lte.${hasta}`, `pagado=eq.true`], limit: 200 });
+    for (const j of jornadas) await sbPatch('jornadas', j.id, { pagado: false, fecha_pago: null });
+
+    const extras = await sb('pago_extras', { filters: [`personal_id=eq.${persId}`, `semana_desde=eq.${desde}`, `semana_hasta=eq.${hasta}`, `pagado=eq.true`], limit: 200 });
+    for (const ex of extras) await sbPatch('pago_extras', ex.id, { pagado: false, fecha_pago: null });
+
+    invalidateCache('jornadas');
+    invalidateCache('pago_extras');
+    toast('Pago deshecho — recordá borrar el gasto en Gastos oficina si corresponde');
+    loadPagos();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
 export async function generarReciboIndividual(p) {
   const { desde, hasta } = getSemana(pagosOffset);
   const lunes = new Date(desde + 'T12:00:00');
@@ -405,4 +425,5 @@ window.recalcularCardTotalDesdeCache = recalcularCardTotalDesdeCache;
 window.renderExtrasPagos = renderExtrasPagos;
 window.marcarPagadoPersona = marcarPagadoPersona;
 window.confirmarPagoPersona = confirmarPagoPersona;
+window.cancelarPagoPersona = cancelarPagoPersona;
 window.generarReciboIndividual = generarReciboIndividual;

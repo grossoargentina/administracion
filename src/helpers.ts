@@ -246,7 +246,7 @@ export function initDatePickers(root) {
   }
 }
 
-export function renderHorariosEv(dates, horariosGuardados = [], adicionalesGuardados = []) {
+export function renderHorariosEv(dates, horariosGuardados = [], adicionalesGuardados = [], horasFinGuardadas = []) {
   const wrap = document.getElementById('ev-fechas-horarios');
   if (!wrap) return;
   if (!dates.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
@@ -254,10 +254,13 @@ export function renderHorariosEv(dates, horariosGuardados = [], adicionalesGuard
   wrap.innerHTML = dates.map((d, i) => {
     const label    = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
     const val      = horariosGuardados[i] || '';
+    const valFin   = horasFinGuardadas[i] || '';
     const adicional = adicionalesGuardados[i] ? Number(adicionalesGuardados[i]).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
     return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:12px;color:var(--text-2);min-width:180px;text-transform:capitalize">${label}</span>
       <select class="inp" data-ev-hora-idx="${i}" style="width:120px;font-size:13px">${buildTimeOpts(val)}</select>
+      <span style="font-size:12px;color:var(--text-3)">a</span>
+      <select class="inp" data-ev-horafin-idx="${i}" style="width:120px;font-size:13px">${buildTimeOpts(valFin)}</select>
       ${i > 0 ? `<input class="inp" type="text" inputmode="numeric" data-ev-adicional-idx="${i}" placeholder="Adicional $" value="${adicional}"
         style="width:130px;font-size:13px" oninput="fmtInputARS(this);actualizarTotalFinalEv()">` : `<input type="hidden" data-ev-adicional-idx="${i}" value="0">`}
     </div>`;
@@ -269,6 +272,14 @@ export function getHorariosEv() {
   if (!wrap) return [];
   return Array.from(wrap.querySelectorAll('[data-ev-hora-idx]'))
     .sort((a: any, b: any) => a.dataset.evHoraIdx - b.dataset.evHoraIdx)
+    .map((el: any) => el.value || null);
+}
+
+export function getHorasFinEv() {
+  const wrap = document.getElementById('ev-fechas-horarios');
+  if (!wrap) return [];
+  return Array.from(wrap.querySelectorAll('[data-ev-horafin-idx]'))
+    .sort((a: any, b: any) => a.dataset.evHorafinIdx - b.dataset.evHorafinIdx)
     .map((el: any) => el.value || null);
 }
 

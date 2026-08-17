@@ -11,3 +11,4 @@ export const FOLDER_LIQUIDACIONES = '101wBK_cRmy4rnVK-xalX1UKYOVhLNsV6';
 export const FOLDER_CONTABLE  = '1c2QEhWabE1XqtWswbGPfM1e-cdph79lU';
 export const FOLDER_IMPUESTOS = '1Giw7jB9MBUxqW1IjNKqJt9-zqPbRqRKV';
 export const FOLDER_FINANZAS  = '1USRB6gUBaeIM4hIS76z6SJ_xaSImaupE';
+export const FOLDER_SEGUROS   = '1m-_p_ERsQwdLQgMDEhliE7rlPLOvYo8v';

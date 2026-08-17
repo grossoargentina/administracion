@@ -1363,7 +1363,7 @@ export async function enviarMailSeguroEvento(eventoId, evLabel) {
       const ev = (state.evCache || []).find(e => e.id === eventoId);
       if (ev) ev.seguro_enviado = true;
       toast(`✅ Mail enviado a ${EMAIL_SEGURO.join(', ')}`);
-      loadDashboard();
+      window.loadDashboard();
     } else {
       toast('Error enviando mail: ' + (data.error || 'desconocido'), 'err');
     }
@@ -1543,7 +1543,10 @@ export function renderEditorLogistica() {
           <span style="font-size:11px;color:var(--text-2)">${j.tipo}</span>
           ${transporteInfo ? `<div style="font-size:11px;color:var(--orange);margin-top:2px">${transporteInfo}</div>` : ''}
         </div>
-        <select class="inp" style="font-size:12px;width:110px" id="${jid}-hora">${buildTimeOpts('')}</select>
+        <div style="display:flex;align-items:center;gap:4px">
+          <select class="inp" style="font-size:12px;width:90px" id="${jid}-hora">${buildTimeOpts('')}</select>
+          ${j.tipo === 'Operador' ? `<span style="font-size:11px;color:var(--text-3)">a</span><select class="inp" style="font-size:12px;width:90px" id="${jid}-horafin">${buildTimeOpts('')}</select>` : ''}
+        </div>
         <input class="inp" style="font-size:12px" placeholder="Notas extra" id="${jid}-notas">
       </div>`;
     });
@@ -1567,8 +1570,9 @@ export function recolectarDatosLogistica() {
     if (!porFecha[j.fecha]) porFecha[j.fecha] = [];
     const jid   = `log-j-${j.id}`;
     const hora  = document.getElementById(`${jid}-hora`)?.value.trim()  || '';
+    const horaFin = document.getElementById(`${jid}-horafin`)?.value.trim() || '';
     const notas = document.getElementById(`${jid}-notas`)?.value.trim() || '';
-    porFecha[j.fecha].push({ ...j, hora, notas });
+    porFecha[j.fecha].push({ ...j, hora, horaFin, notas });
   });
   return porFecha;
 }
@@ -1593,7 +1597,7 @@ export function generarWhatsappLogistica() {
       if (!porPersona[key]) porPersona[key] = { nombre: j.personal_nombre||'', apellido: j.personal_apellido||'', dias: [] };
       const d     = new Date(fecha + 'T12:00:00');
       const label = `${DIAS_ES[d.getDay()].toUpperCase()} ${d.getDate()}`;
-      porPersona[key].dias.push({ fecha, label, tipo: j.tipo, hora: j.hora, notas: j.notas, llegada, diaNota, grupo, transporte: j.transporte, flete_personal: j.flete_personal, flete_monto: j.flete_monto });
+      porPersona[key].dias.push({ fecha, label, tipo: j.tipo, hora: j.hora, horaFin: j.horaFin, notas: j.notas, llegada, diaNota, grupo, transporte: j.transporte, flete_personal: j.flete_personal, flete_monto: j.flete_monto });
     });
   });
 
@@ -1605,7 +1609,7 @@ export function generarWhatsappLogistica() {
     let texto = `${p.apellido.toUpperCase()}\n\n`;
     p.dias.forEach(dia => {
       texto += `*${dia.label} - ${titulo.toUpperCase()}*\n`;
-      if (dia.hora)   texto += `${dia.hora} ${dia.tipo.toUpperCase()}`;
+      if (dia.hora)   texto += `${dia.hora}${dia.tipo === 'Operador' && dia.horaFin ? ' a ' + dia.horaFin : ''} ${dia.tipo.toUpperCase()}`;
       if (dia.notas)  texto += ` - ${dia.notas}`;
       if (dia.hora || dia.notas) texto += '\n';
       if (dia.transporte === 'Camioneta propia') texto += `🚛 CAMIONETA EMPRESA\n`;

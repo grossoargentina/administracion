@@ -183,6 +183,7 @@ export async function loadPage(page) {
     case 'finanzas':   window.loadFinanzas(); break;
     case 'personal':   window.loadPersonal(); break;
     case 'impuestos':  window.loadImpuestos(); break;
+    case 'seguros':    window.loadSeguros(); break;
     case 'presupuestos': window.loadPresupuestos(); break;
     case 'catalogo':   window.loadCatalogo(); break;
     case 'salones':    window.loadSalones(); break;

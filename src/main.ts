@@ -30,3 +30,4 @@ import './pages/gastos.js';
 import './pages/personal.js';
 import './pages/impuestos.js';
 import './pages/presupuestos.js';
+import './pages/seguros.js';

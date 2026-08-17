@@ -1,5 +1,5 @@
 import { state } from '../state';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, getAdicionalesEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, getAdicionalesEv, getHorasFinEv } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_CONTABLE } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -258,14 +258,15 @@ export async function editEvento(id) {
       const logRels = await sbCached('logistica_eventos', { filters: [`evento_id=eq.${id}`], select: 'logistica_id', limit: 50 });
       const logIds = logRels.map(r => r.logistica_id);
       const jorns = logIds.length
-        ? await sbCached('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha,hora_inicio,monto_adicional', order: 'fecha', limit: 100 })
+        ? await sbCached('jornadas', { filters: [`logistica_id=in.(${logIds.join(',')})`, 'tipo=eq.Operador'], select: 'fecha,hora_inicio,hora_fin,monto_adicional', order: 'fecha', limit: 100 })
         : [];
       const fechas     = jorns.map(j => j.fecha).filter(Boolean);
       const horarios   = jorns.length ? jorns.map(j => j.hora_inicio || '') : (ev.horario ? fechas.map(() => ev.horario) : []);
+      const horasFin   = jorns.map(j => j.hora_fin || '');
       const adicionales = jorns.map(j => j.monto_adicional || 0);
       if (fechas.length) {
         fpFecha.setDate(fechas);
-        renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horarios, adicionales);
+        renderHorariosEv(fpFecha.selectedDates.slice().sort((a,b) => a-b), horarios, adicionales, horasFin);
       }
     } catch(e) {}
   }
@@ -282,6 +283,7 @@ export async function editEvento(id) {
   evSenaEl.value = evSenaMonto > 0 ? evSenaMonto.toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
   document.getElementById('ev-estado').value    = ev.estado;
   document.getElementById('ev-notas').value = ev.notas || '';
+  (document.getElementById('ev-notas-admin') as HTMLTextAreaElement).value = ev.notas_admin || '';
   // Cargar imágenes de referencia
   _eventoImagenes = [];
   try {
@@ -307,6 +309,7 @@ export async function guardarEvento() {
   const fpEv = document.getElementById('ev-fecha')._flatpickr;
   const fechasEv    = fpEv ? fpEv.selectedDates.map(d => d.toISOString().slice(0,10)).sort() : [];
   const horariosEv  = getHorariosEv();
+  const horasFinEv  = getHorasFinEv();
   const adicionalesEv = getAdicionalesEv();
   const totalAdicionales = adicionalesEv.reduce((s, v) => s + (v || 0), 0);
 
@@ -327,6 +330,7 @@ export async function guardarEvento() {
     sena_monto:     parseARSInput(document.getElementById('ev-sena')),
     estado:         document.getElementById('ev-estado').value,
     notas:          document.getElementById('ev-notas').value,
+    notas_admin:    (document.getElementById('ev-notas-admin') as HTMLTextAreaElement).value,
     fecha_armado:      document.getElementById('ev-fecha-armado').value || null,
     hora_armado:       document.getElementById('ev-hora-armado').value || null,
     fecha_desarme:     document.getElementById('ev-fecha-desarme').value || null,
@@ -351,7 +355,7 @@ export async function guardarEvento() {
       let logIdEvento = logsData.find(l => l.tipo === 'Evento')?.id ?? logsData.find(l => l.tipo === 'Armado')?.id ?? logIdsEv[0];
       if (!logIdEvento && fechasEv.length) {
         // Este evento no tiene ninguna logística vinculada todavía (p.ej. eventos viejos) — crear una para poder guardar las fechas
-        const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: null });
+        const newLog = await sbPost('logisticas', { tipo: 'Evento', evento_id: editingEventoId, notas: null });
         const newLogId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
         if (newLogId) {
           await sbPost('logistica_eventos', { logistica_id: newLogId, evento_id: editingEventoId });
@@ -365,7 +369,7 @@ export async function guardarEvento() {
         }
         // Actualizar las que coinciden por posición
         for (let i = 0; i < Math.min(jornadasOp.length, fechasEv.length); i++) {
-          await sbPatch('jornadas', jornadasOp[i].id, { fecha: fechasEv[i], hora_inicio: horariosEv[i] || null, monto_adicional: adicionalesEv[i] || 0 });
+          await sbPatch('jornadas', jornadasOp[i].id, { fecha: fechasEv[i], hora_inicio: horariosEv[i] || null, hora_fin: horasFinEv[i] || null, monto_adicional: adicionalesEv[i] || 0 });
         }
         // Crear jornadas nuevas si hay más fechas que jornadas
         if (fechasEv.length > jornadasOp.length) {
@@ -375,6 +379,7 @@ export async function guardarEvento() {
             tipo: 'Operador',
             fecha: f,
             hora_inicio: horariosEv[jornadasOp.length + i] || null,
+            hora_fin: horasFinEv[jornadasOp.length + i] || null,
             monto_adicional: adicionalesEv[jornadasOp.length + i] || 0,
             pagado: false,
           }));
@@ -386,6 +391,24 @@ export async function guardarEvento() {
         if (j.tipo === 'Armado'  && data.fecha_armado)  jPatch.fecha = data.fecha_armado;
         if (j.tipo === 'Desarme' && data.fecha_desarme)  jPatch.fecha = data.fecha_desarme;
         if (Object.keys(jPatch).length) await sbPatch('jornadas', j.id, jPatch);
+      }
+      // Crear logística + jornada de Armado/Desarme si el evento tiene fecha pero todavía no las tiene
+      for (const tl of [
+        { tipo: 'Armado',  fecha: data.fecha_armado,  existe: jornadasEv.some(j => j.tipo === 'Armado') },
+        { tipo: 'Desarme', fecha: data.fecha_desarme, existe: jornadasEv.some(j => j.tipo === 'Desarme') },
+      ]) {
+        if (!tl.fecha || tl.existe) continue;
+        const logRow = await sbPost('logisticas', { tipo: tl.tipo, evento_id: editingEventoId, notas: null });
+        const logId = Array.isArray(logRow) ? logRow[0]?.id : logRow?.id;
+        if (!logId) continue;
+        await sbPost('logistica_eventos', { logistica_id: logId, evento_id: editingEventoId });
+        await sbPost('jornadas', [{
+          codigo: `J${Date.now()}-${tl.tipo.toLowerCase()}`,
+          logistica_id: logId,
+          tipo: tl.tipo,
+          fecha: tl.fecha,
+          pagado: false,
+        }]);
       }
       invalidateCache('eventos');
       invalidateCache('v_pipeline');
@@ -400,7 +423,7 @@ export async function guardarEvento() {
       const evRow = await sbPost('eventos', data);
       const newEvId = Array.isArray(evRow) ? evRow[0]?.id : evRow?.id;
       if (newEvId) {
-        const newLog = await sbPost('logisticas', { tipo: 'Evento', notas: null });
+        const newLog = await sbPost('logisticas', { tipo: 'Evento', evento_id: newEvId, notas: null });
         const newLogId = Array.isArray(newLog) ? newLog[0]?.id : newLog?.id;
         if (newLogId) await sbPost('logistica_eventos', { logistica_id: newLogId, evento_id: newEvId });
         await _sincronizarImagenesEvento(newEvId);
@@ -507,8 +530,44 @@ export async function confirmarCobro() {
     invalidateCache('v_pipeline');
     toast(`Cobro registrado para ${cliente}`);
     loadEventos();
-    if (currentPage === 'dashboard') loadDashboard();
-    if (currentPage === 'cobros') loadCobros();
+    if (state.currentPage === 'dashboard') window.loadDashboard();
+    if (state.currentPage === 'cobros') loadCobros();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+export async function cancelarCobro(pagoId, eventoId, cliente) {
+  if (!confirm(`¿Cancelar este cobro de ${cliente}? El evento se recalcula como si nunca se hubiera registrado.`)) return;
+  try {
+    await sbDelete('pagos', pagoId);
+
+    const [[ev], pagosRest] = await Promise.all([
+      sb('eventos', { filters: [`id=eq.${eventoId}`], select: 'id,total_ars,estado', limit: 1 }),
+      sb('pagos', { filters: [`evento_id=eq.${eventoId}`], limit: 100 }),
+    ]);
+    const totalEv = Number(ev?.total_ars) || 0;
+    const totalPagado = pagosRest.reduce((s, p) => s + Number(p.monto_ars || 0), 0);
+    const senaRow = pagosRest.find(p => p.tipo === 'Seña');
+    const saldoCobrado = totalEv > 0 && totalPagado >= totalEv;
+    const ultimoPago = pagosRest.slice().sort((a, b) => (b.fecha_cobro || '').localeCompare(a.fecha_cobro || ''))[0];
+
+    const patch: any = {
+      sena_cobrada: !!senaRow,
+      fecha_sena: senaRow ? senaRow.fecha_cobro : null,
+      saldo_cobrado: saldoCobrado,
+      fecha_saldo: saldoCobrado ? (ultimoPago?.fecha_cobro || null) : null,
+    };
+    // Si el evento había pasado a "Realizado" por el cobro del saldo y ya no está cobrado, volver a Confirmado
+    if (ev?.estado === 'Realizado' && !saldoCobrado) patch.estado = 'Confirmado';
+
+    await sbPatch('eventos', eventoId, patch);
+
+    invalidateCache('pagos');
+    invalidateCache('eventos');
+    invalidateCache('v_pipeline');
+    toast('Cobro cancelado');
+    loadCobros();
+    loadEventos();
+    if (state.currentPage === 'dashboard') window.loadDashboard();
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -563,14 +622,16 @@ export async function loadCobros() {
       ? pagosRecientes.map(p => {
           const fecha = p.fecha_cobro ? new Date(p.fecha_cobro + 'T12:00:00').toLocaleDateString('es-AR') : '—';
           const cliente = evMap[p.evento_id] || '—';
+          const clienteEsc = cliente.replace(/'/g, "\\'");
           return `<tr>
             <td style="color:var(--text-3);font-size:12px">${fecha}</td>
             <td><b>${cliente}</b></td>
             <td style="color:var(--text-3)">${p.tipo || '—'}</td>
             <td style="color:var(--green);font-weight:600">${fmtARS(p.monto_ars)}</td>
+            <td><button class="btn btn-ghost btn-sm" title="Cancelar cobro" onclick="cancelarCobro(${p.id},${p.evento_id},'${clienteEsc}')">✕</button></td>
           </tr>`;
         }).join('')
-      : `<tr><td colspan="4"><div class="empty" style="padding:16px">Sin cobros registrados</div></td></tr>`;
+      : `<tr><td colspan="5"><div class="empty" style="padding:16px">Sin cobros registrados</div></td></tr>`;
 
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -676,6 +737,7 @@ window.removeImagenEvento = removeImagenEvento;
 window.onCobroTipoChange = onCobroTipoChange;
 window.registrarCobro = registrarCobro;
 window.confirmarCobro = confirmarCobro;
+window.cancelarCobro = cancelarCobro;
 window.loadCobros = loadCobros;
 
 // ── ARCHIVOS CONTABLES ───────────────────────────────────
