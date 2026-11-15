@@ -10,7 +10,7 @@ const ADMIN_EMAILS = (Deno.env.get('ADMIN_EMAILS') || 'administracion@grossoarg.
   .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
 
 async function requireAdmin(req: Request): Promise<Response | null> {
-  const jwt = (req.headers.get('Authorization') || '').replace(/^Bearers+/i, '');
+  const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
   const deny = (msg: string) => new Response(JSON.stringify({ error: msg }), {
     status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
   });
