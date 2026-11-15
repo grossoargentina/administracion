@@ -330,18 +330,20 @@
     <div class="page" id="p-mensajes">
       <div class="page-header">
         <div>
-          <div class="page-title">Mensajes recibidos</div>
-          <div class="page-sub">Respuestas de WhatsApp</div>
+          <div class="page-title">Mensajes</div>
+          <div class="page-sub">Conversaciones de WhatsApp · Logistica Grosso</div>
         </div>
-        <button class="btn btn-ghost" onclick="marcarTodosLeidos()">✓ Marcar todos leídos</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" onclick="nuevoMensajeWA()">✏️ Nuevo mensaje</button>
+          <button class="btn btn-ghost" onclick="marcarTodosLeidos()">✓ Marcar todos leídos</button>
+        </div>
       </div>
-      <div class="card">
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Fecha</th><th>De</th><th>Mensaje</th><th></th></tr></thead>
-            <tbody id="mensajes-tbody"></tbody>
-          </table>
+      <div class="card wa-chat" id="wa-chat">
+        <div class="wa-lista">
+          <input class="inp" id="wa-buscar" placeholder="Buscar contacto…" oninput="filtrarConversacionesWA()">
+          <div id="wa-conversaciones"></div>
         </div>
+        <div class="wa-hilo" id="wa-hilo"><div class="wa-vacio">Elegí una conversación</div></div>
       </div>
     </div>
 

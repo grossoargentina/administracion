@@ -99,6 +99,11 @@ serve(async (req) => {
         telefono: r.data?.contacts?.[0]?.wa_id || to,
         updated_at: new Date().toISOString(),
       }).eq('id', envio.id);
+      await db.from('whatsapp_mensajes').insert({
+        de: r.data?.contacts?.[0]?.wa_id || to,
+        mensaje: `[Aviso de logística] Hola ${param(body.nombre)}, ya está tu logística para ${param(body.evento)}. [Ver mi logística]`,
+        direccion: 'saliente', estado: 'enviado', wamid: r.data?.messages?.[0]?.id, enviado_por: 'plataforma', leido: true,
+      });
       return json({ ok: true, envio_id: envio.id, message_id: r.data?.messages?.[0]?.id });
     }
 

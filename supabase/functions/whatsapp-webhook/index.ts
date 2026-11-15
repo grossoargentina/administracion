@@ -35,6 +35,13 @@ async function enviarWA(payload: Record<string, unknown>) {
   return data?.messages?.[0]?.id as string | undefined;
 }
 
+// Deja registrado en la conversación un mensaje que mandó el sistema solo
+async function registrarSaliente(db: any, to: string, mensaje: string, wamid?: string) {
+  await db.from('whatsapp_mensajes').insert({
+    de: to, mensaje, direccion: 'saliente', estado: 'enviado', wamid, enviado_por: 'automatico', leido: true,
+  });
+}
+
 // Orden de avance: un estado nunca vuelve atrás (Meta puede mandar "delivered" después de "read").
 const RANGO: Record<string, number> = {
   pendiente: 0, error: 0, enviado: 1, entregado: 2, leido: 3, vio_logistica: 4, confirmo: 5, no_puede: 5,
@@ -84,6 +91,19 @@ serve(async (req) => {
 
         // 1) Estados de mensajes enviados (sent / delivered / read / failed)
         for (const st of value.statuses || []) {
+          // Estado del mensaje en la conversación (sección Mensajes)
+          const { data: msj } = await db.from('whatsapp_mensajes').select('id, estado').eq('wamid', st.id).maybeSingle();
+          if (msj) {
+            const RM: Record<string, number> = { enviado: 1, entregado: 2, leido: 3 };
+            if (st.status === 'failed') {
+              const e = st.errors?.[0];
+              await db.from('whatsapp_mensajes').update({ estado: 'error', error: `${e?.code ?? ''} ${e?.title ?? ''} ${e?.error_data?.details ?? ''}`.trim() }).eq('id', msj.id);
+            } else {
+              const nuevo = st.status === 'delivered' ? 'entregado' : st.status === 'read' ? 'leido' : null;
+              if (nuevo && RM[nuevo] > (RM[msj.estado] || 0)) await db.from('whatsapp_mensajes').update({ estado: nuevo }).eq('id', msj.id);
+            }
+          }
+
           const cols = 'id, estado, wamid_aviso, wamid_logistica';
           let { data: envio } = await db.from('wa_envios').select(cols).eq('wamid_aviso', st.id).maybeSingle();
           if (!envio) ({ data: envio } = await db.from('wa_envios').select(cols).eq('wamid_logistica', st.id).maybeSingle());
@@ -123,7 +143,8 @@ serve(async (req) => {
             if (!envio) continue;
             try {
               const wamid = await enviarWA({ to: msg.from, type: 'text', text: { body: envio.texto, preview_url: true } });
-              await enviarWA({
+              await registrarSaliente(db, msg.from, envio.texto, wamid);
+              const wamidPregunta = await enviarWA({
                 to: msg.from, type: 'interactive',
                 interactive: {
                   type: 'button',
@@ -134,6 +155,7 @@ serve(async (req) => {
                   ] },
                 },
               });
+              await registrarSaliente(db, msg.from, '¿Confirmás tu asistencia? [Confirmo] [No puedo]', wamidPregunta);
               const cambios: Record<string, unknown> = { wamid_logistica: wamid, updated_at: new Date().toISOString() };
               if (RANGO.vio_logistica > RANGO[envio.estado]) cambios.estado = 'vio_logistica';
               await db.from('wa_envios').update(cambios).eq('id', envio.id);
@@ -151,9 +173,13 @@ serve(async (req) => {
               .update({ estado, updated_at: new Date().toISOString() })
               .eq('id', Number(m[2])).eq('telefono', msg.from).select('id');
             if (upd?.length) {
-              await enviarWA({ to: msg.from, type: 'text', text: { body: estado === 'confirmo'
+              const gracias = estado === 'confirmo'
                 ? '¡Gracias! Quedó registrada tu confirmación. 👍'
-                : 'Gracias por avisar. Ya le llega a administración.' } }).catch(() => {});
+                : 'Gracias por avisar. Ya le llega a administración.';
+              try {
+                const w = await enviarWA({ to: msg.from, type: 'text', text: { body: gracias } });
+                await registrarSaliente(db, msg.from, gracias, w);
+              } catch (_) { /* no bloquear el webhook */ }
             }
           }
         }

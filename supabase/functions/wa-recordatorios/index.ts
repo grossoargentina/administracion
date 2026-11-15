@@ -84,6 +84,11 @@ Deno.serve(async (req) => {
     const data = await res.json();
     if (res.ok) {
       await db.from('wa_envios').update({ recordados: [...(f.recordados || []), fecha], updated_at: new Date().toISOString() }).eq('id', f.id);
+      await db.from('whatsapp_mensajes').insert({
+        de: f.telefono,
+        mensaje: `[Recordatorio] Mañana ${diaLabel} trabajás en ${param(f.titulo || f.evento)}. [Ver mi logística]`,
+        direccion: 'saliente', estado: 'enviado', wamid: data?.messages?.[0]?.id, enviado_por: 'automatico', leido: true,
+      });
       resultado.enviados.push({ id: f.id, nombre: f.nombre });
     } else {
       resultado.errores.push({ id: f.id, nombre: f.nombre, error: data?.error?.error_data?.details || data?.error?.message });
