@@ -164,11 +164,50 @@ export function goTo(page) {
   document.querySelectorAll('.mobile-nav-item[data-page]').forEach(n => {
     if (n.dataset.page === page) n.classList.add('active');
   });
+  // En el celular, "Más" queda marcado si la sección no está en la barra de abajo
+  document.getElementById('mn-mas')?.classList.toggle('active',
+    !document.querySelector(`.mobile-nav-item[data-page="${page}"]`));
 
   state.currentPage = page;
   localStorage.setItem('lastPage', page);
   loadPage(page);
 }
+
+// ── MENÚ "MÁS" DEL CELULAR ────────────────────────────────
+// Arma la grilla con las mismas secciones del menú lateral (si se agrega una, aparece sola).
+export function abrirMenuMovil() {
+  const badgeMsj = document.getElementById('nav-mensajes-badge');
+  const hayNoLeidos = badgeMsj && badgeMsj.style.display !== 'none' && badgeMsj.textContent;
+  document.getElementById('mobile-sheet-grid').innerHTML =
+    [...document.querySelectorAll<HTMLElement>('.sidebar-nav .nav-item[data-page]')].map(n => {
+      const page = n.dataset.page;
+      const icono = n.querySelector('.nav-icon')?.textContent || '•';
+      const label = [...n.childNodes].filter(c => c.nodeType === Node.TEXT_NODE).map(c => c.textContent).join('').trim();
+      const badge = page === 'mensajes' && hayNoLeidos ? `<span class="mn-badge">${badgeMsj.textContent}</span>` : '';
+      return `<button class="mobile-sheet-item ${page === state.currentPage ? 'active' : ''}" onclick="cerrarMenuMovil();goTo('${page}')">
+        <span class="mn-icon">${icono}${badge}</span>${label}</button>`;
+    }).join('');
+  document.getElementById('mobile-sheet').classList.add('open');
+}
+
+export function cerrarMenuMovil() {
+  document.getElementById('mobile-sheet')?.classList.remove('open');
+}
+
+// El aviso de mensajes sin leer también se ve en el botón "Más"
+function sincronizarBadgeMas() {
+  const origen = document.getElementById('nav-mensajes-badge');
+  const destino = document.getElementById('mn-mas-badge');
+  if (!origen || !destino) return;
+  const copiar = () => {
+    const visible = origen.style.display !== 'none' && !!origen.textContent;
+    destino.style.display = visible ? '' : 'none';
+    destino.textContent = origen.textContent;
+  };
+  copiar();
+  new MutationObserver(copiar).observe(origen, { attributes: true, childList: true, characterData: true, subtree: true });
+}
+sincronizarBadgeMas();
 
 export async function loadPage(page) {
   switch(page) {
@@ -256,6 +295,8 @@ export function initRealtime() {
 
 // Window assignments
 window.goTo = goTo;
+window.abrirMenuMovil = abrirMenuMovil;
+window.cerrarMenuMovil = cerrarMenuMovil;
 window.loadPage = loadPage;
 window.initApp = initApp;
 window.initAuth = initAuth;

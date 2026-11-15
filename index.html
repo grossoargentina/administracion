@@ -557,14 +557,22 @@
   <!-- MOBILE NAV -->
   <nav class="mobile-nav">
     <div class="mobile-nav-items">
-      <div class="mobile-nav-item active" onclick="goTo('dashboard')"><span class="mn-icon">⚡</span>Inicio</div>
-      <div class="mobile-nav-item" onclick="goTo('eventos')"><span class="mn-icon">📋</span>Eventos</div>
-      <div class="mobile-nav-item" onclick="goTo('seguros')"><span class="mn-icon">🛡️</span>Seguros</div>
-      <div class="mobile-nav-item" onclick="goTo('cobros')"><span class="mn-icon">💰</span>Cobros</div>
-
-      <div class="mobile-nav-item" onclick="goTo('impuestos')"><span class="mn-icon">🗓️</span>Impuestos</div>
+      <div class="mobile-nav-item active" data-page="dashboard" onclick="goTo('dashboard')"><span class="mn-icon">⚡</span>Inicio</div>
+      <div class="mobile-nav-item" data-page="eventos" onclick="goTo('eventos')"><span class="mn-icon">📋</span>Eventos</div>
+      <div class="mobile-nav-item" data-page="seguros" onclick="goTo('seguros')"><span class="mn-icon">🛡️</span>Seguros</div>
+      <div class="mobile-nav-item" data-page="cobros" onclick="goTo('cobros')"><span class="mn-icon">💰</span>Cobros</div>
+      <div class="mobile-nav-item" id="mn-mas" onclick="abrirMenuMovil()"><span class="mn-icon">☰<span class="mn-badge" id="mn-mas-badge" style="display:none"></span></span>Más</div>
     </div>
   </nav>
+
+  <!-- MOBILE: panel con todas las secciones -->
+  <div class="mobile-sheet-overlay" id="mobile-sheet" onclick="if(event.target===this)cerrarMenuMovil()">
+    <div class="mobile-sheet" role="dialog" aria-label="Todas las secciones">
+      <div class="mobile-sheet-handle"></div>
+      <div class="mobile-sheet-grid" id="mobile-sheet-grid"></div>
+      <button class="btn-logout" style="width:100%" onclick="cerrarMenuMovil();logout()">Cerrar sesión</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL GASTO OFICINA -->

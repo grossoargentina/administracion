@@ -307,6 +307,20 @@ textarea.inp { resize: vertical; min-height: 80px; }
 }
 .mobile-nav-item.active { color: var(--gold); }
 .mobile-nav-item .mn-icon { font-size: 20px; }
+.mobile-nav-item { flex: 1; padding: 6px 4px; }
+.mn-icon { position: relative; }
+.mn-badge { position: absolute; top: -4px; right: -12px; background: var(--red); color: #fff; border-radius: 10px; font-size: 9px; font-weight: 700; padding: 0 5px; line-height: 15px; }
+
+/* Panel "Más" del celular */
+.mobile-sheet-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 60; align-items: flex-end; }
+.mobile-sheet-overlay.open { display: flex; }
+.mobile-sheet { background: var(--surface); width: 100%; border-radius: 16px 16px 0 0; border-top: 1px solid var(--border); padding: 10px 16px calc(16px + env(safe-area-inset-bottom)); max-height: 80vh; overflow-y: auto; animation: subirSheet .18s ease-out; }
+@keyframes subirSheet { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+.mobile-sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 14px; }
+.mobile-sheet-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+.mobile-sheet-item { background: none; border: none; color: var(--text-2); display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 2px; border-radius: 10px; font-size: 11px; font-family: inherit; text-align: center; cursor: pointer; line-height: 1.2; }
+.mobile-sheet-item.active { color: var(--gold); background: var(--gold-bg); }
+.mobile-sheet-item .mn-icon { font-size: 22px; }
 
 @media (max-width: 768px) {
   .sidebar { display: none; }
