@@ -1,6 +1,16 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Número y token activos: desde la base (wa_config + Vault) o, si no hay, los secretos de siempre
+const CRED = { phoneId: '', token: '' };
+async function cargarCred(db: any) {
+  const { data } = await db.rpc('wa_credenciales', { p_nuevo: false });
+  const c = data?.[0] || {};
+  CRED.phoneId = c.phone_id || Deno.env.get('WHATSAPP_PHONE_ID') || '';
+  CRED.token = c.token || Deno.env.get('WHATSAPP_TOKEN') || '';
+}
+
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -38,10 +48,10 @@ function normalizarAR(to: string) {
 const param = (s: string) => String(s || '').replace(/[\n\r\t]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, 200) || '-';
 
 async function enviarWA(payload: Record<string, unknown>) {
-  const phoneId = Deno.env.get('WHATSAPP_PHONE_ID') || '482676874937376';
+  const phoneId = CRED.phoneId;
   const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${Deno.env.get('WHATSAPP_TOKEN')}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${CRED.token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', ...payload }),
   });
   const data = await res.json();
@@ -54,7 +64,9 @@ serve(async (req) => {
   const denied = await requireAdmin(req);
   if (denied) return denied;
 
-  if (!Deno.env.get('WHATSAPP_TOKEN')) return json({ error: 'Token no configurado' }, 500);
+  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  await cargarCred(db);
+  if (!CRED.token) return json({ error: 'Token no configurado' }, 500);
 
   try {
     const body = await req.json();
@@ -64,7 +76,6 @@ serve(async (req) => {
     // ── Logística: aviso con plantilla aprobada + botón "Ver mi logística" ──
     if (body.tipo === 'logistica') {
       if (!body.texto) return json({ error: 'texto es requerido' }, 400);
-      const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
       const { data: envio, error: insErr } = await db.from('wa_envios').insert({
         personal_id: body.personal_id ?? null,
         nombre: body.nombre ?? null,

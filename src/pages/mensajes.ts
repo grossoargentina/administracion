@@ -20,7 +20,7 @@ const ESTADO_ICONO = {
   error: ['❌', 'Error'],
   fuera_de_ventana: ['⚠️', 'No enviado'],
 };
-const ORIGEN = { claude: 'Claude', automatico: 'Automático', plataforma: '' };
+const ORIGEN = { claude: 'Claude', automatico: 'Automático', celular: 'Desde el celular', plataforma: '' };
 
 const fmtHora = ts => {
   const d = new Date(ts);
@@ -236,7 +236,165 @@ function suscribirMensajes() {
     .subscribe();
 }
 
+// ── NÚMERO DE WHATSAPP: alta con coexistencia y cambio de número ──────────
+// Embedded Signup de Meta: se conecta un número que ya usa la app WhatsApp Business del
+// celular; la app sigue funcionando y la plataforma manda/recibe por el mismo número.
+const META_APP_ID = '1706628640583124';
+const WA_ALTA_URL = `${SB_URL}/functions/v1/wa-alta`;
+
+async function waAlta(body) {
+  const res = await fetch(WA_ALTA_URL, { method: 'POST', headers: await authHeaders(true), body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  return data;
+}
+
+function tarjetaNumero(titulo, n) {
+  if (!n) return '';
+  const pls = (n.plantillas || []).map(p =>
+    `<li>${escHtml(p.nombre)}: <b style="color:${p.estado === 'APPROVED' ? 'var(--green)' : p.estado === 'REJECTED' ? 'var(--red)' : 'var(--orange)'}">${escHtml(p.estado)}</b></li>`).join('');
+  return `<div style="background:var(--surface2);border-radius:8px;padding:12px">
+    <div style="font-size:11px;color:var(--text-3);text-transform:uppercase">${titulo}</div>
+    <div style="font-weight:600;margin-top:2px">${escHtml(n.numero || n.phone_id)} ${n.nombre ? `· ${escHtml(n.nombre)}` : ''}</div>
+    <div style="font-size:12px;color:var(--text-2)">${escHtml(n.estado || n.error || '')}</div>
+    <ul style="font-size:12px;margin:8px 0 0 16px;padding:0">${pls || '<li>Sin plantillas todavía</li>'}</ul>
+  </div>`;
+}
+
+export async function abrirNumeroWA() {
+  telActual = null;
+  document.getElementById('wa-chat').classList.add('con-hilo');
+  const hilo = document.getElementById('wa-hilo');
+  hilo.innerHTML = '<div class="wa-vacio">Cargando…</div>';
+  let est = { actual: null, nuevo: null };
+  let configId = '';
+  try {
+    [est] = await Promise.all([waAlta({ accion: 'estado' })]);
+    const cfg = await sb('wa_config', { filters: ['clave=eq.es_config_id'] });
+    configId = cfg[0]?.valor || '';
+  } catch (e) { toast('Error: ' + e.message, 'err'); }
+
+  const nuevo = est.nuevo;
+  const todasAprobadas = nuevo && ['aviso_logistica', 'recordatorio_logistica', 'retomar_conversacion']
+    .every(n => (nuevo.plantillas || []).some(p => p.nombre === n && p.estado === 'APPROVED'));
+  const mismoNumero = nuevo && est.actual && nuevo.phone_id === est.actual.phone_id;
+
+  hilo.innerHTML = `
+    <div class="wa-hilo-head">
+      <button class="btn btn-ghost btn-sm wa-volver" onclick="cerrarConversacionWA()">←</button>
+      <div style="font-weight:600">Número de WhatsApp</div>
+    </div>
+    <div style="padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;max-width:560px">
+      ${tarjetaNumero('Número en uso', est.actual)}
+      ${nuevo && !mismoNumero ? tarjetaNumero('Número nuevo (todavía no se usa)', nuevo) + `
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="copiarPlantillasWA()">Copiar plantillas a la cuenta nueva</button>
+          <button class="btn btn-primary btn-sm" ${todasAprobadas ? '' : 'disabled title="Primero tienen que estar aprobadas las 3 plantillas"'} onclick="activarNumeroWA()">Usar el número nuevo</button>
+        </div>` : ''}
+
+      <div style="border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-weight:600;margin-bottom:6px">Conectar un número nuevo (coexistencia)</div>
+        <div style="font-size:12px;color:var(--text-2);line-height:1.5">
+          El número tiene que estar en la app <b>WhatsApp Business</b> (versión 2.24.17 o más nueva) en el celular.
+          La app sigue funcionando: lo que respondas desde el celular también aparece acá.
+          Se desactivan en la app: listas de difusión, mensajes automáticos, respuestas rápidas, etiquetas, catálogo, llamadas por ese número y WhatsApp en la PC.
+        </div>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:10px 0">
+          <input type="checkbox" id="wa-alta-historial">
+          <span>Traer también el historial de chats (hasta 6 meses).<br><span style="color:var(--orange)">Si el chip era personal, tus chats personales van a quedar guardados en la plataforma.</span></span>
+        </label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="inp" id="wa-es-config" style="max-width:220px" placeholder="ID de configuración de Meta" value="${escHtml(configId)}">
+          <button class="btn btn-primary" onclick="conectarNumeroWA()">Conectar número</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:6px">El ID de configuración sale de Meta → Facebook Login for Business → Configuraciones.</div>
+      </div>
+    </div>`;
+}
+
+function cargarSdkFacebook(): Promise<void> {
+  if (window.FB) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    window.fbAsyncInit = () => {
+      window.FB.init({ appId: META_APP_ID, autoLogAppEvents: true, xfbml: false, version: 'v25.0' });
+      resolve();
+    };
+    const s = document.createElement('script');
+    s.src = 'https://connect.facebook.net/es_LA/sdk.js';
+    s.async = true; s.defer = true; s.crossOrigin = 'anonymous';
+    s.onerror = () => reject(new Error('No se pudo cargar el SDK de Facebook'));
+    document.body.appendChild(s);
+  });
+}
+
+export async function conectarNumeroWA() {
+  const configId = (document.getElementById('wa-es-config') as HTMLInputElement).value.trim();
+  const historial = (document.getElementById('wa-alta-historial') as HTMLInputElement).checked;
+  if (!/^\d{6,}$/.test(configId)) { toast('Pegá el ID de configuración de Meta (son solo números)', 'err'); return; }
+  try {
+    await sbPost('wa_config', { clave: 'es_config_id', valor: configId }).catch(async () => {
+      await fetch(`${SB_URL}/rest/v1/wa_config?clave=eq.es_config_id`, { method: 'PATCH', headers: await authHeaders(true), body: JSON.stringify({ valor: configId }) });
+    });
+    await cargarSdkFacebook();
+  } catch (e) { toast(e.message, 'err'); return; }
+
+  // Meta manda los ids (waba_id, phone_number_id) por postMessage y el código por el callback de FB.login
+  let sesion = null;
+  const recibirSesion = (event) => {
+    if (!String(event.origin).endsWith('facebook.com')) return;
+    try {
+      const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
+      if (String(data.event).startsWith('FINISH')) sesion = data.data;
+      else if (data.event === 'CANCEL') toast('Alta cancelada' + (data.data?.current_step ? ` (en: ${data.data.current_step})` : ''), 'err');
+      else if (data.event === 'ERROR') toast('Meta informó un error: ' + (data.data?.error_message || ''), 'err');
+    } catch (_) { /* otros mensajes */ }
+  };
+  window.addEventListener('message', recibirSesion);
+
+  window.FB.login(async (response) => {
+    const code = response?.authResponse?.code;
+    if (!code) { window.removeEventListener('message', recibirSesion); toast('No se completó el alta en Meta', 'err'); return; }
+    // El postMessage puede llegar un instante después del callback
+    for (let i = 0; i < 20 && !sesion; i++) await new Promise(r => setTimeout(r, 250));
+    window.removeEventListener('message', recibirSesion);
+    if (!sesion?.waba_id || !sesion?.phone_number_id) { toast('Meta no devolvió el número conectado. Probá de nuevo.', 'err'); return; }
+    try {
+      toast('Conectando el número…');
+      const r = await waAlta({ accion: 'alta', code, waba_id: sesion.waba_id, phone_number_id: sesion.phone_number_id, historial });
+      toast(`✅ Número ${r.numero || ''} conectado${r.webhook_suscripto ? '' : ' (ojo: no se pudo suscribir el webhook)'}`);
+      abrirNumeroWA();
+    } catch (e) { toast('Error conectando el número: ' + e.message, 'err'); }
+  }, {
+    config_id: configId,
+    response_type: 'code',
+    override_default_response_type: true,
+    extras: { setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3' },
+  });
+}
+
+export async function copiarPlantillasWA() {
+  try {
+    const r = await waAlta({ accion: 'plantillas' });
+    toast('Plantillas: ' + r.plantillas.map(p => `${p.nombre} ${p.estado}${p.error ? ` (${p.error})` : ''}`).join(' · '));
+    abrirNumeroWA();
+  } catch (e) { toast('Error: ' + e.message, 'err'); }
+}
+
+export async function activarNumeroWA() {
+  if (!confirm('Desde ahora la plataforma va a mandar y recibir por el número nuevo (avisos, recordatorios y respuestas). ¿Seguimos?')) return;
+  try {
+    await waAlta({ accion: 'activar' });
+    toast('✅ Ahora se usa el número nuevo');
+    abrirNumeroWA();
+  } catch (e) { toast('Error: ' + e.message, 'err'); }
+}
+
 // Window assignments
+window.abrirNumeroWA = abrirNumeroWA;
+window.conectarNumeroWA = conectarNumeroWA;
+window.copiarPlantillasWA = copiarPlantillasWA;
+window.activarNumeroWA = activarNumeroWA;
 window.loadMensajes = loadMensajes;
 window.marcarTodosLeidos = marcarTodosLeidos;
 window.checkMensajesNuevos = checkMensajesNuevos;

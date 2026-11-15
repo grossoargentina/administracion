@@ -1,6 +1,16 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Número y token activos: desde la base (wa_config + Vault) o, si no hay, los secretos de siempre
+const CRED = { phoneId: '', token: '' };
+async function cargarCred(db: any) {
+  const { data } = await db.rpc('wa_credenciales', { p_nuevo: false });
+  const c = data?.[0] || {};
+  CRED.phoneId = c.phone_id || Deno.env.get('WHATSAPP_PHONE_ID') || '';
+  CRED.token = c.token || Deno.env.get('WHATSAPP_TOKEN') || '';
+}
+
+
 // Webhook de WhatsApp (Meta Cloud API).
 // - Guarda todo mensaje entrante en whatsapp_mensajes.
 // - Actualiza el estado de los avisos de logística (wa_envios) con los "statuses" de Meta.
@@ -24,10 +34,10 @@ async function firmaValida(raw: string, header: string | null): Promise<boolean>
 }
 
 async function enviarWA(payload: Record<string, unknown>) {
-  const phoneId = Deno.env.get('WHATSAPP_PHONE_ID');
+  const phoneId = CRED.phoneId;
   const res = await fetch(`${GRAPH}/${phoneId}/messages`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${Deno.env.get('WHATSAPP_TOKEN')}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${CRED.token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', ...payload }),
   });
   const data = await res.json();
@@ -82,6 +92,7 @@ serve(async (req) => {
   }
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  await cargarCred(db);
 
   try {
     const body = JSON.parse(raw);
@@ -121,6 +132,33 @@ serve(async (req) => {
             if (nuevo && RANGO[nuevo] > RANGO[envio.estado]) cambios = { estado: nuevo };
           }
           if (cambios) await db.from('wa_envios').update({ ...cambios, updated_at: new Date().toISOString() }).eq('id', envio.id);
+        }
+
+        // Coexistencia: lo que se manda desde la app WhatsApp Business del celular ("echoes")
+        for (const echo of value.message_echoes || []) {
+          const { data: ya } = await db.from('whatsapp_mensajes').select('id').eq('wamid', echo.id).maybeSingle();
+          if (ya) continue;
+          await db.from('whatsapp_mensajes').insert({
+            de: echo.to, mensaje: textoLegible(echo), direccion: 'saliente', estado: 'enviado',
+            wamid: echo.id, enviado_por: 'celular', leido: true,
+            timestamp: new Date(Number(echo.timestamp) * 1000).toISOString(),
+          });
+        }
+
+        // Coexistencia: historial de chats (solo llega si se pidió al dar de alta el número)
+        for (const h of value.history || []) {
+          for (const th of h.threads || []) {
+            for (const hm of th.messages || []) {
+              const { data: ya } = await db.from('whatsapp_mensajes').select('id').eq('wamid', hm.id).maybeSingle();
+              if (ya) continue;
+              const entrante = hm.from === th.id;
+              await db.from('whatsapp_mensajes').insert({
+                de: th.id, mensaje: textoLegible(hm), direccion: entrante ? 'entrante' : 'saliente',
+                estado: entrante ? null : 'enviado', wamid: hm.id, enviado_por: entrante ? null : 'celular', leido: true,
+                timestamp: new Date(Number(hm.timestamp) * 1000).toISOString(),
+              });
+            }
+          }
         }
 
         // 2) Mensajes entrantes

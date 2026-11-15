@@ -1,5 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Número y token activos: desde la base (wa_config + Vault) o, si no hay, los secretos de siempre
+const CRED = { phoneId: '', token: '' };
+async function cargarCred(db: any) {
+  const { data } = await db.rpc('wa_credenciales', { p_nuevo: false });
+  const c = data?.[0] || {};
+  CRED.phoneId = c.phone_id || Deno.env.get('WHATSAPP_PHONE_ID') || '';
+  CRED.token = c.token || Deno.env.get('WHATSAPP_TOKEN') || '';
+}
+
+
 // Recordatorio por WhatsApp el día anterior a cada jornada.
 // La llama pg_cron todos los días a las 10:00 (Argentina) con el header x-cron-key (guardado en Vault).
 // Para cada técnico que tiene una jornada MAÑANA y no respondió "No puedo", manda la plantilla
@@ -37,6 +47,7 @@ Deno.serve(async (req) => {
   const simular = url.searchParams.get('simular') === '1';
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  await cargarCred(db);
   let q = db.from('wa_envios')
     .select('id, nombre, titulo, evento, telefono, estado, recordados, created_at')
     .contains('fechas', [fecha])
@@ -63,9 +74,9 @@ Deno.serve(async (req) => {
   if (simular) return Response.json({ ...resultado, simulado: aMandar.map((f) => ({ id: f.id, nombre: f.nombre, titulo: f.titulo })) });
 
   for (const f of aMandar) {
-    const res = await fetch(`https://graph.facebook.com/v21.0/${Deno.env.get('WHATSAPP_PHONE_ID')}/messages`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${CRED.phoneId}/messages`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${Deno.env.get('WHATSAPP_TOKEN')}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${CRED.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messaging_product: 'whatsapp', to: f.telefono, type: 'template',
         template: {

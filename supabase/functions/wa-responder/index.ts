@@ -1,5 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Número y token activos: desde la base (wa_config + Vault) o, si no hay, los secretos de siempre
+const CRED = { phoneId: '', token: '' };
+async function cargarCred(db: any) {
+  const { data } = await db.rpc('wa_credenciales', { p_nuevo: false });
+  const c = data?.[0] || {};
+  CRED.phoneId = c.phone_id || Deno.env.get('WHATSAPP_PHONE_ID') || '';
+  CRED.token = c.token || Deno.env.get('WHATSAPP_TOKEN') || '';
+}
+
+
 // Manda un mensaje saliente de whatsapp_mensajes (estado 'pendiente').
 // La llama el trigger wa_despachar_saliente con { id } y el header x-cron-key (clave interna en Vault).
 // - plantilla = false → texto libre, solo si la persona escribió en las últimas 24 h.
@@ -21,6 +31,7 @@ Deno.serve(async (req) => {
   if (!id) return Response.json({ error: 'id requerido' }, { status: 400 });
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  await cargarCred(db);
   // Tomar el mensaje solo si sigue pendiente (evita mandarlo dos veces)
   const { data: filas } = await db.from('whatsapp_mensajes')
     .update({ estado: 'enviado' }).eq('id', id).eq('direccion', 'saliente').eq('estado', 'pendiente')
@@ -46,9 +57,9 @@ Deno.serve(async (req) => {
         components: [{ type: 'body', parameters: [{ type: 'text', text: param(m.mensaje) }] }] } }
     : { type: 'text', text: { body: m.mensaje, preview_url: true } };
 
-  const res = await fetch(`https://graph.facebook.com/v21.0/${Deno.env.get('WHATSAPP_PHONE_ID')}/messages`, {
+  const res = await fetch(`https://graph.facebook.com/v21.0/${CRED.phoneId}/messages`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${Deno.env.get('WHATSAPP_TOKEN')}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${CRED.token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', to: m.de, ...payload }),
   });
   const data = await res.json();
