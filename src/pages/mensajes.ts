@@ -352,7 +352,8 @@ export async function conectarNumeroWA() {
   };
   window.addEventListener('message', recibirSesion);
 
-  window.FB.login(async (response) => {
+  // FB.login exige una función común (no async): el trabajo async va aparte
+  const procesarRespuesta = async (response) => {
     const code = response?.authResponse?.code;
     if (!code) { window.removeEventListener('message', recibirSesion); toast('No se completó el alta en Meta', 'err'); return; }
     // El postMessage puede llegar un instante después del callback
@@ -365,7 +366,9 @@ export async function conectarNumeroWA() {
       toast(`✅ Número ${r.numero || ''} conectado${r.webhook_suscripto ? '' : ' (ojo: no se pudo suscribir el webhook)'}`);
       abrirNumeroWA();
     } catch (e) { toast('Error conectando el número: ' + e.message, 'err'); }
-  }, {
+  };
+
+  window.FB.login(function (response) { procesarRespuesta(response); }, {
     config_id: configId,
     response_type: 'code',
     override_default_response_type: true,
