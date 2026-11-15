@@ -1626,7 +1626,7 @@ export function generarWhatsappLogistica() {
     const idx = waMensajesPendientes.length;
     // Para la plantilla: "SÁBADO 21 y DOMINGO 22 - SALÓN DORADO" (una sola línea)
     const evento = `${p.dias.map(d => d.label).join(' y ')} - ${titulo.toUpperCase()}`;
-    waMensajesPendientes.push({ idx, personal_id: persData?.id ?? null, apellido: p.apellido, nombre: p.nombre, telefono, evento, texto: texto.trim(), envio_id: null });
+    waMensajesPendientes.push({ idx, personal_id: persData?.id ?? null, apellido: p.apellido, nombre: p.nombre, telefono, evento, titulo, fechas: p.dias.map(d => d.fecha), texto: texto.trim(), envio_id: null });
 
     html += `<div style="background:var(--surface2);border-radius:8px;padding:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
@@ -1719,7 +1719,7 @@ export async function enviarTodosWhatsapp() {
       const res = await fetch(WA_EDGE_URL, {
         method: 'POST',
         headers: await authHeaders(true),
-        body: JSON.stringify({ tipo: 'logistica', to: p.telefono, nombre, evento: p.evento, texto: p.texto, personal_id: p.personal_id }),
+        body: JSON.stringify({ tipo: 'logistica', to: p.telefono, nombre, evento: p.evento, titulo: p.titulo, fechas: p.fechas, texto: p.texto, personal_id: p.personal_id }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {

@@ -69,6 +69,8 @@ serve(async (req) => {
         personal_id: body.personal_id ?? null,
         nombre: body.nombre ?? null,
         evento: body.evento ?? null,
+        titulo: body.titulo ?? null,
+        fechas: Array.isArray(body.fechas) ? body.fechas.filter((f: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(f))) : [],
         telefono: to,
         texto: body.texto,
       }).select('id').single();
