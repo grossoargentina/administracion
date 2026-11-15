@@ -1,10 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Webhook de WhatsApp (Meta Cloud API).
+// - Guarda todo mensaje entrante en whatsapp_mensajes.
+// - Actualiza el estado de los avisos de logística (wa_envios) con los "statuses" de Meta.
+// - Botón "Ver mi logística" (payload ver:<id>) → manda la logística completa + botones Confirmo / No puedo.
+// - Botones conf:<id> / nop:<id> → registra la respuesta.
+
+const GRAPH = 'https://graph.facebook.com/v21.0';
 
 // Meta firma cada POST con HMAC-SHA256 del cuerpo usando el "App Secret" de la app.
 async function firmaValida(raw: string, header: string | null): Promise<boolean> {
@@ -20,62 +23,144 @@ async function firmaValida(raw: string, header: string | null): Promise<boolean>
   return diff === 0;
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+async function enviarWA(payload: Record<string, unknown>) {
+  const phoneId = Deno.env.get('WHATSAPP_PHONE_ID');
+  const res = await fetch(`${GRAPH}/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${Deno.env.get('WHATSAPP_TOKEN')}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', ...payload }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `Error de Meta (${res.status})`);
+  return data?.messages?.[0]?.id as string | undefined;
+}
 
+// Orden de avance: un estado nunca vuelve atrás (Meta puede mandar "delivered" después de "read").
+const RANGO: Record<string, number> = {
+  pendiente: 0, error: 0, enviado: 1, entregado: 2, leido: 3, vio_logistica: 4, confirmo: 5, no_puede: 5,
+};
+
+function textoLegible(msg: any): string {
+  switch (msg.type) {
+    case 'text': return msg.text?.body || '';
+    case 'button': return `[Botón] ${msg.button?.text || ''}`;
+    case 'interactive':
+      return `[Botón] ${msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || ''}`;
+    case 'image': case 'video': case 'audio': case 'document': case 'sticker':
+      return `[${msg.type}]${msg[msg.type]?.caption ? ' ' + msg[msg.type].caption : ''}`;
+    case 'location': return `[ubicación] ${msg.location?.latitude},${msg.location?.longitude}`;
+    default: return `[${msg.type}]`;
+  }
+}
+
+serve(async (req) => {
   // Meta verifica el webhook con GET
   if (req.method === 'GET') {
     const url = new URL(req.url);
     const mode      = url.searchParams.get('hub.mode');
     const token     = url.searchParams.get('hub.verify_token');
     const challenge = url.searchParams.get('hub.challenge');
-    const verifyToken = Deno.env.get('WA_VERIFY_TOKEN');
-    if (mode === 'subscribe' && token === verifyToken) {
+    if (mode === 'subscribe' && token && token === Deno.env.get('WA_VERIFY_TOKEN')) {
       return new Response(challenge, { status: 200 });
     }
     return new Response('Forbidden', { status: 403 });
   }
 
-  // POST: mensaje entrante
-  if (req.method === 'POST') {
-    try {
-      const raw = await req.text();
-      if (!(await firmaValida(raw, req.headers.get('X-Hub-Signature-256')))) {
-        console.warn('Webhook rechazado: firma de Meta inválida o WHATSAPP_APP_SECRET sin configurar');
-        return new Response('Forbidden', { status: 403 });
-      }
-      const body = JSON.parse(raw);
-      const entry = body?.entry?.[0];
-      const changes = entry?.changes?.[0];
-      const value = changes?.value;
-      const messages = value?.messages;
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
-      if (!messages?.length) {
-        return new Response('ok', { status: 200 });
-      }
-
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      );
-
-      for (const msg of messages) {
-        if (msg.type !== 'text') continue;
-        const contacto = value?.contacts?.find((c: any) => c.wa_id === msg.from);
-        await supabase.from('whatsapp_mensajes').insert({
-          de: msg.from,
-          nombre: contacto?.profile?.name || msg.from,
-          mensaje: msg.text?.body || '',
-          timestamp: new Date(Number(msg.timestamp) * 1000).toISOString(),
-        });
-      }
-
-      return new Response('ok', { status: 200 });
-    } catch (e) {
-      console.error(e);
-      return new Response('error', { status: 200 }); // Meta requiere 200 siempre
-    }
+  const raw = await req.text();
+  if (!(await firmaValida(raw, req.headers.get('X-Hub-Signature-256')))) {
+    console.warn('Webhook rechazado: firma de Meta inválida o WHATSAPP_APP_SECRET sin configurar');
+    return new Response('Forbidden', { status: 403 });
   }
 
-  return new Response('Method not allowed', { status: 405 });
+  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+  try {
+    const body = JSON.parse(raw);
+    for (const entry of body?.entry || []) {
+      for (const change of entry?.changes || []) {
+        const value = change?.value || {};
+
+        // 1) Estados de mensajes enviados (sent / delivered / read / failed)
+        for (const st of value.statuses || []) {
+          const cols = 'id, estado, wamid_aviso, wamid_logistica';
+          let { data: envio } = await db.from('wa_envios').select(cols).eq('wamid_aviso', st.id).maybeSingle();
+          if (!envio) ({ data: envio } = await db.from('wa_envios').select(cols).eq('wamid_logistica', st.id).maybeSingle());
+          if (!envio) continue;
+          const esAviso = envio.wamid_aviso === st.id;
+          const err = st.errors?.[0];
+          let cambios: Record<string, unknown> | null = null;
+          if (st.status === 'failed') {
+            const detalle = `${err?.code ?? ''} ${err?.title ?? ''} ${err?.error_data?.details ?? ''}`.trim();
+            cambios = esAviso
+              ? { estado: 'error', error: detalle || 'Falló el envío' }
+              : { error: `No se pudo mandar la logística completa: ${detalle}` };
+          } else if (esAviso) {
+            const nuevo = st.status === 'delivered' ? 'entregado' : st.status === 'read' ? 'leido' : st.status === 'sent' ? 'enviado' : null;
+            if (nuevo && RANGO[nuevo] > RANGO[envio.estado]) cambios = { estado: nuevo };
+          }
+          if (cambios) await db.from('wa_envios').update({ ...cambios, updated_at: new Date().toISOString() }).eq('id', envio.id);
+        }
+
+        // 2) Mensajes entrantes
+        for (const msg of value.messages || []) {
+          const contacto = value.contacts?.find((c: any) => c.wa_id === msg.from);
+          await db.from('whatsapp_mensajes').insert({
+            de: msg.from,
+            nombre: contacto?.profile?.name || msg.from,
+            mensaje: textoLegible(msg),
+            timestamp: new Date(Number(msg.timestamp) * 1000).toISOString(),
+          });
+
+          // Botón "Ver mi logística" de la plantilla
+          if (msg.type === 'button') {
+            const m = /^ver:(\d+)$/.exec(msg.button?.payload || '');
+            let q = db.from('wa_envios').select('*').eq('telefono', msg.from);
+            q = m ? q.eq('id', Number(m[1])) : q.order('created_at', { ascending: false }).limit(1);
+            const { data: filas } = await q;
+            const envio = filas?.[0];
+            if (!envio) continue;
+            try {
+              const wamid = await enviarWA({ to: msg.from, type: 'text', text: { body: envio.texto, preview_url: true } });
+              await enviarWA({
+                to: msg.from, type: 'interactive',
+                interactive: {
+                  type: 'button',
+                  body: { text: '¿Confirmás tu asistencia?' },
+                  action: { buttons: [
+                    { type: 'reply', reply: { id: `conf:${envio.id}`, title: 'Confirmo' } },
+                    { type: 'reply', reply: { id: `nop:${envio.id}`, title: 'No puedo' } },
+                  ] },
+                },
+              });
+              const cambios: Record<string, unknown> = { wamid_logistica: wamid, updated_at: new Date().toISOString() };
+              if (RANGO.vio_logistica > RANGO[envio.estado]) cambios.estado = 'vio_logistica';
+              await db.from('wa_envios').update(cambios).eq('id', envio.id);
+            } catch (e) {
+              await db.from('wa_envios').update({ error: `No se pudo mandar la logística completa: ${e}`, updated_at: new Date().toISOString() }).eq('id', envio.id);
+            }
+          }
+
+          // Botones Confirmo / No puedo
+          if (msg.type === 'interactive' && msg.interactive?.type === 'button_reply') {
+            const m = /^(conf|nop):(\d+)$/.exec(msg.interactive.button_reply?.id || '');
+            if (!m) continue;
+            const estado = m[1] === 'conf' ? 'confirmo' : 'no_puede';
+            const { data: upd } = await db.from('wa_envios')
+              .update({ estado, updated_at: new Date().toISOString() })
+              .eq('id', Number(m[2])).eq('telefono', msg.from).select('id');
+            if (upd?.length) {
+              await enviarWA({ to: msg.from, type: 'text', text: { body: estado === 'confirmo'
+                ? '¡Gracias! Quedó registrada tu confirmación. 👍'
+                : 'Gracias por avisar. Ya le llega a administración.' } }).catch(() => {});
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error procesando webhook:', e);
+  }
+  return new Response('ok', { status: 200 }); // Meta requiere 200 siempre
 });

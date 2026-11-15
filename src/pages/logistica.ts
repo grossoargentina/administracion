@@ -1623,13 +1623,17 @@ export function generarWhatsappLogistica() {
       texto += `GRUPO: ${dia.grupo}\n\n`;
     });
 
-    waMensajesPendientes.push({ apellido: p.apellido, nombre: p.nombre, telefono, texto: texto.trim() });
+    const idx = waMensajesPendientes.length;
+    // Para la plantilla: "SÁBADO 21 y DOMINGO 22 - SALÓN DORADO" (una sola línea)
+    const evento = `${p.dias.map(d => d.label).join(' y ')} - ${titulo.toUpperCase()}`;
+    waMensajesPendientes.push({ idx, personal_id: persData?.id ?? null, apellido: p.apellido, nombre: p.nombre, telefono, evento, texto: texto.trim(), envio_id: null });
 
     html += `<div style="background:var(--surface2);border-radius:8px;padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">
         <span style="font-weight:600;color:var(--gold)">${p.apellido} ${p.nombre}</span>
         <span style="font-size:11px;color:${telefono ? 'var(--green)' : 'var(--red)'}">${telefono ? '📱 ' + telefono : '⚠️ Sin teléfono'}</span>
       </div>
+      <div id="wa-estado-${idx}" style="font-size:12px;margin-bottom:8px"></div>
       <pre style="font-family:monospace;font-size:12px;white-space:pre-wrap;color:var(--text);margin:0 0 8px 0">${texto.trim()}</pre>
       <button class="btn btn-ghost btn-sm" onclick="copiarTexto(this, ${JSON.stringify(texto.trim())})">Copiar</button>
     </div>`;
@@ -1637,6 +1641,60 @@ export function generarWhatsappLogistica() {
 
   document.getElementById('wa-log-body').innerHTML = html;
   openModal('modal-wa-log');
+  cargarEstadosWA();
+  suscribirEstadosWA();
+}
+
+// ── Estado de los avisos de WhatsApp por técnico ──────────
+const WA_ESTADOS = {
+  pendiente:     ['⏳', 'Enviando…',            'var(--text-2)'],
+  error:         ['❌', 'No se pudo enviar',     'var(--red)'],
+  enviado:       ['📤', 'Aviso enviado',         'var(--text-2)'],
+  entregado:     ['✔️', 'Aviso entregado',       'var(--text-2)'],
+  leido:         ['👀', 'Leyó el aviso',         'var(--text)'],
+  vio_logistica: ['📄', 'Vio la logística',      'var(--gold)'],
+  confirmo:      ['✅', 'Confirmó',              'var(--green)'],
+  no_puede:      ['⛔', 'No puede',              'var(--red)'],
+};
+
+function pintarEstadoWA(p, envio) {
+  const el = document.getElementById(`wa-estado-${p.idx}`);
+  if (!el || !envio) return;
+  p.envio_id = envio.id;
+  const [icono, label, color] = WA_ESTADOS[envio.estado] || ['•', envio.estado, 'var(--text-2)'];
+  const hora = envio.updated_at ? new Date(envio.updated_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  el.innerHTML = `<span style="color:${color};font-weight:600">${icono} ${label}</span>`
+    + (hora ? ` <span style="color:var(--text-2)">· ${hora}</span>` : '')
+    + (envio.error ? `<div style="color:var(--red);font-size:11px;margin-top:2px">${escHtml(envio.error)}</div>` : '');
+}
+
+// Último envío de cada técnico para este evento (si ya se mandó antes)
+async function cargarEstadosWA() {
+  const eventos = [...new Set(waMensajesPendientes.map(p => p.evento))];
+  if (!eventos.length) return;
+  try {
+    const filas = await sb('wa_envios', {
+      select: 'id,personal_id,evento,estado,error,updated_at',
+      filters: [`evento=in.(${eventos.map(e => encodeURIComponent(`"${e.replace(/"/g, '\\"')}"`)).join(',')})`],
+      order: 'created_at.desc', limit: 200,
+    });
+    waMensajesPendientes.forEach(p => {
+      const envio = filas.find(f => f.evento === p.evento && f.personal_id === p.personal_id);
+      if (envio) pintarEstadoWA(p, envio);
+    });
+  } catch (e) { console.warn('No se pudieron cargar los estados de WhatsApp', e); }
+}
+
+// Cambios en vivo: Meta avisa entregado/leído y el técnico responde con los botones
+function suscribirEstadosWA() {
+  const client = state.supabaseClient;
+  if (client.getChannels().some(c => c.topic === 'realtime:wa-envios')) return;
+  client.channel('wa-envios')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_envios' }, ({ new: envio }) => {
+      const p = waMensajesPendientes.find(x => x.envio_id === envio?.id);
+      if (p) pintarEstadoWA(p, envio);
+    })
+    .subscribe();
 }
 
 export async function enviarTodosWhatsapp() {
@@ -1654,20 +1712,32 @@ export async function enviarTodosWhatsapp() {
 
   let ok = 0; let err = 0;
   for (const p of conTelefono) {
+    // Nombre de pila para el saludo: "JUAN carlos" → "Juan"
+    const nombre = (p.nombre || p.apellido || '').trim().split(/\s+/)[0].toLowerCase().replace(/^./, c => c.toUpperCase());
+    pintarEstadoWA(p, { id: null, estado: 'pendiente' });
     try {
       const res = await fetch(WA_EDGE_URL, {
         method: 'POST',
         headers: await authHeaders(true),
-        body: JSON.stringify({ to: p.telefono, message: p.texto }),
+        body: JSON.stringify({ tipo: 'logistica', to: p.telefono, nombre, evento: p.evento, texto: p.texto, personal_id: p.personal_id }),
       });
       const data = await res.json();
-      if (res.ok && data.ok) { ok++; }
-      else { console.error(`Error enviando a ${p.apellido}:`, JSON.stringify(data)); err++; }
-    } catch(e) { console.error(e); err++; }
+      if (res.ok && data.ok) {
+        ok++;
+        pintarEstadoWA(p, { id: data.envio_id, estado: 'enviado', updated_at: new Date().toISOString() });
+      } else {
+        err++;
+        console.error(`Error enviando a ${p.apellido}:`, JSON.stringify(data));
+        pintarEstadoWA(p, { id: data.envio_id ?? null, estado: 'error', error: data.error || 'Error desconocido' });
+      }
+    } catch(e) {
+      err++; console.error(e);
+      pintarEstadoWA(p, { id: null, estado: 'error', error: e.message });
+    }
   }
 
   btn.disabled = false; btn.textContent = '📲 Enviar a todos';
-  toast(`✅ ${ok} mensaje(s) enviado(s)${err ? ` · ${err} error(es) — revisá la consola` : ''}`);
+  toast(`✅ ${ok} aviso(s) enviado(s)${err ? ` · ${err} con error (ver detalle en cada persona)` : ''}`, err ? 'err' : undefined);
 }
 
 export function copiarTexto(btn, texto) {
