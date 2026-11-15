@@ -11,6 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Páginas públicas sueltas (ej. política de privacidad): no responder con la app
+        navigateFallbackDenylist: [/^\/privacidad/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
