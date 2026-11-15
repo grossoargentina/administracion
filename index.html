@@ -433,7 +433,10 @@
           <div class="page-title">Presupuestos</div>
           <div class="page-sub">Armá y generá PDFs desde el catálogo</div>
         </div>
-        <button class="btn btn-primary" onclick="abrirModalPresupuesto()">+ Nuevo presupuesto</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" id="btn-pdfs-faltantes" style="display:none" onclick="generarPdfsFaltantes()"></button>
+          <button class="btn btn-primary" onclick="abrirModalPresupuesto()">+ Nuevo presupuesto</button>
+        </div>
       </div>
       <div class="card">
         <div class="tbl-wrap">

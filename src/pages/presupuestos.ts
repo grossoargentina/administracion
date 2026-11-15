@@ -858,7 +858,9 @@ export async function loadPresupuestos() {
             <td style="font-size:12px;font-weight:600;color:${estadoColor}">${estado}</td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
-                ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>` : ''}
+                ${p.pdf_url
+                  ? `<a href="${p.pdf_url}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>`
+                  : `<button class="btn btn-ghost btn-sm" style="color:var(--gold);border-color:var(--gold-dim)" id="btn-pdf-${p.id}" onclick="generarPdfPresupuesto(${p.id})">📄 Generar PDF</button>`}
                 ${estado === 'Pendiente' ? `
                   <button class="btn btn-sm" style="background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)"
                     onclick="confirmarPresupuesto(${p.id})">
@@ -875,6 +877,14 @@ export async function loadPresupuestos() {
       });
     });
 
+    // Botón "Generar PDFs faltantes" (solo si hay alguno sin PDF)
+    const faltantes = lista.filter(p => !p.pdf_url).length;
+    const btnFalt = document.getElementById('btn-pdfs-faltantes');
+    if (btnFalt && !btnFalt.disabled) {
+      btnFalt.style.display = faltantes ? '' : 'none';
+      btnFalt.textContent = `📄 Generar PDFs faltantes (${faltantes})`;
+    }
+
     document.getElementById('presup-tbody').innerHTML = filas.length
       ? filas.join('')
       : `<tr><td colspan="8"><div class="empty"><div class="empty-icon">📄</div>Sin presupuestos aún. Creá el primero.</div></td></tr>`;
@@ -886,9 +896,12 @@ export async function loadPresupuestos() {
 
 // ── ABRIR MODAL PRESUPUESTO ──────────────────────────────
 let presVersionInfo = null; // { grupoId, nextVersion } cuando se está creando una nueva versión
+let presRegenerarId = null; // id de un presupuesto existente al que solo hay que generarle el PDF
+let presModoLote = false;   // generando varios PDFs seguidos: sin toasts ni recargas por cada uno
 
 export async function abrirModalPresupuesto() {
   presVersionInfo = null;
+  presRegenerarId = null;
   // Evita que un presupuesto nuevo herede el evento de una acción anterior
   // (ej: "+ Presupuesto" sobre un evento existente); quien necesite asociarlo
   // a un evento debe volver a setear esto DESPUÉS de llamar a esta función.
@@ -1725,7 +1738,7 @@ export async function generarPresupuesto() {
         // Token expirado — limpiar y pedir re-login
         localStorage.removeItem('drive_token');
         toast('Sesión de Google Drive expirada. Cerrá sesión y volvé a ingresar.', 'err');
-        return;
+        return false;
       }
     } else {
       // Sin token de Drive — solo descargar localmente
@@ -1734,6 +1747,23 @@ export async function generarPresupuesto() {
       a.href = url; a.download = nombreArchivo; a.click();
       URL.revokeObjectURL(url);
       toast('PDF descargado localmente (sin subir a Drive)');
+    }
+
+    // ── Presupuesto existente sin PDF: solo guardarle el link ──
+    if (presRegenerarId) {
+      const idRegen = presRegenerarId;
+      if (!pdfUrl) throw new Error('No se pudo subir el PDF a Drive');
+      if (!(await sbPatch('presupuestos', idRegen, { pdf_url: pdfUrl, nombre_archivo: nombreArchivo }))) {
+        throw new Error('El PDF se subió a Drive pero no se pudo guardar el link');
+      }
+      invalidateCache('presupuestos');
+      closeModal('modal-presupuesto');
+      presItems = [];
+      presVersionInfo = null;
+      presRegenerarId = null;
+      state._presupuestoParaEventoId = null;
+      if (!presModoLote) { toast('✅ PDF generado y guardado en Drive'); loadPresupuestos(); }
+      return true;
     }
 
     // ── Guardar en Supabase ───────────────────────────────
@@ -1778,14 +1808,99 @@ export async function generarPresupuesto() {
     presVersionInfo = null;
     state._presupuestoParaEventoId = null;
     loadPresupuestos();
+    return true;
 
   } catch(e) {
-    toast('Error generando PDF: ' + e.message, 'err');
+    if (!presModoLote) toast('Error generando PDF: ' + e.message, 'err');
     console.error(e);
+    return false;
   } finally {
     btn.textContent = '📄 Generar PDF y guardar';
     btn.disabled = false;
   }
+}
+
+// ── PDF PARA PRESUPUESTOS QUE NO LO TIENEN ────────────────
+// (ej: cargados directo en la base). Carga el presupuesto en el formulario, genera el
+// PDF con el mismo diseño de siempre, lo sube a Drive y le guarda el link al MISMO
+// presupuesto (no crea una versión nueva).
+async function tokenDriveDisponible() {
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
+  if (session?.provider_token || localStorage.getItem('drive_token')) return true;
+  return !!(session?.provider_refresh_token || localStorage.getItem('drive_refresh_token'));
+}
+
+let ultimoErrorPdf = '';
+
+export async function generarPdfPresupuesto(id, { lote = false } = {}) {
+  const lista = window._presupLista || [];
+  const base = lista.find(p => p.id === id);
+  if (!base) { if (!lote) toast('No se encontró el presupuesto', 'err'); return false; }
+  if (base.pdf_url) return true;
+  if (!lote && !(await tokenDriveDisponible())) {
+    toast('Falta la conexión con Google Drive: cerrá sesión y volvé a ingresar con Google.', 'err');
+    return false;
+  }
+  const btnFila = document.getElementById(`btn-pdf-${id}`) as HTMLButtonElement | null;
+  if (btnFila) { btnFila.disabled = true; btnFila.textContent = '⏳ Generando…'; }
+
+  try {
+    await nuevaVersionPresupuesto(id);
+    // Mismo presupuesto, misma versión: solo falta el PDF
+    presVersionInfo = { grupoId: grupoRootId(base), nextVersion: base.version || 1 };
+    presRegenerarId = id;
+    document.querySelector('#modal-presupuesto .modal-title').textContent = `Generando PDF — ${base.numero} v${base.version || 1}`;
+    if (!presItems.length) throw new Error('El presupuesto no tiene ítems');
+    // El formulario no maneja descuentos: si el total guardado no es la suma de los ítems,
+    // el PDF saldría con otro importe. Mejor no generarlo.
+    const { total } = calcularTotal();
+    if (Math.abs(total - Number(base.total_ars || 0)) > 1) {
+      throw new Error(`el total guardado (${fmtARS(base.total_ars)}) no coincide con la suma de los ítems (${fmtARS(total)}), por ejemplo por un descuento. Generalo con "+ Nueva versión" ajustando los precios.`);
+    }
+    const ok = await generarPresupuesto();
+    if (!ok) throw new Error('No se pudo generar');
+    return true;
+  } catch (e) {
+    presRegenerarId = null;
+    closeModal('modal-presupuesto');
+    ultimoErrorPdf = e.message;
+    if (!lote) toast(`No se generó el PDF de ${base.numero}: ${e.message}`, 'err');
+    else console.warn(`PDF ${base.numero}:`, e.message);
+    if (btnFila) { btnFila.disabled = false; btnFila.textContent = '📄 Generar PDF'; }
+    return false;
+  }
+}
+
+export async function generarPdfsFaltantes() {
+  const pendientes = (window._presupLista || []).filter(p => !p.pdf_url);
+  if (!pendientes.length) { toast('Todos los presupuestos ya tienen PDF'); return; }
+  if (!(await tokenDriveDisponible())) {
+    toast('Falta la conexión con Google Drive: cerrá sesión y volvé a ingresar con Google.', 'err');
+    return;
+  }
+  if (!confirm(`Se van a generar ${pendientes.length} PDF(s) y guardar en Drive. Puede tardar unos minutos; no cierres la pestaña. ¿Seguimos?`)) return;
+
+  const btn = document.getElementById('btn-pdfs-faltantes') as HTMLButtonElement;
+  btn.disabled = true;
+  presModoLote = true;
+  let ok = 0;
+  const fallidos = [];
+  try {
+    for (const [i, p] of pendientes.entries()) {
+      btn.textContent = `⏳ Generando ${i + 1} de ${pendientes.length}…`;
+      ultimoErrorPdf = '';
+      if (await generarPdfPresupuesto(p.id, { lote: true })) ok++;
+      else fallidos.push(`• ${p.numero} (${p.cliente}): ${ultimoErrorPdf || 'error desconocido'}`);
+    }
+  } finally {
+    presModoLote = false;
+    btn.disabled = false;
+    invalidateCache('presupuestos');
+    await loadPresupuestos();
+  }
+  toast(`✅ ${ok} PDF(s) generados y guardados en Drive${fallidos.length ? ` · ${fallidos.length} sin generar` : ''}`,
+    fallidos.length ? 'err' : undefined);
+  if (fallidos.length) alert(`Estos presupuestos no se generaron:\n\n${fallidos.join('\n')}`);
 }
 
 
@@ -1841,3 +1956,5 @@ window.toggleFletePresup = toggleFletePresup;
 window.toggleSenaEv = toggleSenaEv;
 window.actualizarTotalFinalEv = actualizarTotalFinalEv;
 window.generarPresupuesto = generarPresupuesto;
+window.generarPdfPresupuesto = generarPdfPresupuesto;
+window.generarPdfsFaltantes = generarPdfsFaltantes;
