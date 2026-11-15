@@ -5,6 +5,16 @@ import 'flatpickr/dist/l10n/es.js';
 import { SB_URL, SB_KEY } from './config';
 import { state } from './state';
 
+// Headers para Supabase con el token de la sesión del usuario logueado (no la clave pública).
+// Sin sesión válida, la base rechaza la consulta (RLS).
+export async function authHeaders(json = false) {
+  const { data: { session } } = await state.supabaseClient.auth.getSession();
+  if (!session?.access_token) throw new Error('Sesión vencida: volvé a iniciar sesión');
+  const headers: Record<string, string> = { apikey: SB_KEY, Authorization: `Bearer ${session.access_token}` };
+  if (json) headers['Content-Type'] = 'application/json';
+  return headers;
+}
+
 export async function sb(table, opts = {}) {
   const { method = 'GET', body, select = '*', filters = [], order, limit } = opts;
   let url = `${SB_URL}/rest/v1/${table}?select=${select}`;
@@ -14,9 +24,7 @@ export async function sb(table, opts = {}) {
   const res = await fetch(url, {
     method,
     headers: {
-      'apikey': SB_KEY,
-      'Authorization': `Bearer ${SB_KEY}`,
-      'Content-Type': 'application/json',
+      ...(await authHeaders(true)),
       'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -31,7 +39,7 @@ export async function sbInsert(table, body) { return sbPost(table, body); }
 export async function sbPatch(table, id, body) {
   const res = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
     method: 'PATCH',
-    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+    headers: await authHeaders(true),
     body: JSON.stringify(body),
   });
   return res.ok;
@@ -39,7 +47,7 @@ export async function sbPatch(table, id, body) {
 export async function sbDelete(table, id) {
   const res = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
     method: 'DELETE',
-    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
+    headers: await authHeaders(),
   });
   return res.ok;
 }

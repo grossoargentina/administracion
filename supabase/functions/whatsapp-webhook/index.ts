@@ -6,6 +6,20 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Meta firma cada POST con HMAC-SHA256 del cuerpo usando el "App Secret" de la app.
+async function firmaValida(raw: string, header: string | null): Promise<boolean> {
+  const secret = Deno.env.get('WHATSAPP_APP_SECRET');
+  if (!secret || !header?.startsWith('sha256=')) return false;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(raw)));
+  const esperado = 'sha256=' + [...sig].map((b) => b.toString(16).padStart(2, '0')).join('');
+  if (esperado.length !== header.length) return false;
+  let diff = 0;
+  for (let i = 0; i < esperado.length; i++) diff |= esperado.charCodeAt(i) ^ header.charCodeAt(i);
+  return diff === 0;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
@@ -25,7 +39,12 @@ serve(async (req) => {
   // POST: mensaje entrante
   if (req.method === 'POST') {
     try {
-      const body = await req.json();
+      const raw = await req.text();
+      if (!(await firmaValida(raw, req.headers.get('X-Hub-Signature-256')))) {
+        console.warn('Webhook rechazado: firma de Meta inválida o WHATSAPP_APP_SECRET sin configurar');
+        return new Response('Forbidden', { status: 403 });
+      }
+      const body = JSON.parse(raw);
       const entry = body?.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;

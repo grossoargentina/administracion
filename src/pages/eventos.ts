@@ -1,5 +1,5 @@
 import { state } from '../state';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, getAdicionalesEv, getHorasFinEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, today, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, getAdicionalesEv, getHorasFinEv, authHeaders } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_CONTABLE } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -672,7 +672,7 @@ export async function darDeBajaEvento(id, cliente) {
     // Marcar como perdidos los presupuestos vinculados a este evento
     const resPres = await fetch(`${SB_URL}/rest/v1/presupuestos?evento_id=eq.${id}`, {
       method: 'PATCH',
-      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+      headers: await authHeaders(true),
       body: JSON.stringify({ estado_evento: 'Perdido' }),
     });
     if (!resPres.ok) console.error('Error marcando presupuestos como perdidos', id, await resPres.text());
@@ -684,12 +684,12 @@ export async function darDeBajaEvento(id, cliente) {
       const logIds = rels.map(r => r.logistica_id).join(',');
       const resJorn = await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=in.(${logIds})`, {
         method: 'DELETE',
-        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+        headers: await authHeaders(),
       });
       if (!resJorn.ok) console.error('Error borrando jornadas del evento', id, await resJorn.text());
       const resLog = await fetch(`${SB_URL}/rest/v1/logisticas?id=in.(${logIds})`, {
         method: 'DELETE',
-        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+        headers: await authHeaders(),
       });
       if (!resLog.ok) console.error('Error borrando logísticas del evento', id, await resLog.text());
     }

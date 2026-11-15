@@ -5,8 +5,30 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Solo usuarios logueados en la plataforma y autorizados pueden usar esta función.
+const ADMIN_EMAILS = (Deno.env.get('ADMIN_EMAILS') || 'administracion@grossoarg.com')
+  .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+async function requireAdmin(req: Request): Promise<Response | null> {
+  const jwt = (req.headers.get('Authorization') || '').replace(/^Bearers+/i, '');
+  const deny = (msg: string) => new Response(JSON.stringify({ error: msg }), {
+    status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+  if (!jwt) return deny('No autorizado');
+  const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/user`, {
+    headers: { apikey: Deno.env.get('SUPABASE_ANON_KEY') ?? '', Authorization: `Bearer ${jwt}` },
+  });
+  if (!res.ok) return deny('Sesión inválida o vencida');
+  const user = await res.json();
+  if (!ADMIN_EMAILS.includes(String(user?.email || '').toLowerCase())) return deny('Usuario no autorizado');
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
 
   try {
     const { to, message, phone_number_id } = await req.json();

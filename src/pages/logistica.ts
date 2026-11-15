@@ -1,6 +1,6 @@
 import { state } from '../state';
 import { jsPDF } from 'jspdf';
-import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, parseSeguroInfo, today, fmtLocalDate, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv } from '../helpers';
+import { sb, sbPost, sbInsert, sbPatch, sbDelete, fmtARS, fmtDate, escHtml, calcularTotalConRecargos, parseSeguroInfo, today, fmtLocalDate, formatTelefono, onTelefonoInput, formatDni, onDniInput, formatCuit, onCuitInput, badge, fmtInputARS, parseARSInput, toast, openModal, closeModal, LOGO_B64, buildTimeOpts, timeSelect, llenarSelectEventos, initDatePickers, renderHorariosEv, getHorariosEv, authHeaders } from '../helpers';
 import { SB_URL, SB_KEY, FOLDER_LOGISTICAS, WA_EDGE_URL, EMAIL_EDGE_URL, EMAIL_SEGURO, DRIVE_FOLDER_ID, FOTOS_FOLDER_ID, FOLDER_LIQUIDACIONES } from '../config';
 import { sbCached, invalidateCache } from '../query-cache';
 
@@ -1213,7 +1213,7 @@ export async function guardarLogistica() {
       if (toInsert.length) await sbPost('jornadas', toInsert);
       for (const jornadaId of toDelete) {
         await fetch(`${SB_URL}/rest/v1/jornadas?id=eq.${jornadaId}&pagado=eq.false`, {
-          method: 'DELETE', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+          method: 'DELETE', headers: await authHeaders(),
         });
       }
     } else {
@@ -1353,7 +1353,7 @@ export async function enviarMailSeguroEvento(eventoId, evLabel) {
     toast('Enviando mail de seguro...');
     const res = await fetch(EMAIL_EDGE_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SB_KEY}`, 'apikey': SB_KEY },
+      headers: await authHeaders(true),
       body: JSON.stringify({ to: EMAIL_SEGURO, subject: `Seguro personal — ${evLabel}`, html }),
     });
     const data = await res.json();
@@ -1440,7 +1440,7 @@ export async function enviarMailSeguro(logId) {
     toast('Enviando mail de seguro...');
     const res = await fetch(EMAIL_EDGE_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SB_KEY}`, 'apikey': SB_KEY },
+      headers: await authHeaders(true),
       body: JSON.stringify({
         to: EMAIL_SEGURO,
         subject: `Seguro personal — ${evLabel}`,
@@ -1462,13 +1462,13 @@ export async function eliminarLogistica(id) {
     if (jorns.length) {
       await fetch(`${SB_URL}/rest/v1/jornadas?logistica_id=eq.${id}`, {
         method: 'DELETE',
-        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
+        headers: await authHeaders(),
       });
     }
     // Eliminar relaciones logistica_eventos
     await fetch(`${SB_URL}/rest/v1/logistica_eventos?logistica_id=eq.${id}`, {
       method: 'DELETE',
-      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` },
+      headers: await authHeaders(),
     });
     await sbDelete('logisticas', id);
     invalidateCache('logisticas');
@@ -1657,7 +1657,7 @@ export async function enviarTodosWhatsapp() {
     try {
       const res = await fetch(WA_EDGE_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SB_KEY}`, 'apikey': SB_KEY },
+        headers: await authHeaders(true),
         body: JSON.stringify({ to: p.telefono, message: p.texto }),
       });
       const data = await res.json();
