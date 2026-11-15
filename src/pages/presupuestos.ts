@@ -1000,15 +1000,14 @@ export async function nuevaVersionPresupuesto(id) {
   const fpPres = document.getElementById('pres-fechas')._flatpickr;
   if (fpPres) {
     fpPres.clear();
-    const fechasGuardadas = base.fechas_evento
-      ? (Array.isArray(base.fechas_evento) ? base.fechas_evento : JSON.parse(base.fechas_evento))
-      : (base.fecha_evento ? [base.fecha_evento] : []);
-    if (fechasGuardadas.length) {
-      fpPres.setDate(fechasGuardadas);
-      const horariosGuardados = base.horarios_evento
-        ? (Array.isArray(base.horarios_evento) ? base.horarios_evento : JSON.parse(base.horarios_evento))
-        : [];
-    }
+    // fechas_evento puede venir como array (jsonb) o como texto JSON
+    let fechasGuardadas = [];
+    try {
+      const f = typeof base.fechas_evento === 'string' ? JSON.parse(base.fechas_evento) : base.fechas_evento;
+      fechasGuardadas = Array.isArray(f) ? f : [];
+    } catch (_) { /* formato inesperado: usar fecha_evento */ }
+    if (!fechasGuardadas.length && base.fecha_evento) fechasGuardadas = [base.fecha_evento];
+    if (fechasGuardadas.length) fpPres.setDate(fechasGuardadas);
   }
   document.getElementById('pres-venue').value    = base.venue || '';
   document.getElementById('pres-modalidad').value = base.modalidad || 'Pago total al finalizar';
