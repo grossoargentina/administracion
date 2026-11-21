@@ -167,6 +167,9 @@ export function renderEventos() {
               ? `<button class="btn btn-ghost btn-sm" onclick="registrarCobro(${e.id},'${e.cliente_nombre}',${e.sena_cobrada},${e.saldo_cobrado})">Cobro</button>
                  <button class="btn btn-ghost btn-sm" onclick="window.abrirPresupuestoParaEvento(${e.id})">+ Presupuesto</button>`
               : ''}
+            ${(e.saldo_cobrado || e.estado === 'Cobrado' || e.estado === 'Realizado') && e.estado !== 'Dado de baja'
+              ? `<button class="btn btn-ghost btn-sm" title="Ver facturas y comprobantes del evento" onclick="abrirArchivosContables(${e.id},'${(e.cliente_nombre||'').replace(/'/g,"\\'")}','${(e.venue||'').replace(/'/g,"\\'")}','${e.fecha_evento||''}')">🧾 Facturas</button>`
+              : ''}
             ${e.estado !== 'Dado de baja'
               ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);opacity:.6" onclick="darDeBajaEvento(${e.id},'${(e.cliente_nombre||'').replace(/'/g,"\\'")}')">Baja</button>`
               : `<button class="btn btn-ghost btn-sm" style="color:var(--green);opacity:.6" onclick="reactivarEvento(${e.id})">Reactivar</button>`}
