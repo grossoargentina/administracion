@@ -616,9 +616,10 @@ export async function loadCobros() {
     // Cargar nombres de eventos para los cobros recientes
     const evIds = [...new Set(pagosRecientes.map(p => p.evento_id).filter(Boolean))];
     const evMap: Record<number, string> = {};
+    const evInfo: Record<number, { venue: string; fecha: string }> = {};
     if (evIds.length) {
-      const evs = await sbCached('v_pipeline', { filters: [`id=in.(${evIds.join(',')})`], select: 'id,cliente_nombre', limit: 50 });
-      evs.forEach(e => evMap[e.id] = e.cliente_nombre);
+      const evs = await sbCached('v_pipeline', { filters: [`id=in.(${evIds.join(',')})`], select: 'id,cliente_nombre,venue,fecha_evento', limit: 50 });
+      evs.forEach(e => { evMap[e.id] = e.cliente_nombre; evInfo[e.id] = { venue: e.venue || '', fecha: e.fecha_evento || '' }; });
     }
 
     document.getElementById('cobros-recientes-tbody').innerHTML = pagosRecientes.length
@@ -631,7 +632,10 @@ export async function loadCobros() {
             <td><b>${cliente}</b></td>
             <td style="color:var(--text-3)">${p.tipo || '—'}</td>
             <td style="color:var(--green);font-weight:600">${fmtARS(p.monto_ars)}</td>
-            <td><button class="btn btn-ghost btn-sm" title="Cancelar cobro" onclick="cancelarCobro(${p.id},${p.evento_id},'${clienteEsc}')">✕</button></td>
+            <td style="white-space:nowrap">
+              ${p.evento_id ? `<button class="btn btn-ghost btn-sm" title="Ver facturas y comprobantes del evento" onclick="abrirArchivosContables(${p.evento_id},'${clienteEsc}','${(evInfo[p.evento_id]?.venue || '').replace(/'/g, "\\'")}','${evInfo[p.evento_id]?.fecha || ''}')">🧾 Facturas</button>` : ''}
+              <button class="btn btn-ghost btn-sm" title="Cancelar cobro" onclick="cancelarCobro(${p.id},${p.evento_id},'${clienteEsc}')">✕</button>
+            </td>
           </tr>`;
         }).join('')
       : `<tr><td colspan="5"><div class="empty" style="padding:16px">Sin cobros registrados</div></td></tr>`;
